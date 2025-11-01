@@ -132,6 +132,21 @@ pre-build = "echo pre-build"
 post-build = "echo post-build"
 ```
 
+### Conan Package Management (Pre-release)
+
+`cpm` offers experimental support for [Conan](https://conan.io/), a C++ package manager, allowing you to integrate third-party libraries seamlessly.
+
+To add Conan packages, create a `[conan-dependencies]` section in your `package.toml` file. Specify each package and its version in the format `package_name = "version"`.
+
+For example:
+
+```toml
+[conan-dependencies]
+fmt = "10.2.1"
+```
+
+After adding your dependencies, you can run `cpm install`, `cpm build`, or `cpm run`. These commands will automatically detect the changes in `package.toml`, fetch the specified Conan packages, and configure your CMake project to use them.
+
 ## Contributing
 
 Contributions are welcome! Please feel free to open issues or submit pull requests.
