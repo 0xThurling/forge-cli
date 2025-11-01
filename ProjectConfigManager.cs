@@ -49,6 +49,15 @@ namespace cpm
                 }
             }
 
+            if (toml.HasKey("conan-dependencies"))
+            {
+                var depsTable = toml["conan-dependencies"].AsTable;
+                foreach (var key in depsTable.Keys)
+                {
+                    config.ConanDependencies.Add(key, depsTable[key]);
+                }
+            }
+
             if (toml.HasKey("resources") && toml["resources"].HasKey("files"))
             {
                 var filesArray = toml["resources"]["files"].AsArray;
