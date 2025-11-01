@@ -34,6 +34,13 @@ namespace cpm.Commands
             }
         }
 
+        var installPackages = new InstallCommand();
+        if (installPackages.Run() != 0)
+        {
+          AnsiConsole.WriteLine("Error install conan packages");
+          return 1;
+        }
+
         AnsiConsole.Status().Start("Building Project...", ctx =>
         {
             var projectName = projectConfig.Project.Name;
@@ -81,8 +88,8 @@ namespace cpm.Commands
                     }
                 }
 
-                foreach (var conanDep in projectConfig.ConanDependencies) {
-                  linkTargets.Add($"{conanDep.Key}::{conanDep.Key}");
+                foreach (var dep in ProjectBuildManager.LinkDependencies) {
+                  linkTargets.Add(dep);
                 }
 
                 cmakeContent.AppendLine("");
@@ -92,13 +99,13 @@ namespace cpm.Commands
                     cmakeContent.AppendLine($"FetchContent_MakeAvailable({dep.Key})");
                 }
 
-                if (projectConfig.ConanDependencies != null && projectConfig.ConanDependencies.Any())
+                if (projectConfig.ConanDependencies != null && ProjectBuildManager.FindDependencies.Any())
                 {
                     cmakeContent.AppendLine("");
                     cmakeContent.AppendLine("# --- Dependencies (Conan)");
-                    foreach (var dep in projectConfig.ConanDependencies)
+                    foreach (var dep in ProjectBuildManager.FindDependencies)
                     {
-                      cmakeContent.AppendLine($"find_package({dep.Key} REQUIRED)");
+                      cmakeContent.AppendLine($"find_package({dep} REQUIRED)");
                     }
                 }
 
@@ -164,7 +171,7 @@ namespace cpm.Commands
 
                 var rootCmakeContent = new StringBuilder();
 
-                rootCmakeContent.AppendLine($"cmake_minimum_required(VERSION 3.20)");
+                rootCmakeContent.AppendLine($"cmake_minimum_required(VERSION 3.23)");
                 rootCmakeContent.AppendLine();
                 rootCmakeContent.AppendLine($"project({projectName} LANGUAGES CXX)");
                 rootCmakeContent.AppendLine();
@@ -174,13 +181,12 @@ namespace cpm.Commands
                 File.WriteAllText("CMakeLists.txt", rootCmakeContent.ToString());
 
                 // Configure step
-                var cmakeArgs = new StringBuilder("-B build -S . -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=.");
+                var cmakeArgs = new StringBuilder("-B build -DCMAKE_BUILD_TYPE=Release -S . -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=.");
                 var toolchain = Path.Combine("build", "build", "Release", "generators", "conan_toolchain.cmake");
 
                 if (File.Exists(toolchain))
                 {
-                  ctx.Status(toolchain);
-                  cmakeArgs.Append($" -DCMAKE_TOOLCHAIN_FILE=\"{Path.GetFullPath(toolchain)}\"");
+                  cmakeArgs.Append($" -DCMAKE_TOOLCHAIN_FILE=\"{toolchain}\"");
                 }
 
                 var cmakeConfigureCommand = new ProcessStartInfo("cmake", cmakeArgs.ToString())

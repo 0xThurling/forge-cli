@@ -1,11 +1,12 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.RegularExpressions;
 using DotMake.CommandLine;
 using Spectre.Console;
 
 namespace cpm.Commands {
   [CliCommand(Name = "install", Description = "Generate conanfile and install dependencies", Parent = typeof(RootCommand))]
-  public class InstallCommand {
+  public partial class InstallCommand {
     public int Run() {
       var config = ProjectConfigManager.LoadConfig();
       if (config == null) return 1;
@@ -32,32 +33,91 @@ namespace cpm.Commands {
 
       AnsiConsole.MarkupLine("Running `conan install...`");
 
-        var processInfo = new ProcessStartInfo("conan", $"install {conanfilePath} --output-folder=build --build=missing") {
-          UseShellExecute = false,
-          RedirectStandardOutput = false,
-          RedirectStandardError = false 
-        };
       try
       {
+        var processInfo = new ProcessStartInfo("conan", $"install {conanfilePath} --output-folder=build --build=missing") {
+          UseShellExecute = false,
+          RedirectStandardOutput = true,
+          RedirectStandardError = true,
+          CreateNoWindow = true
+        };
 
-        using (var process = Process.Start(processInfo))
+        var outputBuilder = new StringBuilder();
+        var errorBuilder = new StringBuilder();
+
+        using var process = Process.Start(processInfo) ?? throw new Exception("Failed to start conan process.");
+         
+        process.OutputDataReceived += (sender, e) =>
         {
-           if (process == null) throw new Exception("Failed to start conan process.");
-           process.WaitForExit();
-           if (process.ExitCode != 0)
-           {
-             AnsiConsole.MarkupLine("[bold red] Conan install failed.[/]");
-             AnsiConsole.WriteLine(process.StandardOutput.ReadToEnd());
-             AnsiConsole.WriteLine(process.StandardError.ReadToEnd());
-             return 1;
-           }
-           return process.ExitCode;
-        }
+            if (!string.IsNullOrEmpty(e.Data))
+            {
+                outputBuilder.AppendLine(e.Data);
+            }
+        };
+
+        process.ErrorDataReceived += (sender, e) =>
+        {
+            if (!string.IsNullOrEmpty(e.Data))
+            {
+                errorBuilder.AppendLine(e.Data);
+            }
+        };
+
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
+
+        process.WaitForExit();
+
+        LinkConanDependencies(errorBuilder.ToString());
+        FindConanDependencies(errorBuilder.ToString());
+
+        return process.ExitCode;
       }
       catch (Exception ex)
       {
         AnsiConsole.MarkupLine($"[red]Error: {ex.Message}[/]");
         return 1;
+      }
+    }
+
+    /// <summary>
+    ///   Extracts the correct CMake tags for the target_link_libraries
+    ///   Used during the build process
+    /// </summary>
+    private static void LinkConanDependencies(string output) {
+      var lines = output.Split('\n');
+
+      foreach(var line in lines) {
+        var trimmedLine = line.Trim();
+
+        if (trimmedLine.StartsWith("target_link_libraries")) {
+          var linkTags = trimmedLine.Split(' ')[1..];
+          foreach (var tag in linkTags) {
+            var strippedTag = tag.Replace(')', ' ').Trim();
+            AnsiConsole.WriteLine(strippedTag);
+            ProjectBuildManager.LinkDependencies.Add(strippedTag);
+          }
+        }
+      }
+    }
+
+    [GeneratedRegex(@"\(([^)]*)\)")]
+    private static partial Regex MyRegex();
+
+    private static void FindConanDependencies(string output) {
+      var lines = output.Split('\n');
+
+      foreach(var line in lines) {
+        var trimmedLine = line.Trim();
+
+        if (trimmedLine.StartsWith("find_package")) {
+          Match match = MyRegex().Match(trimmedLine);
+          if (match.Success)
+          {
+              string extracted = match.Groups[1].Value;
+              ProjectBuildManager.FindDependencies.Add(extracted);
+          }
+        }
       }
     }
   } 
