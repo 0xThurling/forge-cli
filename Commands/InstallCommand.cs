@@ -71,6 +71,12 @@ namespace cpm.Commands {
         LinkConanDependencies(errorBuilder.ToString());
         FindConanDependencies(errorBuilder.ToString());
 
+        if (process.ExitCode != 0)
+        {
+          AnsiConsole.WriteLine(errorBuilder.ToString());
+          return 1;
+        }
+
         return process.ExitCode;
       }
       catch (Exception ex)
@@ -94,7 +100,6 @@ namespace cpm.Commands {
           var linkTags = trimmedLine.Split(' ')[1..];
           foreach (var tag in linkTags) {
             var strippedTag = tag.Replace(')', ' ').Trim();
-            AnsiConsole.WriteLine(strippedTag);
             ProjectBuildManager.LinkDependencies.Add(strippedTag);
           }
         }
