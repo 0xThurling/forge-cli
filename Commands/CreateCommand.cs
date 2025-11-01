@@ -24,6 +24,7 @@ namespace cpm.Commands
         Directory.CreateDirectory(projectName);
         Directory.CreateDirectory(Path.Combine(projectName, "src"));
         Directory.CreateDirectory(Path.Combine(projectName, "assets"));
+        Directory.CreateDirectory(Path.Combine(projectName, ".config"));
 
         // Create src/main.cpp for executable
         if (Type == "executable")
@@ -50,7 +51,7 @@ namespace cpm.Commands
         ProjectConfigManager.SaveConfig(projectConfig, projectName);
 
         // Create a placeholder .gitignore
-        var gitignoreContent = "build/\nlib/\ncompile_commands.json\n";
+        var gitignoreContent = "build/\nlib/\ncompile_commands.json\n.config/\nconanfile.txt\n";
         File.WriteAllText(Path.Combine(projectName, ".gitignore"), gitignoreContent);
 
         AnsiConsole.MarkupLine($"[bold green]Successfully created project `[bold yellow]{projectName}[/]`.[/]");
