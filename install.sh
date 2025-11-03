@@ -16,16 +16,40 @@ fi
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 ARCH=$(uname -m)
 
-if [ "$OS" == "darwin" ]; then
-    OS="osx"
-fi
-
-if [ "$ARCH" == "x86_64" ]; then
-    ARCH="x64"
-fi
-
-# Construct the asset name.
-ASSET_NAME="cpm-${OS}-${ARCH}"
+case "$OS" in
+    linux)
+        case "$ARCH" in
+            x86_64)
+                ASSET_NAME="cpm-linux-x64"
+                ;;
+            aarch64 | arm64)
+                ASSET_NAME="cpm-linux-arm64"
+                ;;
+            *)
+                echo "Error: Unsupported architecture for Linux: $ARCH"
+                exit 1
+                ;;
+        esac
+        ;;
+    darwin)
+        case "$ARCH" in
+            x86_64)
+                ASSET_NAME="cpm-osx-x64"
+                ;;
+            arm64)
+                ASSET_NAME="cpm-osx-arm64"
+                ;;
+            *)
+                echo "Error: Unsupported architecture for macOS: $ARCH"
+                exit 1
+                ;;
+        esac
+        ;;
+    *)
+        echo "Error: Unsupported OS: $OS"
+        exit 1
+        ;;
+esac
 
 # Construct the download URL.
 DOWNLOAD_URL="https://github.com/0xThurling/cpm/releases/download/${LATEST_RELEASE}/${ASSET_NAME}"
