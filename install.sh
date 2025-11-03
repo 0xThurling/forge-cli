@@ -58,9 +58,6 @@ DOWNLOAD_URL="https://github.com/0xThurling/cpm/releases/download/${LATEST_RELEA
 echo "Downloading ${ASSET_NAME} from ${DOWNLOAD_URL}..."
 curl -L -o cpm "${DOWNLOAD_URL}"
 
-# Check what 'cpm' is after download
-ls -ld cpm
-
 # Make the binary executable.
 chmod +x cpm
 
