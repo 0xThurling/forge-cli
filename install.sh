@@ -2,7 +2,7 @@
 
 # This script downloads and installs the latest release of cpm.
 
-set -e
+set -ex
 
 # Get the latest release tag from GitHub.
 LATEST_RELEASE=$(curl -s "https://api.github.com/repos/0xThurling/cpm/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
@@ -57,6 +57,9 @@ DOWNLOAD_URL="https://github.com/0xThurling/cpm/releases/download/${LATEST_RELEA
 # Download the asset.
 echo "Downloading ${ASSET_NAME} from ${DOWNLOAD_URL}..."
 curl -L -o cpm "${DOWNLOAD_URL}"
+
+# Check what 'cpm' is after download
+ls -ld cpm
 
 # Make the binary executable.
 chmod +x cpm
