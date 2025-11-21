@@ -2,6 +2,7 @@ using DotMake.CommandLine;
 using Spectre.Console;
 using System.Diagnostics;
 using System.Text;
+using cpm.Commands.Conan;
 
 namespace cpm.Commands
 {
