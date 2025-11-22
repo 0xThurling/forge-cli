@@ -30,20 +30,20 @@ namespace cpm.Commands
 
         try
         {
+
           var processStartInfo = new ProcessStartInfo("bash", $"-c \"{scriptCommand}\"")
           {
             UseShellExecute = false,
-            RedirectStandardOutput = false,
-            RedirectStandardError = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
             CreateNoWindow = true,
           };
 
-          using (var process = Process.Start(processStartInfo))
-          {
-            if (process == null) throw new Exception("Failed to start script process.");
-            process.WaitForExit();
-            return process.ExitCode;
-          }
+          using var process = Process.Start(processStartInfo) ?? throw new Exception("Failed to start script process.");
+          string output = process.StandardOutput.ReadToEnd();
+        string error = process.StandardError.ReadToEnd();
+          process.WaitForExit();
+          return process.ExitCode;
         }
         catch (Exception ex)
         {

@@ -87,7 +87,7 @@ namespace cpm.Commands.Conan {
     }
 
     /// <summary>
-    ///   Extracts the correct CMake tags for the target_link_libraries
+    ///   Extracts the correct CMake tags for the <c>target_link_libraries</c>
     ///   Used during the build process
     /// </summary>
     private static void LinkConanDependencies(string output) {
