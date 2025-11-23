@@ -42,7 +42,7 @@ namespace cpm.Commands
           return 1;
         }
 
-        AnsiConsole.Status().Start("Building Project...", ctx =>
+        AnsiConsole.Status().AutoRefresh(!Verbose).Start("Building Project...", ctx =>
         {
             var projectName = projectConfig.Project.Name;
 
@@ -129,6 +129,7 @@ namespace cpm.Commands
                     }
                 }
 
+
                 cmakeContent.AppendLine("");
                 cmakeContent.AppendLine("# --- Linking ---");
                 if (linkTargets.Any())
@@ -174,7 +175,7 @@ namespace cpm.Commands
 
                 rootCmakeContent.AppendLine($"cmake_minimum_required(VERSION 3.23)");
                 rootCmakeContent.AppendLine();
-                rootCmakeContent.AppendLine($"project({projectName} LANGUAGES CXX)");
+                rootCmakeContent.AppendLine($"project({projectName} LANGUAGES CXX C)");
                 rootCmakeContent.AppendLine();
                 rootCmakeContent.AppendLine("# Include the generated project configuration");
                 rootCmakeContent.AppendLine($"include({generatedCmakePath})");
@@ -226,7 +227,7 @@ namespace cpm.Commands
                     File.CreateSymbolicLink(symlinkPath, compileCommandsPath);
                     if (Verbose)
                     {
-                        AnsiConsole.MarkupLine("[bold green]--- Created compile_commands.json for LSP ---");
+                        AnsiConsole.MarkupLine("[bold green]--- Created compile_commands.json for LSP --- [/]");
                     }
                 }
 
