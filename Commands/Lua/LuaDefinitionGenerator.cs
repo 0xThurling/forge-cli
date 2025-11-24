@@ -2,7 +2,7 @@ using System.Text;
 
 namespace cpm.Commands.Lua
 {
-    public class LuaDefinitionGenerator : LuaEngine
+    public class LuaDefinitionGenerator 
     {
       public static string GenerateDefinitions() {
         var sb = new StringBuilder();
@@ -35,7 +35,7 @@ namespace cpm.Commands.Lua
         // --- cpm logging information 
         sb.AppendLine("--- Logs an information message to the console");
         sb.AppendLine("---@param message string The message to log.");
-        sb.AppendLine("function cpm.log.information(message) end");
+        sb.AppendLine("function cpm.log.info(message) end");
         sb.AppendLine();
 
         // --- cpm pull repo 

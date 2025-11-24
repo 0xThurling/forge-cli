@@ -2,13 +2,13 @@ using Lua;
 
 namespace cpm.Commands.Lua
 {
-    public class LuaBuilder : LuaEngine
+    public class LuaBuilder
     {
-      public async Task RunBuilderScripts() {
+      public static async Task RunBuilderScripts() {
         var files = Directory.GetFiles(Path.Combine(Directory.GetCurrentDirectory(), ".config", "cpm", "build"));
 
         foreach (var file in files) {
-          var results = await state.DoFileAsync(file);
+          var results = await LuaEngine.GetLuaEngine().DoFileAsync(file);
           // Read the mapped Lua Table for processing
           if (results[0].TryRead<LuaTable>(out var table))
           {

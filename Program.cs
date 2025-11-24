@@ -2,8 +2,9 @@ using cpm.Commands;
 using DotMake.CommandLine;
 using cpm.Commands.Lua;
 
-Cli.Run<RootCommand>(args);
+// Start the Lua Sandbox Engine
+LuaEngine.InitialiseLuaEngine();
 
-var luaBuilder = new LuaBuilder();
+// Cli.Run<RootCommand>(args);
 
-await luaBuilder.RunBuilderScripts();
+await LuaBuilder.RunBuilderScripts();
