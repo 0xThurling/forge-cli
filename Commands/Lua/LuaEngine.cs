@@ -50,7 +50,11 @@ namespace cpm.Commands.Lua
       {
         var repoUrl = context.GetArgument<string>(0);
 
-        var processStartInfo = new ProcessStartInfo($"git clone {repoUrl} {Path.Combine(Directory.GetCurrentDirectory(), "external")}")
+        var repoName = repoUrl.Split('/')[^1].Split(".")[0];
+
+        if (repoName == null) return 0;
+  
+        var processStartInfo = new ProcessStartInfo("git", $"clone {repoUrl} external/{repoName}")
         {
           UseShellExecute = false,
           RedirectStandardOutput = true,
@@ -59,6 +63,10 @@ namespace cpm.Commands.Lua
         };
 
         using var process = Process.Start(processStartInfo) ?? throw new Exception("Failed to pull repository");
+
+        AnsiConsole.WriteLine("Cloning repo...");
+
+        await process.WaitForExitAsync(token);
 
         return process.ExitCode;
       });
