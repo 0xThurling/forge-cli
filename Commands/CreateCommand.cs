@@ -24,6 +24,7 @@ namespace cpm.Commands
         // Create directories
         Directory.CreateDirectory(projectName);
         Directory.CreateDirectory(Path.Combine(projectName, "src"));
+        Directory.CreateDirectory(Path.Combine(projectName, "external"));
         Directory.CreateDirectory(Path.Combine(projectName, "assets"));
         Directory.CreateDirectory(Path.Combine(projectName, ".config"));
 

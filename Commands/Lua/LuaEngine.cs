@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using Lua;
 using Lua.Standard;
@@ -8,14 +9,17 @@ namespace cpm.Commands.Lua
   public static class LuaEngine
   {
     private static LuaState state = default!;
+    private static LuaTable cpm = default!;
 
-    public static void InitialiseLuaEngine() {
+    public static void InitialiseLuaEngine()
+    {
       state = LuaState.Create();
-      
+      cpm = new LuaTable();
+
       SetEnvironmentLibraries(ref state);
       SetDefinitionTables(ref state);
     }
-    
+
     private static void SetEnvironmentLibraries(ref LuaState state)
     {
       state.OpenStandardLibraries();
@@ -31,8 +35,39 @@ namespace cpm.Commands.Lua
       state.OpenStringLibrary();
     }
 
-    private static void SetDefinitionTables(ref LuaState state) {
-      var cpm = new LuaTable();
+    private static void SetDefinitionTables(ref LuaState state)
+    {
+      SetGitFunctions();
+      SetLoggingFunctionsAndDefinitions();
+      SetEnvironmentVariableInformation();
+
+      state.Environment["cpm"] = cpm;
+    }
+
+    private static void SetGitFunctions()
+    {
+      var pullRepoFunc = new LuaFunction("pull_repo", async (context, token) =>
+      {
+        var repoUrl = context.GetArgument<string>(0);
+
+        var processStartInfo = new ProcessStartInfo($"git clone {repoUrl} {Path.Combine(Directory.GetCurrentDirectory(), "external")}")
+        {
+          UseShellExecute = false,
+          RedirectStandardOutput = true,
+          RedirectStandardError = true,
+          CreateNoWindow = true,
+        };
+
+        using var process = Process.Start(processStartInfo) ?? throw new Exception("Failed to pull repository");
+
+        return process.ExitCode;
+      });
+
+      cpm[new LuaValue("pull_repo")] = new LuaValue(pullRepoFunc);
+    }
+
+    private static void SetLoggingFunctionsAndDefinitions()
+    {
       var log = new LuaTable();
 
       var logInformationFunc = new LuaFunction("info", async (context, token) =>
@@ -40,21 +75,24 @@ namespace cpm.Commands.Lua
         var info = context.GetArgument<string>(0);
         AnsiConsole.MarkupLine($"[bold blue]INFO[/]: {info}");
         return 0;
-      }); 
+      });
 
       log[new LuaValue("info")] = new LuaValue(logInformationFunc);
       cpm[new LuaValue("log")] = new LuaValue(log);
-      cpm[new LuaValue("current_working_dir")] = new LuaValue(Directory.GetCurrentDirectory());
-
-      state.Environment["cpm"] = cpm;
     }
 
-    public static void SetEnvironmentDefinitions(string projectName) {
-        var definitionsFilePath = Path.Combine(Directory.GetCurrentDirectory(), projectName,".config", "cpm", "definitions");
+    private static void SetEnvironmentVariableInformation()
+    {
+      cpm[new LuaValue("current_working_dir")] = new LuaValue(Directory.GetCurrentDirectory());
+    }
 
-        var definitions = LuaDefinitionGenerator.GenerateDefinitions();
+    public static void SetEnvironmentDefinitions(string projectName)
+    {
+      var definitionsFilePath = Path.Combine(Directory.GetCurrentDirectory(), projectName, ".config", "cpm", "definitions");
 
-        File.AppendAllBytes(Path.Combine(definitionsFilePath, "definitions.lua"), Encoding.UTF8.GetBytes(definitions));
+      var definitions = LuaDefinitionGenerator.GenerateDefinitions();
+
+      File.AppendAllBytes(Path.Combine(definitionsFilePath, "definitions.lua"), Encoding.UTF8.GetBytes(definitions));
     }
 
     public static LuaState GetLuaEngine() => state;

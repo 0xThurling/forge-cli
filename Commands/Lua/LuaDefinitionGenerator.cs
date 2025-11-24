@@ -48,7 +48,7 @@ namespace cpm.Commands.Lua
         // Environment Variables
         sb.AppendLine("--- The current working directory");
         sb.AppendLine("---@type string");
-        sb.AppendLine("current_working_dir = \"\"");
+        sb.AppendLine("cpm.current_working_dir = \"\"");
         sb.AppendLine();
 
         return sb.ToString();
