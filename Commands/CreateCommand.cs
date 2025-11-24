@@ -24,11 +24,12 @@ namespace cpm.Commands
         Directory.CreateDirectory(projectName);
         Directory.CreateDirectory(Path.Combine(projectName, "src"));
         Directory.CreateDirectory(Path.Combine(projectName, "assets"));
-        Directory.CreateDirectory(Path.Combine(projectName, ".cpm"));
-        Directory.CreateDirectory(Path.Combine(projectName, ".cpm", "commands"));
-        Directory.CreateDirectory(Path.Combine(projectName, ".cpm", "build"));
-        Directory.CreateDirectory(Path.Combine(projectName, ".cpm", "templates"));
         Directory.CreateDirectory(Path.Combine(projectName, ".config"));
+        Directory.CreateDirectory(Path.Combine(projectName, ".config", "cpm"));
+        Directory.CreateDirectory(Path.Combine(projectName, ".config", "cpm", "commands"));
+        Directory.CreateDirectory(Path.Combine(projectName, ".config", "cpm", "build"));
+        Directory.CreateDirectory(Path.Combine(projectName, ".config", "cpm", "templates"));
+        Directory.CreateDirectory(Path.Combine(projectName, ".config", "cpm", "definitions"));
 
         // Create src/main.cpp for executable
         if (Type == "executable")

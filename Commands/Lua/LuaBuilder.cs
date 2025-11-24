@@ -5,7 +5,7 @@ namespace cpm.Commands.Lua
     public class LuaBuilder : LuaEngine
     {
       public async Task RunBuilderScripts() {
-        var files = Directory.GetFiles(Path.Combine(Directory.GetCurrentDirectory(), ".cpm", "build"));
+        var files = Directory.GetFiles(Path.Combine(Directory.GetCurrentDirectory(), ".config", "cpm", "build"));
 
         foreach (var file in files) {
           var results = await state.DoFileAsync(file);
