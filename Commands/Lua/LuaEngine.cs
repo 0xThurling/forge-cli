@@ -3,19 +3,18 @@ using Lua.Standard;
 
 namespace cpm.Commands.Lua
 {
-  public class LuaEngine
+  public static class LuaEngine
   {
-    public LuaState state;
+    public static LuaState state = default!;
 
-    public LuaEngine()
-    {
+    public static void InitialiseLuaEngine() {
       state = LuaState.Create();
-
+      
       SetEnvironmentLibraries(ref state);
-      SetEnvironmentVariablesForSandbox(ref state);
       SetEnvironmentFunctions(ref state);
+      SetEnvironmentVariablesForSandbox(ref state);
     }
-
+    
     private static void SetEnvironmentLibraries(ref LuaState state)
     {
       state.OpenStandardLibraries();

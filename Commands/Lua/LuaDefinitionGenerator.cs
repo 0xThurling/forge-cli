@@ -41,9 +41,9 @@ namespace cpm.Commands.Lua
         // --- cpm pull repo 
         sb.AppendLine("--- Logs an information message to the console");
         sb.AppendLine("---@param repo_url string The URL for the github repository.");
+        sb.AppendLine("---@return string The path location where it get's saved");
         sb.AppendLine("function cpm.pull_repo(repo_url) end");
         sb.AppendLine();
-
 
         // Environment Variables
         sb.AppendLine("--- The current working directory");
