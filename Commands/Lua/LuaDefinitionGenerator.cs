@@ -57,19 +57,19 @@ namespace forge.Commands.Lua
         sb.AppendLine("forge.os = \"\"");
         sb.AppendLine();
 
-        sb.AppendLine("--- The Operating System for the Build");
+        sb.AppendLine("--- The Windows operating system");
         sb.AppendLine("---@type string");
-        sb.AppendLine("forge.os = \"\"");
+        sb.AppendLine("forge.os.windows = \"\"");
         sb.AppendLine();
 
-        sb.AppendLine("--- The Operating System for the Build");
+        sb.AppendLine("--- The MacOS operating system");
         sb.AppendLine("---@type string");
-        sb.AppendLine("forge.os = \"\"");
+        sb.AppendLine("forge.os.mac_os = \"\"");
         sb.AppendLine();
 
-        sb.AppendLine("--- The Operating System for the Build");
+        sb.AppendLine("--- The Linux Operating System");
         sb.AppendLine("---@type string");
-        sb.AppendLine("forge.os = \"\"");
+        sb.AppendLine("forge.os.linux = \"\"");
         sb.AppendLine();
 
         // Package managers
