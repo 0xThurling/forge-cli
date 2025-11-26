@@ -1,7 +1,7 @@
-using Spectre.Console;
 using System.Diagnostics;
+using Spectre.Console;
 
-namespace cpm.Commands
+namespace forge.Commands
 {
     public class StartCommand
     {

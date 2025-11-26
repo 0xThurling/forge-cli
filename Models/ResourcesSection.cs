@@ -1,7 +1,7 @@
-namespace cpm.Models
+namespace forge.Models
 {
-    public partial class ResourcesSection
+    public class ResourcesSection
     {
-        public List<string> Files { get; set; } = new List<string>();
+        public List<string> Files { get; set; } = new();
     }
 }

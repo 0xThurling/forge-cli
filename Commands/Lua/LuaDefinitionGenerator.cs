@@ -1,8 +1,8 @@
 using System.Text;
 
-namespace cpm.Commands.Lua
+namespace forge.Commands.Lua
 {
-    public class LuaDefinitionGenerator 
+    public static class LuaDefinitionGenerator 
     {
       public static string GenerateDefinitions() {
         var sb = new StringBuilder();
@@ -11,44 +11,44 @@ namespace cpm.Commands.Lua
         sb.AppendLine();
 
         sb.AppendLine("---");
-        sb.AppendLine("--- Provides access to cpm variables and functions for the Lua LSP");
+        sb.AppendLine("--- Provides access to forge variables and functions for the Lua LSP");
         sb.AppendLine("--- This file is automatically generally");
         sb.AppendLine("---");
   
         // Function definitions
-        // --- Global cpm API object
-        // ---@class cpm
-        // cpm = {}
-        sb.AppendLine("--- Global cpm API object");
-        sb.AppendLine("---@class cpm");
-        sb.AppendLine("cpm = {}");
+        // --- Global forge API object
+        // ---@class forge
+        // forge = {}
+        sb.AppendLine("--- Global forge API object");
+        sb.AppendLine("---@class forge");
+        sb.AppendLine("forge = {}");
         sb.AppendLine();
 
-        // --- cpm logging utility
-        // ---@class cpm.log
-        // cpm = {}
-        sb.AppendLine("--- cpm logging utility");
-        sb.AppendLine("---@class cpm.log");
-        sb.AppendLine("cpm.log = {}");
+        // --- forge logging utility
+        // ---@class forge.log
+        // forge = {}
+        sb.AppendLine("--- forge logging utility");
+        sb.AppendLine("---@class forge.log");
+        sb.AppendLine("forge.log = {}");
         sb.AppendLine();
 
-        // --- cpm logging information 
+        // --- forge logging information 
         sb.AppendLine("--- Logs an information message to the console");
         sb.AppendLine("---@param message string The message to log.");
-        sb.AppendLine("function cpm.log.info(message) end");
+        sb.AppendLine("function forge.log.info(message) end");
         sb.AppendLine();
 
-        // --- cpm pull repo 
+        // --- forge pull repo 
         sb.AppendLine("--- Logs an information message to the console");
         sb.AppendLine("---@param repo_url string The URL for the github repository.");
         sb.AppendLine("---@return string The path location where it get's saved");
-        sb.AppendLine("function cpm.pull_repo(repo_url) end");
+        sb.AppendLine("function forge.pull_repo(repo_url) end");
         sb.AppendLine();
 
         // Environment Variables
         sb.AppendLine("--- The current working directory");
         sb.AppendLine("---@type string");
-        sb.AppendLine("cpm.current_working_dir = \"\"");
+        sb.AppendLine("forge.current_working_dir = \"\"");
         sb.AppendLine();
 
         return sb.ToString();

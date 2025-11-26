@@ -1,17 +1,17 @@
+using System.Diagnostics;
 using DotMake.CommandLine;
 using Spectre.Console;
-using System.Diagnostics;
 
-namespace cpm.Commands
+namespace forge.Commands
 {
   [CliCommand(Name = "test", Description = "Build and run tests.", Parent = typeof(RootCommand))]
   public class TestCommand
   {
     [CliArgument(Description = "Optional: Name of the test suite to run (e.g., MyTestSuite).")]
-    public string? TestSuiteName { get; set; } = null;
+    public string? TestSuiteName { get; set; }
 
     [CliOption(Description = "Filter tests to run (e.g., MyTestSuite.TestName or MyTestSuite.*).")]
-    public string? Filter { get; set; } = null;
+    public string? Filter { get; set; }
 
     [CliOption(Description = "C++ standard to use (e.g., 11, 14, 17, 20). Defaults to 20.")]
     public string Standard { get; set; } = "20";
@@ -35,7 +35,7 @@ namespace cpm.Commands
         return 1; // Build failed
       }
 
-      AnsiConsole.Status().Start("Running Tests...", ctx =>
+      AnsiConsole.Status().Start("Running Tests...", _ =>
       {
         var testExecutable = Path.Combine("build", "run_tests");
         if (!File.Exists(testExecutable))

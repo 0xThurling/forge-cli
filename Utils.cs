@@ -1,8 +1,8 @@
-using cpm.Models;
-using Spectre.Console;
 using System.Text;
+using forge.Models;
+using Spectre.Console;
 
-namespace cpm
+namespace forge
 {
     public static class Utils
     {

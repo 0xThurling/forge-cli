@@ -1,7 +1,7 @@
 using DotMake.CommandLine;
 using Spectre.Console;
 
-namespace cpm.Commands
+namespace forge.Commands
 {
     [CliCommand(Name = "stats", Description = "Display some statistics about the project.", Parent = typeof(ProjectCommand))]
     public class StatsCommand
@@ -11,7 +11,7 @@ namespace cpm.Commands
             var projectRoot = ProjectConfigManager.FindProjectRoot();
             if (projectRoot == null)
             {
-                AnsiConsole.MarkupLine("[bold red]Error:[/] Not a cpm project. `package.toml` not found.");
+                AnsiConsole.MarkupLine("[bold red]Error:[/] Not a forge project. `package.toml` not found.");
                 return 1;
             }
 
@@ -27,7 +27,10 @@ namespace cpm.Commands
                     totalLines += File.ReadLines(file).Count();
                     totalSize += new FileInfo(file).Length;
                 }
-                catch { }
+                catch
+                {
+                    // ignored
+                }
             }
 
             AnsiConsole.MarkupLine($"[bold]Total Files:[/] {totalFiles}");

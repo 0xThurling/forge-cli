@@ -1,7 +1,7 @@
 using DotMake.CommandLine;
 using Spectre.Console;
 
-namespace cpm.Commands
+namespace forge.Commands
 {
     [CliCommand(Name = "tree", Description = "Display a tree-like structure of the project's files and directories.", Parent = typeof(ProjectCommand))]
     public class TreeCommand
@@ -11,7 +11,7 @@ namespace cpm.Commands
             var projectRoot = ProjectConfigManager.FindProjectRoot();
             if (projectRoot == null)
             {
-                AnsiConsole.MarkupLine("[bold red]Error:[/] Not a cpm project. `package.toml` not found.");
+                AnsiConsole.MarkupLine("[bold red]Error:[/] Not a forge project. `package.toml` not found.");
                 return 1;
             }
 

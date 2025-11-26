@@ -1,4 +1,4 @@
-namespace cpm
+namespace forge
 {
   public static class ProjectBuildManager
   {

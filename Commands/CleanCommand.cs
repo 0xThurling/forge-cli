@@ -1,7 +1,7 @@
 using DotMake.CommandLine;
 using Spectre.Console;
 
-namespace cpm.Commands
+namespace forge.Commands
 {
     [CliCommand(Name = "clean", Description = "Remove the build directory.", Parent = typeof(RootCommand))]
     public class CleanCommand

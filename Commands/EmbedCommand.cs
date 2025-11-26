@@ -1,8 +1,8 @@
-using cpm.Models;
 using DotMake.CommandLine;
+using forge.Models;
 using Spectre.Console;
 
-namespace cpm.Commands
+namespace forge.Commands
 {
     [CliCommand(Name = "embed", Description = "Embed a resource file into a C++ header.", Parent = typeof(RootCommand))]
     public class EmbedCommand
@@ -29,11 +29,6 @@ namespace cpm.Commands
 
             // Use relative path for portability
             var relativePath = Path.GetRelativePath(Directory.GetCurrentDirectory(), FilePath);
-
-            if (config.Resources == null)
-            {
-                config.Resources = new ResourcesSection();
-            }
 
             if (!config.Resources.Files.Contains(relativePath))
             {

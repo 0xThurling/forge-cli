@@ -1,9 +1,9 @@
-using cpm.Commands.Lua;
-using cpm.Models;
 using DotMake.CommandLine;
+using forge.Commands.Lua;
+using forge.Models;
 using Spectre.Console;
 
-namespace cpm.Commands
+namespace forge.Commands
 {
   [CliCommand(Name = "create", Description = "Create a new C++ project.", Parent = typeof(RootCommand))]
   public class CreateCommand
@@ -29,11 +29,11 @@ namespace cpm.Commands
         Directory.CreateDirectory(Path.Combine(projectName, ".config"));
 
         // Create Lua directories
-        Directory.CreateDirectory(Path.Combine(projectName, ".config", "cpm"));
-        Directory.CreateDirectory(Path.Combine(projectName, ".config", "cpm", "commands"));
-        Directory.CreateDirectory(Path.Combine(projectName, ".config", "cpm", "build"));
-        Directory.CreateDirectory(Path.Combine(projectName, ".config", "cpm", "templates"));
-        Directory.CreateDirectory(Path.Combine(projectName, ".config", "cpm", "definitions"));
+        Directory.CreateDirectory(Path.Combine(projectName, ".config", "forge"));
+        Directory.CreateDirectory(Path.Combine(projectName, ".config", "forge", "commands"));
+        Directory.CreateDirectory(Path.Combine(projectName, ".config", "forge", "build"));
+        Directory.CreateDirectory(Path.Combine(projectName, ".config", "forge", "templates"));
+        Directory.CreateDirectory(Path.Combine(projectName, ".config", "forge", "definitions"));
 
         // Initial Lua definitions
         LuaEngine.SetEnvironmentDefinitions(projectName);

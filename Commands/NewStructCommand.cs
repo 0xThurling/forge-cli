@@ -1,7 +1,7 @@
 using DotMake.CommandLine;
 using Spectre.Console;
 
-namespace cpm.Commands
+namespace forge.Commands
 {
   [CliCommand(Name = "struct", Parent = typeof(NewCommand))]
   public class NewStructCommand

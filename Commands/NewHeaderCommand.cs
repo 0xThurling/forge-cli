@@ -1,7 +1,7 @@
 using DotMake.CommandLine;
 using Spectre.Console;
 
-namespace cpm.Commands
+namespace forge.Commands
 {
   [CliCommand(Name = "header", Parent = typeof(NewCommand))]
   public class NewHeaderCommand

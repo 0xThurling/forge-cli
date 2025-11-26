@@ -1,11 +1,11 @@
 using Lua;
 
-namespace cpm.Commands.Lua
+namespace forge.Commands.Lua
 {
-    public class LuaBuilder
+    public static class LuaBuilder
     {
       public static async Task RunBuilderScripts() {
-        var files = Directory.GetFiles(Path.Combine(Directory.GetCurrentDirectory(), ".config", "cpm", "build"));
+        var files = Directory.GetFiles(Path.Combine(Directory.GetCurrentDirectory(), ".config", "forge", "build"));
 
         foreach (var file in files) {
           var results = await LuaEngine.GetLuaEngine().DoFileAsync(file);

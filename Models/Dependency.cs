@@ -1,6 +1,6 @@
-namespace cpm.Models
+namespace forge.Models
 {
-    public partial class Dependency
+    public class Dependency
     {
         public string Git { get; set; } = string.Empty;
         public string Tag { get; set; } = string.Empty;

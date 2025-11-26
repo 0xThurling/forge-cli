@@ -1,14 +1,14 @@
+using System.Diagnostics;
 using DotMake.CommandLine;
 using Spectre.Console;
-using System.Diagnostics;
 
-namespace cpm.Commands
+namespace forge.Commands
 {
   [CliCommand(Name = "run", Description = "Run a custom script.", Parent = typeof(RootCommand))]
   public class RunCommand
   {
     [CliArgument(Description = "Name of the script to run.")]
-    public string? ScriptName { get; set; } = null;
+    public string? ScriptName { get; set; }
 
     public int Run()
     {
@@ -20,7 +20,7 @@ namespace cpm.Commands
         return startCommand.Run();
       }
 
-      AnsiConsole.Status().Start(ScriptName != null ? $"Running {ScriptName}" : "Running project...", ctx =>
+      AnsiConsole.Status().Start(ScriptName != null ? $"Running {ScriptName}" : "Running project...", _ =>
       {
         if (!config!.Scripts.TryGetValue(ScriptName!, out var scriptCommand))
         {
@@ -40,8 +40,8 @@ namespace cpm.Commands
           };
 
           using var process = Process.Start(processStartInfo) ?? throw new Exception("Failed to start script process.");
-          string output = process.StandardOutput.ReadToEnd();
-        string error = process.StandardError.ReadToEnd();
+          process.StandardOutput.ReadToEnd();
+          process.StandardError.ReadToEnd();
           process.WaitForExit();
           return process.ExitCode;
         }

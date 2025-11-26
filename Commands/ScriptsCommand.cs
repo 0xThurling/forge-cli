@@ -1,7 +1,7 @@
 using DotMake.CommandLine;
 using Spectre.Console;
 
-namespace cpm.Commands
+namespace forge.Commands
 {
     [CliCommand(Name = "scripts", Description = "List all the scripts in the project.", Parent = typeof(ProjectCommand))]
     public class ScriptsCommand

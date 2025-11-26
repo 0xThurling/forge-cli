@@ -1,10 +1,10 @@
-using DotMake.CommandLine;
-using Spectre.Console;
 using System.Diagnostics;
 using System.Text;
-using cpm.Commands.Conan;
+using DotMake.CommandLine;
+using Spectre.Console;
+using InstallCommand = forge.Commands.Conan.InstallCommand;
 
-namespace cpm.Commands
+namespace forge.Commands
 {
   [CliCommand(Name = "build", Description = "Generate CMakeLists and build the project.", Parent = typeof(RootCommand))]
   public class BuildCommand
@@ -21,11 +21,11 @@ namespace cpm.Commands
 
         if (projectConfig == null)
         {
-            AnsiConsole.MarkupLine("[bold red]Error:[/] Not a cpm project. `package.toml` not found or is missing project name.");
+            AnsiConsole.MarkupLine("[bold red]Error:[/] Not a forge project. `package.toml` not found or is missing project name.");
             return 1;
         }
 
-        if (projectConfig.Scripts.TryGetValue("pre-build", out var preBuildScript))
+        if (projectConfig.Scripts.TryGetValue("pre-build", out _))
         {
             var runCommand = new RunCommand { ScriptName = "pre-build" };
             if (runCommand.Run() != 0)
@@ -42,7 +42,7 @@ namespace cpm.Commands
           return 1;
         }
 
-        AnsiConsole.Status().AutoRefresh(!Verbose).Start("Building Project...", ctx =>
+        AnsiConsole.Status().AutoRefresh(!Verbose).Start("Building Project...", _ =>
         {
             var projectName = projectConfig.Project.Name;
 
@@ -52,7 +52,7 @@ namespace cpm.Commands
                 Directory.CreateDirectory(Path.Combine(".config", "cmake"));    
 
                 // Generate resource files if any
-                if (projectConfig.Resources != null && projectConfig.Resources.Files.Any())
+                if (projectConfig.Resources.Files.Any())
                 {
                     Utils.GenerateResourceFiles(projectConfig.Resources.Files);
                 }
@@ -100,7 +100,7 @@ namespace cpm.Commands
                     cmakeContent.AppendLine($"FetchContent_MakeAvailable({dep.Key})");
                 }
 
-                if (projectConfig.ConanDependencies != null && ProjectBuildManager.FindDependencies.Any())
+                if (ProjectBuildManager.FindDependencies.Any())
                 {
                     cmakeContent.AppendLine("");
                     cmakeContent.AppendLine("# --- Dependencies (Conan)");
@@ -277,7 +277,7 @@ namespace cpm.Commands
             }
         });
 
-        if (projectConfig.Scripts.TryGetValue("post-build", out var postBuildScript))
+        if (projectConfig.Scripts.TryGetValue("post-build", out _))
         {
             var runCommand = new RunCommand { ScriptName = "post-build" };
             if (runCommand.Run() != 0)

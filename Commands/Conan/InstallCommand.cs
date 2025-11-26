@@ -4,14 +4,14 @@ using System.Text.RegularExpressions;
 using DotMake.CommandLine;
 using Spectre.Console;
 
-namespace cpm.Commands.Conan {
+namespace forge.Commands.Conan {
   [CliCommand(Name = "install", Description = "Generate conanfile and install dependencies", Parent = typeof(RootCommand))]
   public partial class InstallCommand {
     public int Run() {
       var config = ProjectConfigManager.LoadConfig();
       if (config == null) return 1;
 
-      if (config.ConanDependencies == null || config.ConanDependencies.Count == 0)
+      if (config.ConanDependencies.Count == 0)
       {
         AnsiConsole.MarkupLine("[yellow]No conan dependencies defined in package.toml[/]");
         return 0;

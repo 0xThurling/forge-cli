@@ -1,7 +1,8 @@
+using cpm.Commands;
 using DotMake.CommandLine;
 using Spectre.Console;
 
-namespace cpm.Commands
+namespace forge.Commands
 {
   [CliCommand(Name = "class", Parent = typeof(NewCommand))]
   public class NewClassCommand

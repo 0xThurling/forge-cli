@@ -1,7 +1,8 @@
+using cpm.Commands;
 using DotMake.CommandLine;
 using Spectre.Console;
 
-namespace cpm.Commands
+namespace forge.Commands
 {
     [CliCommand(Name = "info", Description = "Display a summary of the project's configuration.", Parent = typeof(ProjectCommand))]
     public class InfoCommand
@@ -11,7 +12,7 @@ namespace cpm.Commands
             var config = ProjectConfigManager.LoadConfig();
             if (config == null)
             {
-                AnsiConsole.MarkupLine("[bold red]Error:[/] Not a cpm project. `package.toml` not found or is missing project name.");
+                AnsiConsole.MarkupLine("[bold red]Error:[/] Not a forge project. `package.toml` not found or is missing project name.");
                 return 1;
             }
 

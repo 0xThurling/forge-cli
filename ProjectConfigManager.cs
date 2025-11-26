@@ -1,8 +1,8 @@
-using Tommy;
+using forge.Models;
 using Spectre.Console;
-using cpm.Models;
+using Tommy;
 
-namespace cpm
+namespace forge
 {
   public static class ProjectConfigManager
   {

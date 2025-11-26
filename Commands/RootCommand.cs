@@ -1,6 +1,6 @@
 using DotMake.CommandLine;
 
-namespace cpm.Commands
+namespace forge.Commands
 {
     [CliCommand(Description = "A C++ project manager.")]
     public class RootCommand

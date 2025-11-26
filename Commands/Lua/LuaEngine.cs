@@ -4,20 +4,20 @@ using Lua;
 using Lua.Standard;
 using Spectre.Console;
 
-namespace cpm.Commands.Lua
+namespace forge.Commands.Lua
 {
   public static class LuaEngine
   {
-    private static LuaState state = default!;
-    private static LuaTable cpm = default!;
+    private static LuaState _state = null!;
+    private static LuaTable _cpm = null!;
 
     public static void InitialiseLuaEngine()
     {
-      state = LuaState.Create();
-      cpm = new LuaTable();
+      _state = LuaState.Create();
+      _cpm = new LuaTable();
 
-      SetEnvironmentLibraries(ref state);
-      SetDefinitionTables(ref state);
+      SetEnvironmentLibraries(ref _state);
+      SetDefinitionTables(ref _state);
     }
 
     private static void SetEnvironmentLibraries(ref LuaState state)
@@ -41,7 +41,7 @@ namespace cpm.Commands.Lua
       SetLoggingFunctionsAndDefinitions();
       SetEnvironmentVariableInformation();
 
-      state.Environment["cpm"] = cpm;
+      state.Environment["forge"] = _cpm;
     }
 
     private static void SetGitFunctions()
@@ -52,8 +52,6 @@ namespace cpm.Commands.Lua
 
         var repoName = repoUrl.Split('/')[^1].Split(".")[0];
 
-        if (repoName == null) return 0;
-  
         var processStartInfo = new ProcessStartInfo("git", $"clone {repoUrl} external/{repoName}")
         {
           UseShellExecute = false,
@@ -71,38 +69,38 @@ namespace cpm.Commands.Lua
         return process.ExitCode;
       });
 
-      cpm[new LuaValue("pull_repo")] = new LuaValue(pullRepoFunc);
+      _cpm[new LuaValue("pull_repo")] = new LuaValue(pullRepoFunc);
     }
 
     private static void SetLoggingFunctionsAndDefinitions()
     {
       var log = new LuaTable();
 
-      var logInformationFunc = new LuaFunction("info", async (context, token) =>
+      var logInformationFunc = new LuaFunction("info", (context, _) =>
       {
         var info = context.GetArgument<string>(0);
         AnsiConsole.MarkupLine($"[bold blue]INFO[/]: {info}");
-        return 0;
+        return ValueTask.FromResult(0);
       });
 
       log[new LuaValue("info")] = new LuaValue(logInformationFunc);
-      cpm[new LuaValue("log")] = new LuaValue(log);
+      _cpm[new LuaValue("log")] = new LuaValue(log);
     }
 
     private static void SetEnvironmentVariableInformation()
     {
-      cpm[new LuaValue("current_working_dir")] = new LuaValue(Directory.GetCurrentDirectory());
+      _cpm[new LuaValue("current_working_dir")] = new LuaValue(Directory.GetCurrentDirectory());
     }
 
     public static void SetEnvironmentDefinitions(string projectName)
     {
-      var definitionsFilePath = Path.Combine(Directory.GetCurrentDirectory(), projectName, ".config", "cpm", "definitions");
+      var definitionsFilePath = Path.Combine(Directory.GetCurrentDirectory(), projectName, ".config", "forge", "definitions");
 
       var definitions = LuaDefinitionGenerator.GenerateDefinitions();
 
       File.AppendAllBytes(Path.Combine(definitionsFilePath, "definitions.lua"), Encoding.UTF8.GetBytes(definitions));
     }
 
-    public static LuaState GetLuaEngine() => state;
+    public static LuaState GetLuaEngine() => _state;
   }
 }

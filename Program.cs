@@ -1,6 +1,6 @@
 using cpm.Commands;
 using DotMake.CommandLine;
-using cpm.Commands.Lua;
+using forge.Commands.Lua;
 
 // Start the Lua Sandbox Engine
 LuaEngine.InitialiseLuaEngine();
