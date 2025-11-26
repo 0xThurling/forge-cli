@@ -1,5 +1,4 @@
 using DotMake.CommandLine;
-using forge.Models;
 using Spectre.Console;
 
 namespace forge.Commands
