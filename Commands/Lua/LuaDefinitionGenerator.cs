@@ -51,6 +51,48 @@ namespace forge.Commands.Lua
         sb.AppendLine("forge.current_working_dir = \"\"");
         sb.AppendLine();
 
+        // Operating Systems
+        sb.AppendLine("--- The Operating System for the Build");
+        sb.AppendLine("---@type string");
+        sb.AppendLine("forge.os = \"\"");
+        sb.AppendLine();
+
+        sb.AppendLine("--- The Operating System for the Build");
+        sb.AppendLine("---@type string");
+        sb.AppendLine("forge.os = \"\"");
+        sb.AppendLine();
+
+        sb.AppendLine("--- The Operating System for the Build");
+        sb.AppendLine("---@type string");
+        sb.AppendLine("forge.os = \"\"");
+        sb.AppendLine();
+
+        sb.AppendLine("--- The Operating System for the Build");
+        sb.AppendLine("---@type string");
+        sb.AppendLine("forge.os = \"\"");
+        sb.AppendLine();
+
+        // Package managers
+        sb.AppendLine("--- The Operating System for the Build");
+        sb.AppendLine("---@type string");
+        sb.AppendLine("forge.package_manager.winget = \"\"");
+        sb.AppendLine();
+
+        sb.AppendLine("--- The Operating System for the Build");
+        sb.AppendLine("---@type string");
+        sb.AppendLine("forge.package_manager.brew = \"\"");
+        sb.AppendLine();
+
+        sb.AppendLine("--- The Operating System for the Build");
+        sb.AppendLine("---@type string");
+        sb.AppendLine("forge.package_manager.pacman = \"\"");
+        sb.AppendLine();
+
+        sb.AppendLine("--- The Operating System for the Build");
+        sb.AppendLine("---@type string");
+        sb.AppendLine("forge.package_manager.apt_get = \"\"");
+        sb.AppendLine();
+
         return sb.ToString();
       }
     }
