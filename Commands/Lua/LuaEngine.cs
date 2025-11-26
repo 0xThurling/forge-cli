@@ -40,6 +40,7 @@ namespace forge.Commands.Lua
       SetGitFunctions();
       SetLoggingFunctionsAndDefinitions();
       SetEnvironmentVariableInformation();
+      SetGetPackagesFunction();
 
       state.Environment["forge"] = _cpm;
     }
@@ -72,6 +73,22 @@ namespace forge.Commands.Lua
       _cpm[new LuaValue("pull_repo")] = new LuaValue(pullRepoFunc);
     }
 
+    private static void SetGetPackagesFunction() {
+      var getPackagesFunc = new LuaFunction("get_packages", async (context, token) =>
+      {
+        var packageManager = context.GetArgument<string>(0);
+        var packages = context.GetArgument<string[]>(1);
+
+        foreach (var package in packages) {
+          AnsiConsole.WriteLine(package);
+        }
+  
+        return 0;
+      });
+
+      _cpm[new LuaValue("get_packages")] = new LuaValue(getPackagesFunc);
+    }
+
     private static void SetLoggingFunctionsAndDefinitions()
     {
       var log = new LuaTable();
@@ -90,6 +107,23 @@ namespace forge.Commands.Lua
     private static void SetEnvironmentVariableInformation()
     {
       _cpm[new LuaValue("current_working_dir")] = new LuaValue(Directory.GetCurrentDirectory());
+
+      // Operating System information
+      var os = new LuaTable();
+      os[new LuaValue("current")] = new LuaValue(GetOperatingSystem());
+      os[new LuaValue("windows")] = new LuaValue("windows");
+      os[new LuaValue("macos")] = new LuaValue("macos");
+      os[new LuaValue("linux")] = new LuaValue("linux");
+      _cpm[new LuaValue("os")] = new LuaValue(os);
+
+      // Package Managers
+      var packageManager = new LuaTable(); 
+      packageManager[new LuaValue("winget")] = new LuaValue("winget");
+      packageManager[new LuaValue("chocolatey")] = new LuaValue("choco");
+      packageManager[new LuaValue("brew")] = new LuaValue("brew");
+      packageManager[new LuaValue("pacman")] = new LuaValue("pacman");
+      packageManager[new LuaValue("aptget")] = new LuaValue("aptget");
+      _cpm[new LuaValue("package_manager")] = new LuaValue(packageManager);
     }
 
     public static void SetEnvironmentDefinitions(string projectName)
@@ -99,6 +133,13 @@ namespace forge.Commands.Lua
       var definitions = LuaDefinitionGenerator.GenerateDefinitions();
 
       File.AppendAllBytes(Path.Combine(definitionsFilePath, "definitions.lua"), Encoding.UTF8.GetBytes(definitions));
+    }
+
+    private static string GetOperatingSystem() {
+      if (OperatingSystem.IsLinux()) return "linux";
+      if (OperatingSystem.IsMacOS()) return "macos";
+      if (OperatingSystem.IsWindows()) return "windows";
+      return string.Empty;
     }
 
     public static LuaState GetLuaEngine() => _state;

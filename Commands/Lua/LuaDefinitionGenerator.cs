@@ -45,6 +45,14 @@ namespace forge.Commands.Lua
         sb.AppendLine("function forge.pull_repo(repo_url) end");
         sb.AppendLine();
 
+        // Get packages
+        sb.AppendLine("--- Gets the packages with a specific package manager");
+        sb.AppendLine("---@param package_manager string The Package Manager Specified.");
+        sb.AppendLine("---@param packages string[] The list of package you wish to download.");
+        sb.AppendLine("---@return string The path location where it get's saved");
+        sb.AppendLine("function forge.get_packages(package_manager, packages) end");
+        sb.AppendLine();
+
         // Environment Variables
         sb.AppendLine("--- The current working directory");
         sb.AppendLine("---@type string");
@@ -53,8 +61,13 @@ namespace forge.Commands.Lua
 
         // Operating Systems
         sb.AppendLine("--- The Operating System for the Build");
+        sb.AppendLine("---@class forge.os");
+        sb.AppendLine("forge.os = {}");
+        sb.AppendLine();
+
+        sb.AppendLine("--- The current operating system");
         sb.AppendLine("---@type string");
-        sb.AppendLine("forge.os = \"\"");
+        sb.AppendLine("forge.os.current = \"\"");
         sb.AppendLine();
 
         sb.AppendLine("--- The Windows operating system");
@@ -64,7 +77,7 @@ namespace forge.Commands.Lua
 
         sb.AppendLine("--- The MacOS operating system");
         sb.AppendLine("---@type string");
-        sb.AppendLine("forge.os.mac_os = \"\"");
+        sb.AppendLine("forge.os.macos = \"\"");
         sb.AppendLine();
 
         sb.AppendLine("--- The Linux Operating System");
@@ -73,24 +86,34 @@ namespace forge.Commands.Lua
         sb.AppendLine();
 
         // Package managers
-        sb.AppendLine("--- The Operating System for the Build");
+        sb.AppendLine("--- The package managers for various operating systems");
+        sb.AppendLine("---@class forge.package_manager");
+        sb.AppendLine("forge.package_manager = {}");
+        sb.AppendLine();
+
+        sb.AppendLine("--- The WinGet package manager for Windows");
         sb.AppendLine("---@type string");
         sb.AppendLine("forge.package_manager.winget = \"\"");
         sb.AppendLine();
 
-        sb.AppendLine("--- The Operating System for the Build");
+        sb.AppendLine("--- The Chocolatey package manager for Windows");
+        sb.AppendLine("---@type string");
+        sb.AppendLine("forge.package_manager.chocolatey = \"\"");
+        sb.AppendLine();
+
+        sb.AppendLine("--- The Homebrew package manager for MacOS");
         sb.AppendLine("---@type string");
         sb.AppendLine("forge.package_manager.brew = \"\"");
         sb.AppendLine();
 
-        sb.AppendLine("--- The Operating System for the Build");
+        sb.AppendLine("--- The Pacman Package Manager for Arch");
         sb.AppendLine("---@type string");
         sb.AppendLine("forge.package_manager.pacman = \"\"");
         sb.AppendLine();
 
-        sb.AppendLine("--- The Operating System for the Build");
+        sb.AppendLine("--- The APT package manager for Debian");
         sb.AppendLine("---@type string");
-        sb.AppendLine("forge.package_manager.apt_get = \"\"");
+        sb.AppendLine("forge.package_manager.aptget = \"\"");
         sb.AppendLine();
 
         return sb.ToString();
