@@ -47,10 +47,12 @@ namespace forge.Commands.Lua
 
         // Get packages
         sb.AppendLine("--- Gets the packages with a specific package manager");
+        sb.AppendLine("---@param password string This is the password used for the package_manager");
         sb.AppendLine("---@param package_manager string The Package Manager Specified.");
         sb.AppendLine("---@param packages string[] The list of package you wish to download.");
         sb.AppendLine("---@return string The path location where it get's saved");
-        sb.AppendLine("function forge.get_packages(package_manager, packages) end");
+        sb.AppendLine("---@remarks Can also be used with `forge.package_manager.no_pass` to skip sudo install");
+        sb.AppendLine("function forge.get_packages(password, package_manager, packages) end");
         sb.AppendLine();
 
         // Environment Variables
@@ -89,6 +91,12 @@ namespace forge.Commands.Lua
         sb.AppendLine("--- The package managers for various operating systems");
         sb.AppendLine("---@class forge.package_manager");
         sb.AppendLine("forge.package_manager = {}");
+        sb.AppendLine();
+
+        sb.AppendLine("--- Use no password for package manager");
+        sb.AppendLine("---@desc This will set the get_packages function to not install packages with sudo");
+        sb.AppendLine("---@type string");
+        sb.AppendLine("forge.package_manager.no_pass = \"\"");
         sb.AppendLine();
 
         sb.AppendLine("--- The WinGet package manager for Windows");

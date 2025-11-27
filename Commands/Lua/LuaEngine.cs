@@ -77,11 +77,9 @@ namespace forge.Commands.Lua
       var getPackagesFunc = new LuaFunction("get_packages", async (context, token) =>
       {
         var packageManager = context.GetArgument<string>(0);
-        var packages = context.GetArgument<string[]>(1);
+        var packages = context.GetArgument<LuaTable>(1);
 
-        foreach (var package in packages) {
-          AnsiConsole.WriteLine(package);
-        }
+
   
         return 0;
       });
@@ -123,6 +121,7 @@ namespace forge.Commands.Lua
       packageManager[new LuaValue("brew")] = new LuaValue("brew");
       packageManager[new LuaValue("pacman")] = new LuaValue("pacman");
       packageManager[new LuaValue("aptget")] = new LuaValue("aptget");
+      packageManager[new LuaValue("no_pass")] = new LuaValue("nopass");
       _cpm[new LuaValue("package_manager")] = new LuaValue(packageManager);
     }
 
