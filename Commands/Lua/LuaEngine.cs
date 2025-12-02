@@ -73,13 +73,60 @@ namespace forge.Commands.Lua
       _cpm[new LuaValue("pull_repo")] = new LuaValue(pullRepoFunc);
     }
 
+    private static void InstallPackages(bool hasPass, string packageManager, List<string> packages, string? pass = null) {
+      string command = 
+        packageManager switch {
+          "brew" or "winget" or "apt-get" or "choco" => " install ",
+          "pacman" => " -S ",
+          _ => " "
+        } +
+        $"{string.Join(" ", packages)}" + 
+        packageManager switch {
+          "pacman" => " --noconfirm ",
+          _ => string.Empty
+        };
+
+
+        var installationProcess = new ProcessStartInfo();
+        if (hasPass && packageManager switch {"brew" or "apt-get" or "pacman" => true, _ => false})
+        {
+          installationProcess = new ProcessStartInfo("sudo", $"-S {packageManager} {command}") {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+          };
+        } else {
+          installationProcess = new ProcessStartInfo($"{packageManager}", $"{command}") {
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+          };
+        }
+
+        using var process = Process.Start(installationProcess); 
+        
+        AnsiConsole.WriteLine("Installing packages...");
+
+        process!.WaitForExit();
+    }
+
     private static void SetGetPackagesFunction() {
       var getPackagesFunc = new LuaFunction("get_packages", async (context, token) =>
       {
-        var packageManager = context.GetArgument<string>(0);
-        var packages = context.GetArgument<LuaTable>(1);
+        var password = context.GetArgument<string>(0);
+        var packageManager = context.GetArgument<string>(1);
+        var packages = context.GetArgument<LuaTable>(2);
 
+        var packageList = packages.Select(x => x.Value.ToString()).ToList();
 
+        if (password == "nopass")
+        {
+          InstallPackages(false, packageManager, packageList);
+        } else {
+          InstallPackages(true, packageManager, packageList, password);
+        }
   
         return 0;
       });
@@ -112,7 +159,19 @@ namespace forge.Commands.Lua
       os[new LuaValue("windows")] = new LuaValue("windows");
       os[new LuaValue("macos")] = new LuaValue("macos");
       os[new LuaValue("linux")] = new LuaValue("linux");
+      
+      // Get distrobution information - useful for linux installation scripts
+      var distro = new LuaTable();
+      distro[new LuaValue("nixos")] = new LuaValue("nixos");
+      distro[new LuaValue("fedora")] = new LuaValue("fedora");
+      distro[new LuaValue("manjaro")] = new LuaValue("manjaro");
+      distro[new LuaValue("arch")] = new LuaValue("arch");
+      distro[new LuaValue("ubuntu")] = new LuaValue("ubuntu");
+      distro[new LuaValue("debian")] = new LuaValue("debian");
+      distro[new LuaValue("unknown")] = new LuaValue("unknown");
+
       _cpm[new LuaValue("os")] = new LuaValue(os);
+      _cpm[new LuaValue("distro")] = new LuaValue(distro);
 
       // Package Managers
       var packageManager = new LuaTable(); 
@@ -120,7 +179,7 @@ namespace forge.Commands.Lua
       packageManager[new LuaValue("chocolatey")] = new LuaValue("choco");
       packageManager[new LuaValue("brew")] = new LuaValue("brew");
       packageManager[new LuaValue("pacman")] = new LuaValue("pacman");
-      packageManager[new LuaValue("aptget")] = new LuaValue("aptget");
+      packageManager[new LuaValue("aptget")] = new LuaValue("apt-get");
       packageManager[new LuaValue("no_pass")] = new LuaValue("nopass");
       _cpm[new LuaValue("package_manager")] = new LuaValue(packageManager);
     }

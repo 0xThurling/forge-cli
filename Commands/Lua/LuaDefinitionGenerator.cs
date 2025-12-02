@@ -82,9 +82,55 @@ namespace forge.Commands.Lua
         sb.AppendLine("forge.os.macos = \"\"");
         sb.AppendLine();
 
-        sb.AppendLine("--- The Linux Operating System");
+        sb.AppendLine("--- The MacOS operating system");
         sb.AppendLine("---@type string");
         sb.AppendLine("forge.os.linux = \"\"");
+        sb.AppendLine();
+
+        // Distrobution table
+        sb.AppendLine("--- The Linux Operating System");
+        sb.AppendLine("---@class forge.disto.linux");
+        sb.AppendLine("forge.distro = {}");
+        sb.AppendLine();
+
+        sb.AppendLine("--- The current linux distrobution.");
+        sb.AppendLine("---@type string");
+        sb.AppendLine("forge.distro.my_distro = \"\"");
+        sb.AppendLine();
+
+        sb.AppendLine("--- The Arch Linux distrobution...btw");
+        sb.AppendLine("---@type string");
+        sb.AppendLine("forge.distro.arch = \"\"");
+        sb.AppendLine();
+
+        sb.AppendLine("--- The NixOS Linux distrobution");
+        sb.AppendLine("---@type string");
+        sb.AppendLine("forge.distro.nixos = \"\"");
+        sb.AppendLine();
+
+        sb.AppendLine("--- The Debian Linux distrobution");
+        sb.AppendLine("---@type string");
+        sb.AppendLine("forge.distro.debian = \"\"");
+        sb.AppendLine();
+
+        sb.AppendLine("--- The Ubuntu Linux distrobution");
+        sb.AppendLine("---@type string");
+        sb.AppendLine("forge.distro.ubuntu = \"\"");
+        sb.AppendLine();
+
+        sb.AppendLine("--- The Manjaro Linux distrobution");
+        sb.AppendLine("---@type string");
+        sb.AppendLine("forge.distro.manjaro = \"\"");
+        sb.AppendLine();
+
+        sb.AppendLine("--- The Fedora Linux distrobution");
+        sb.AppendLine("---@type string");
+        sb.AppendLine("forge.distro.fedora = \"\"");
+        sb.AppendLine();
+
+        sb.AppendLine("--- Unknown Linux distrobution");
+        sb.AppendLine("---@type string");
+        sb.AppendLine("forge.distro.unknown = \"\"");
         sb.AppendLine();
 
         // Package managers
