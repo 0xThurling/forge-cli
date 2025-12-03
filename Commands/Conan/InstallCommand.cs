@@ -10,7 +10,7 @@ namespace forge.Commands.Conan {
     public int Run() {
       var config = ProjectConfigManager.LoadConfig();
       if (config == null) return 1;
-
+      
       if (config.ConanDependencies.Count == 0)
       {
         AnsiConsole.MarkupLine("[yellow]No conan dependencies defined in package.toml[/]");
