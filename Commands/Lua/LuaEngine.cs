@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using Lua;
 using Lua.Standard;
@@ -149,6 +150,35 @@ namespace forge.Commands.Lua
       _cpm[new LuaValue("log")] = new LuaValue(log);
     }
 
+    private static string GetLinuxDistro() {
+        var dict = new Dictionary<string, string>();
+        try
+        {
+            var lines = File.ReadAllLines("/etc/os-release");
+
+            foreach (var line in lines)
+            {
+                if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
+                    continue;
+
+                var parts = line.Split('=', 2);
+                if (parts.Length == 2)
+                {
+                    var key = parts[0].Trim();
+                    var value = parts[1].Trim().Trim('"'); // remove quotes
+                    dict[key] = value;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error reading distro info: " + ex.Message);
+            return "unknown";
+        }
+
+        return dict.TryGetValue("NAME", out var name) ? name : "unknown";
+    }
+
     private static void SetEnvironmentVariableInformation()
     {
       _cpm[new LuaValue("current_working_dir")] = new LuaValue(Directory.GetCurrentDirectory());
@@ -169,6 +199,7 @@ namespace forge.Commands.Lua
       distro[new LuaValue("ubuntu")] = new LuaValue("ubuntu");
       distro[new LuaValue("debian")] = new LuaValue("debian");
       distro[new LuaValue("unknown")] = new LuaValue("unknown");
+      distro[new LuaValue("my_distro")] = new LuaValue(GetLinuxDistro());
 
       _cpm[new LuaValue("os")] = new LuaValue(os);
       _cpm[new LuaValue("distro")] = new LuaValue(distro);
