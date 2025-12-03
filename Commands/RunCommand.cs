@@ -7,7 +7,7 @@ namespace forge.Commands
   [CliCommand(Name = "run", Description = "Run a custom script.", Parent = typeof(RootCommand))]
   public class RunCommand
   {
-    [CliArgument(Description = "Name of the script to run.")]
+    [CliArgument(Description = "Name of the script to run.", Required = false)]
     public string? ScriptName { get; set; }
 
     public int Run()
