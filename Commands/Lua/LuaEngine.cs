@@ -176,7 +176,7 @@ namespace forge.Commands.Lua
             return "unknown";
         }
 
-        return dict.TryGetValue("NAME", out var name) ? name : "unknown";
+        return dict.TryGetValue("NAME", out var name) ? DistroName(name) : "unknown";
     }
 
     private static void SetEnvironmentVariableInformation()
@@ -198,6 +198,7 @@ namespace forge.Commands.Lua
       distro[new LuaValue("arch")] = new LuaValue("arch");
       distro[new LuaValue("ubuntu")] = new LuaValue("ubuntu");
       distro[new LuaValue("debian")] = new LuaValue("debian");
+      distro[new LuaValue("redhat")] = new LuaValue("redhat");
       distro[new LuaValue("unknown")] = new LuaValue("unknown");
       distro[new LuaValue("my_distro")] = new LuaValue(GetLinuxDistro());
 
@@ -232,5 +233,23 @@ namespace forge.Commands.Lua
     }
 
     public static LuaState GetLuaEngine() => _state;
+
+    private static string DistroName(string name) => name switch {
+      var n when n.Contains("arch", StringComparison.OrdinalIgnoreCase) => "arch",
+      var n when n.Contains("debian", StringComparison.OrdinalIgnoreCase) => "debian",
+      var n when n.Contains("ubuntu", StringComparison.OrdinalIgnoreCase) => "ubuntu",
+      var n when n.Contains("mint", StringComparison.OrdinalIgnoreCase) => "mint",
+      var n when n.Contains("kali", StringComparison.OrdinalIgnoreCase) => "kali",
+      var n when n.Contains("red hat", StringComparison.OrdinalIgnoreCase) => "redhat",
+      var n when n.Contains("fedora", StringComparison.OrdinalIgnoreCase) => "fedora",
+      var n when n.Contains("centos", StringComparison.OrdinalIgnoreCase) => "centos",
+      var n when n.Contains("rocky", StringComparison.OrdinalIgnoreCase) => "rocky",
+      var n when n.Contains("manjaro", StringComparison.OrdinalIgnoreCase) => "manjaro",
+      var n when n.Contains("garuda", StringComparison.OrdinalIgnoreCase) => "garuda",
+      var n when n.Contains("alpine", StringComparison.OrdinalIgnoreCase) => "alpine",
+      var n when n.Contains("amazon", StringComparison.OrdinalIgnoreCase) => "amazon",
+      var n when n.Contains("nixos", StringComparison.OrdinalIgnoreCase) => "nixos",
+      _ => "unknown"
+    };
   }
 }
