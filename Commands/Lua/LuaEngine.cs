@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Text;
 using Lua;
 using Lua.Standard;
@@ -108,6 +107,7 @@ namespace forge.Commands.Lua
 
         using var process = Process.Start(installationProcess); 
         
+        if (process == null) throw new Exception("Failed to start CMake process.");
         AnsiConsole.WriteLine("Installing packages...");
 
         process!.WaitForExit();
