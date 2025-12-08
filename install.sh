@@ -2,6 +2,7 @@
 
 # This script downloads and installs the latest release of cpm.
 
+
 set -ex
 
 # Get the latest release tag from GitHub.
