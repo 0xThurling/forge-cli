@@ -6,11 +6,37 @@ using Spectre.Console;
 
 namespace forge.Commands.Lua
 {
+  /// <summary>
+  /// Manages the Lua scripting engine and provides the sandbox environment for build scripts.
+  /// </summary>
+  /// <remarks>
+  /// This class initializes and configures a Lua state with custom functions and environment
+  /// information. It provides a scriptable build system that allows users to customize their
+  /// build process using Lua scripts in .config/forge/build/.
+  /// </remarks>
+  /// <example>
+  /// <code>
+  /// // Initialize the Lua engine at startup
+  /// LuaEngine.InitialiseLuaEngine();
+  /// 
+  /// // Get the Lua state for script execution
+  /// var state = LuaEngine.GetLuaEngine();
+  /// </code>
+  /// </example>
   public static class LuaEngine
   {
     private static LuaState _state = null!;
     private static LuaTable _cpm = null!;
 
+    /// <summary>
+    /// Initializes the Lua engine with standard libraries and custom Forge functions.
+    /// </summary>
+    /// <remarks>
+    /// This method must be called before any Lua scripts can be executed. It sets up:
+    /// - Standard Lua libraries (string, math, table, etc.)
+    /// - Forge-specific functions (pull_repo, get_packages, log.info)
+    /// - Environment information (OS, distribution, package managers)
+    /// </remarks>
     public static void InitialiseLuaEngine()
     {
       _state = LuaState.Create();
@@ -20,6 +46,10 @@ namespace forge.Commands.Lua
       SetDefinitionTables(ref _state);
     }
 
+    /// <summary>
+    /// Opens standard Lua libraries for use in scripts.
+    /// </summary>
+    /// <param name="state">The Lua state to configure.</param>
     private static void SetEnvironmentLibraries(ref LuaState state)
     {
       state.OpenStandardLibraries();
@@ -35,6 +65,10 @@ namespace forge.Commands.Lua
       state.OpenStringLibrary();
     }
 
+    /// <summary>
+    /// Sets up Forge-specific Lua functions and environment tables.
+    /// </summary>
+    /// <param name="state">The Lua state to configure.</param>
     private static void SetDefinitionTables(ref LuaState state)
     {
       SetGitFunctions();
@@ -45,6 +79,13 @@ namespace forge.Commands.Lua
       state.Environment["forge"] = _cpm;
     }
 
+    /// <summary>
+    /// Registers the pull_repo function for cloning Git repositories.
+    /// </summary>
+    /// <remarks>
+    /// Provides forge.pull_repo(url) function that clones a Git repository
+    /// to the external/ directory.
+    /// </remarks>
     private static void SetGitFunctions()
     {
       var pullRepoFunc = new LuaFunction("pull_repo", async (context, token) =>
@@ -73,47 +114,69 @@ namespace forge.Commands.Lua
       _cpm[new LuaValue("pull_repo")] = new LuaValue(pullRepoFunc);
     }
 
-    private static void InstallPackages(bool hasPass, string packageManager, List<string> packages, string? pass = null) {
-      string command = 
-        packageManager switch {
+    /// <summary>
+    /// Installs system packages using the specified package manager.
+    /// </summary>
+    /// <param name="hasPass">Whether sudo password is required.</param>
+    /// <param name="packageManager">The package manager to use.</param>
+    /// <param name="packages">List of package names to install.</param>
+    /// <param name="pass">Optional sudo password.</param>
+    private static void InstallPackages(bool hasPass, string packageManager, List<string> packages, string? pass = null)
+    {
+      string command =
+        packageManager switch
+        {
           "brew" or "winget" or "apt-get" or "choco" => " install ",
           "pacman" => " -S ",
           _ => " "
         } +
-        $"{string.Join(" ", packages)}" + 
-        packageManager switch {
+        $"{string.Join(" ", packages)}" +
+        packageManager switch
+        {
           "pacman" => " --noconfirm ",
           _ => string.Empty
         };
 
 
-        var installationProcess = new ProcessStartInfo();
-        if (hasPass && packageManager switch {"brew" or "apt-get" or "pacman" => true, _ => false})
+      var installationProcess = new ProcessStartInfo();
+      if (hasPass && packageManager switch { "brew" or "apt-get" or "pacman" => true, _ => false })
+      {
+        installationProcess = new ProcessStartInfo("sudo", $"-S {packageManager} {command}")
         {
-          installationProcess = new ProcessStartInfo("sudo", $"-S {packageManager} {command}") {
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true,
-          };
-        } else {
-          installationProcess = new ProcessStartInfo($"{packageManager}", $"{command}") {
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true,
-          };
-        }
+          UseShellExecute = false,
+          RedirectStandardOutput = true,
+          RedirectStandardError = true,
+          CreateNoWindow = true,
+        };
+      }
+      else
+      {
+        installationProcess = new ProcessStartInfo($"{packageManager}", $"{command}")
+        {
+          UseShellExecute = false,
+          RedirectStandardOutput = true,
+          RedirectStandardError = true,
+          CreateNoWindow = true,
+        };
+      }
 
-        using var process = Process.Start(installationProcess); 
-        
-        if (process == null) throw new Exception("Failed to start CMake process.");
-        AnsiConsole.WriteLine("Installing packages...");
+      using var process = Process.Start(installationProcess);
 
-        process!.WaitForExit();
+      if (process == null) throw new Exception("Failed to start CMake process.");
+      AnsiConsole.WriteLine("Installing packages...");
+
+      process!.WaitForExit();
     }
 
-    private static void SetGetPackagesFunction() {
+    /// <summary>
+    /// Registers the get_packages function for installing system packages.
+    /// </summary>
+    /// <remarks>
+    /// Provides forge.get_packages(password, manager, packages) function for
+    /// cross-platform package installation.
+    /// </remarks>
+    private static void SetGetPackagesFunction()
+    {
       var getPackagesFunc = new LuaFunction("get_packages", async (context, token) =>
       {
         var password = context.GetArgument<string>(0);
@@ -125,16 +188,25 @@ namespace forge.Commands.Lua
         if (password == "nopass")
         {
           InstallPackages(false, packageManager, packageList);
-        } else {
+        }
+        else
+        {
           InstallPackages(true, packageManager, packageList, password);
         }
-  
+
         return 0;
       });
 
       _cpm[new LuaValue("get_packages")] = new LuaValue(getPackagesFunc);
     }
 
+    /// <summary>
+    /// Registers logging functions for Lua scripts.
+    /// </summary>
+    /// <remarks>
+    /// Provides forge.log.info(message) function for displaying
+    /// informational messages in the terminal.
+    /// </remarks>
     private static void SetLoggingFunctionsAndDefinitions()
     {
       var log = new LuaTable();
@@ -150,35 +222,50 @@ namespace forge.Commands.Lua
       _cpm[new LuaValue("log")] = new LuaValue(log);
     }
 
-    private static string GetLinuxDistro() {
-        var dict = new Dictionary<string, string>();
-        try
+    /// <summary>
+    /// Detects the current Linux distribution from /etc/os-release.
+    /// </summary>
+    /// <returns>The canonical distribution name (e.g., "ubuntu", "arch", "fedora").</returns>
+    private static string GetLinuxDistro()
+    {
+      var dict = new Dictionary<string, string>();
+      try
+      {
+        var lines = File.ReadAllLines("/etc/os-release");
+
+        foreach (var line in lines)
         {
-            var lines = File.ReadAllLines("/etc/os-release");
+          if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
+            continue;
 
-            foreach (var line in lines)
-            {
-                if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
-                    continue;
-
-                var parts = line.Split('=', 2);
-                if (parts.Length == 2)
-                {
-                    var key = parts[0].Trim();
-                    var value = parts[1].Trim().Trim('"'); // remove quotes
-                    dict[key] = value;
-                }
-            }
+          var parts = line.Split('=', 2);
+          if (parts.Length == 2)
+          {
+            var key = parts[0].Trim();
+            var value = parts[1].Trim().Trim('"'); // remove quotes
+            dict[key] = value;
+          }
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine("Error reading distro info: " + ex.Message);
-            return "unknown";
-        }
+      }
+      catch (Exception ex)
+      {
+        Console.WriteLine("Error reading distro info: " + ex.Message);
+        return "unknown";
+      }
 
-        return dict.TryGetValue("NAME", out var name) ? DistroName(name) : "unknown";
+      return dict.TryGetValue("NAME", out var name) ? DistroName(name) : "unknown";
     }
 
+    /// <summary>
+    /// Sets up environment information tables for Lua scripts.
+    /// </summary>
+    /// <remarks>
+    /// Populates the Lua environment with:
+    /// - forge.current_working_dir - Current directory path
+    /// - forge.os - Operating system information (current, windows, macos, linux)
+    /// - forge.distro - Linux distribution constants and detected distro
+    /// - forge.package_manager - Package manager constants
+    /// </remarks>
     private static void SetEnvironmentVariableInformation()
     {
       _cpm[new LuaValue("current_working_dir")] = new LuaValue(Directory.GetCurrentDirectory());
@@ -189,7 +276,7 @@ namespace forge.Commands.Lua
       os[new LuaValue("windows")] = new LuaValue("windows");
       os[new LuaValue("macos")] = new LuaValue("macos");
       os[new LuaValue("linux")] = new LuaValue("linux");
-      
+
       // Get distrobution information - useful for linux installation scripts
       var distro = new LuaTable();
       distro[new LuaValue("nixos")] = new LuaValue("nixos");
@@ -206,7 +293,7 @@ namespace forge.Commands.Lua
       _cpm[new LuaValue("distro")] = new LuaValue(distro);
 
       // Package Managers
-      var packageManager = new LuaTable(); 
+      var packageManager = new LuaTable();
       packageManager[new LuaValue("winget")] = new LuaValue("winget");
       packageManager[new LuaValue("chocolatey")] = new LuaValue("choco");
       packageManager[new LuaValue("brew")] = new LuaValue("brew");
@@ -216,6 +303,14 @@ namespace forge.Commands.Lua
       _cpm[new LuaValue("package_manager")] = new LuaValue(packageManager);
     }
 
+    /// <summary>
+    /// Generates and saves environment definitions for a new project.
+    /// </summary>
+    /// <param name="projectName">The name of the project.</param>
+    /// <remarks>
+    /// Creates a definitions.lua file in .config/forge/definitions/ with
+    /// current environment information for the new project.
+    /// </remarks>
     public static void SetEnvironmentDefinitions(string projectName)
     {
       var definitionsFilePath = Path.Combine(Directory.GetCurrentDirectory(), projectName, ".config", "forge", "definitions");
@@ -225,16 +320,26 @@ namespace forge.Commands.Lua
       File.AppendAllBytes(Path.Combine(definitionsFilePath, "definitions.lua"), Encoding.UTF8.GetBytes(definitions));
     }
 
-    private static string GetOperatingSystem() {
+    /// <summary>
+    /// Detects the current operating system.
+    /// </summary>
+    /// <returns>"linux", "macos", or "windows".</returns>
+    private static string GetOperatingSystem()
+    {
       if (OperatingSystem.IsLinux()) return "linux";
       if (OperatingSystem.IsMacOS()) return "macos";
       if (OperatingSystem.IsWindows()) return "windows";
       return string.Empty;
     }
 
+    /// <summary>
+    /// Gets the initialized Lua state for script execution.
+    /// </summary>
+    /// <returns>The LuaState instance.</returns>
     public static LuaState GetLuaEngine() => _state;
 
-    private static string DistroName(string name) => name switch {
+    private static string DistroName(string name) => name switch
+    {
       var n when n.Contains("arch", StringComparison.OrdinalIgnoreCase) => "arch",
       var n when n.Contains("debian", StringComparison.OrdinalIgnoreCase) => "debian",
       var n when n.Contains("ubuntu", StringComparison.OrdinalIgnoreCase) => "ubuntu",

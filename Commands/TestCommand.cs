@@ -4,18 +4,62 @@ using Spectre.Console;
 
 namespace forge.Commands
 {
+  /// <summary>
+  /// Builds and runs Google Test-based unit tests for the project.
+  /// </summary>
+  /// <remarks>
+  /// This command sets up Google Test if not already configured, builds the project
+  /// including tests, and executes the test suite. Tests are expected to be in the
+  /// test/ directory and the project must have googletest as a dependency.
+  /// </remarks>
+  /// <example>
+  /// <code>
+  /// // Run all tests
+  /// forge test
+  /// 
+  /// // Run a specific test suite
+  /// forge test MyTestSuite
+  /// 
+  /// // Run tests with filter
+  /// forge test --filter="MathTest.*"
+  /// </code>
+  /// </example>
   [CliCommand(Name = "test", Description = "Build and run tests.", Parent = typeof(RootCommand))]
   public class TestCommand
   {
+    /// <summary>
+    /// Gets or sets the name of the test suite to run.
+    /// </summary>
+    /// <value>
+    /// The name of a Google Test suite. When provided, runs only tests in that suite.
+    /// </value>
     [CliArgument(Description = "Optional: Name of the test suite to run (e.g., MyTestSuite).")]
     public string? TestSuiteName { get; set; }
 
+    /// <summary>
+    /// Gets or sets a Google Test filter to select which tests to run.
+    /// </summary>
+    /// <value>
+    /// A Google Test filter string (e.g., "TestSuite.TestName" or "TestSuite.*").
+    /// </value>
     [CliOption(Description = "Filter tests to run (e.g., MyTestSuite.TestName or MyTestSuite.*).")]
     public string? Filter { get; set; }
 
+    /// <summary>
+    /// Gets or sets the C++ standard version to use for building tests.
+    /// </summary>
+    /// <value>
+    /// Valid values: "11", "14", "17", "20". Defaults to "20".
+    /// </value>
     [CliOption(Description = "C++ standard to use (e.g., 11, 14, 17, 20). Defaults to 20.")]
     public string Standard { get; set; } = "20";
 
+    /// <summary>
+    /// Executes the test build and run pipeline.
+    /// </summary>
+    /// <returns>
+    /// 0 if all tests pass, non-zero if tests fail or build fails.
+    /// </returns>
     public int Run()
     {
       if (!Directory.Exists("test"))

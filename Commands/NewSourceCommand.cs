@@ -3,12 +3,33 @@ using Spectre.Console;
 
 namespace forge.Commands
 {
+  /// <summary>
+  /// Generates a new C++ header and source file pair.
+  /// </summary>
+  /// <remarks>
+  /// Creates both a header file with include guards and a corresponding source file
+  /// that includes the header. This is useful for creating utility functions or
+  /// free functions that don't require a class.
+  /// </remarks>
+  /// <example>
+  /// <code>
+  /// // Generate MathUtils header and source
+  /// forge new source MathUtils
+  /// // Results in: src/MathUtils.h and src/MathUtils.cpp
+  /// </code>
+  /// </example>
   [CliCommand(Name = "source", Parent = typeof(NewCommand))]
   public class NewSourceCommand
   {
+    /// <summary>
+    /// Gets or sets the name of the source files to create (without extension).
+    /// </summary>
     [CliArgument(Description = "The name of the source files (without extension).")]
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Generates the header and source files.
+    /// </summary>
     public void Run()
     {
       var fileName = Name;

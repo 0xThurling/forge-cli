@@ -4,13 +4,38 @@ using System.Text.RegularExpressions;
 using DotMake.CommandLine;
 using Spectre.Console;
 
-namespace forge.Commands.Conan {
+namespace forge.Commands.Conan
+{
+  /// <summary>
+  /// Installs Conan package dependencies and configures CMake integration.
+  /// </summary>
+  /// <remarks>
+  /// This command generates a conanfile.txt from the [conan-dependencies] section
+  /// of package.toml and runs `conan install` to fetch and configure the packages.
+  /// It also parses the Conan output to extract CMake target information for use
+  /// during the build phase.
+  /// </remarks>
+  /// <example>
+  /// <code>
+  /// // Install Conan dependencies
+  /// forge install
+  /// 
+  /// // Or implicitly via build:
+  /// forge build
+  /// </code>
+  /// </example>
   [CliCommand(Name = "install", Description = "Generate conanfile and install dependencies", Parent = typeof(RootCommand))]
-  public partial class InstallCommand {
-    public int Run() {
+  public partial class InstallCommand
+  {
+    /// <summary>
+    /// Generates conanfile.txt and runs Conan to install dependencies.
+    /// </summary>
+    /// <returns>0 on success, 1 on failure.</returns>
+    public int Run()
+    {
       var config = ProjectConfigManager.LoadConfig();
       if (config == null) return 1;
-      
+
       if (config.ConanDependencies.Count == 0)
       {
         AnsiConsole.MarkupLine("[yellow]No conan dependencies defined in package.toml[/]");
@@ -26,7 +51,7 @@ namespace forge.Commands.Conan {
         conanfile.AppendLine($"{dep.Key}/{dep.Value}");
       }
       conanfile.AppendLine("\n[generators]\nCMakeDeps\nCMakeToolchain\n\n[layout]\ncmake_layout");
-      
+
       var conanfilePath = Path.Combine(".config", "conanfile.txt");
       File.WriteAllText(conanfilePath, conanfile.ToString());
       AnsiConsole.MarkupLine($"[green]Generated {conanfilePath}[/]");
@@ -35,7 +60,8 @@ namespace forge.Commands.Conan {
 
       try
       {
-        var processInfo = new ProcessStartInfo("conan", $"install {conanfilePath} --output-folder=build --build=missing") {
+        var processInfo = new ProcessStartInfo("conan", $"install {conanfilePath} --output-folder=build --build=missing")
+        {
           UseShellExecute = false,
           RedirectStandardOutput = true,
           RedirectStandardError = true,
@@ -46,21 +72,21 @@ namespace forge.Commands.Conan {
         var errorBuilder = new StringBuilder();
 
         using var process = Process.Start(processInfo) ?? throw new Exception("Failed to start conan process.");
-         
+
         process.OutputDataReceived += (sender, e) =>
         {
-            if (!string.IsNullOrEmpty(e.Data))
-            {
-                outputBuilder.AppendLine(e.Data);
-            }
+          if (!string.IsNullOrEmpty(e.Data))
+          {
+            outputBuilder.AppendLine(e.Data);
+          }
         };
 
         process.ErrorDataReceived += (sender, e) =>
         {
-            if (!string.IsNullOrEmpty(e.Data))
-            {
-                errorBuilder.AppendLine(e.Data);
-            }
+          if (!string.IsNullOrEmpty(e.Data))
+          {
+            errorBuilder.AppendLine(e.Data);
+          }
         };
 
         process.BeginOutputReadLine();
@@ -87,18 +113,26 @@ namespace forge.Commands.Conan {
     }
 
     /// <summary>
-    ///   Extracts the correct CMake tags for the <c>target_link_libraries</c>
-    ///   Used during the build process
+    /// Extracts CMake target_link_libraries tags from Conan output.
     /// </summary>
-    private static void LinkConanDependencies(string output) {
+    /// <param name="output">The Conan command output to parse.</param>
+    /// <remarks>
+    /// Parses lines starting with "target_link_libraries" and extracts the
+    /// CMake target names for linking during the build phase.
+    /// </remarks>
+    private static void LinkConanDependencies(string output)
+    {
       var lines = output.Split('\n');
 
-      foreach(var line in lines) {
+      foreach (var line in lines)
+      {
         var trimmedLine = line.Trim();
 
-        if (trimmedLine.StartsWith("target_link_libraries")) {
+        if (trimmedLine.StartsWith("target_link_libraries"))
+        {
           var linkTags = trimmedLine.Split(' ')[1..];
-          foreach (var tag in linkTags) {
+          foreach (var tag in linkTags)
+          {
             var strippedTag = tag.Replace(')', ' ').Trim();
             ProjectBuildManager.LinkDependencies.Add(strippedTag);
           }
@@ -106,24 +140,38 @@ namespace forge.Commands.Conan {
       }
     }
 
+    /// <summary>
+    /// Generated regex pattern for extracting content from parentheses.
+    /// </summary>
     [GeneratedRegex(@"\(([^)]*)\)")]
     private static partial Regex MyRegex();
 
-    private static void FindConanDependencies(string output) {
+    /// <summary>
+    /// Extracts find_package module names from Conan output.
+    /// </summary>
+    /// <param name="output">The Conan command output to parse.</param>
+    /// <remarks>
+    /// Parses lines starting with "find_package" and extracts the
+    /// package names for CMake find_package() calls.
+    /// </remarks>
+    private static void FindConanDependencies(string output)
+    {
       var lines = output.Split('\n');
 
-      foreach(var line in lines) {
+      foreach (var line in lines)
+      {
         var trimmedLine = line.Trim();
 
-        if (trimmedLine.StartsWith("find_package")) {
+        if (trimmedLine.StartsWith("find_package"))
+        {
           Match match = MyRegex().Match(trimmedLine);
           if (match.Success)
           {
-              string extracted = match.Groups[1].Value;
-              ProjectBuildManager.FindDependencies.Add(extracted);
+            string extracted = match.Groups[1].Value;
+            ProjectBuildManager.FindDependencies.Add(extracted);
           }
         }
       }
     }
-  } 
+  }
 }

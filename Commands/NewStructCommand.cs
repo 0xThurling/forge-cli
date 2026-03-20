@@ -3,12 +3,31 @@ using Spectre.Console;
 
 namespace forge.Commands
 {
+  /// <summary>
+  /// Generates a new C++ struct with header and optional source file.
+  /// </summary>
+  /// <remarks>
+  /// Creates a new struct with a placeholder for member variables in the header
+  /// file. A corresponding source file is also created for any method implementations.
+  /// </remarks>
+  /// <example>
+  /// <code>
+  /// // Generate a Vector3 struct
+  /// forge new struct Vector3
+  /// </code>
+  /// </example>
   [CliCommand(Name = "struct", Parent = typeof(NewCommand))]
   public class NewStructCommand
   {
+    /// <summary>
+    /// Gets or sets the name of the struct to generate.
+    /// </summary>
     [CliArgument(Description = "The name of the struct.")]
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Generates the struct header and source files.
+    /// </summary>
     public void Run()
     {
       var structName = Name;

@@ -4,8 +4,38 @@ using Spectre.Console;
 
 namespace forge
 {
+    /// <summary>
+    /// Provides utility functions for common operations used throughout Forge,
+    /// including resource file generation and test setup.
+    /// </summary>
+    /// <remarks>
+    /// This static class contains helper methods that don't belong to a specific
+    /// domain but are needed by multiple commands. Functions include generating
+    /// embedded resource files from binary assets and setting up Google Test.
+    /// </remarks>
     public static class Utils
     {
+        /// <summary>
+        /// Generates C++ header and source files that embed binary resources directly
+        /// into the compiled executable.
+        /// </summary>
+        /// <param name="resources">A list of file paths to resources that should be embedded.</param>
+        /// <remarks>
+        /// This method reads each specified binary file and generates C++ code that embeds
+        /// the file contents as byte arrays. The generated code provides a simple API
+        /// (Embedded::get()) to access the embedded resources at runtime.
+        /// 
+        /// The generated files are:
+        /// - src/embedded_resources.h - Header with Embedded namespace declarations
+        /// - src/embedded_resources.cpp - Implementation with byte arrays and lookup map
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// // Embed resources listed in package.toml
+        /// var resources = new List<string> { "assets/icon.png", "assets/shader.glsl" };
+        /// Utils.GenerateResourceFiles(resources);
+        /// </code>
+        /// </example>
         public static void GenerateResourceFiles(List<string> resources)
         {
             AnsiConsole.MarkupLine("[bold cyan]--- Generating resource files --- [/]");
@@ -105,6 +135,23 @@ namespace forge
             AnsiConsole.MarkupLine($"[bold green]Successfully generated `[bold]{headerPath}[/]` and `[bold]{cppPath}[/][/]`.");
         }
 
+        /// <summary>
+        /// Converts a filename into a valid C++ identifier by replacing non-alphanumeric
+        /// characters with underscores.
+        /// </summary>
+        /// <param name="fileName">The original filename to sanitize.</param>
+        /// <returns>A string that can be used as a valid C++ variable name.</returns>
+        /// <remarks>
+        /// This method is used when generating embedded resource files to create valid
+        /// C++ variable names from file paths. For example, "assets/icon.png" becomes
+        /// "assets_icon_png".
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// var safeName = Utils.SanitizeFileName("assets/my-image.png");
+        /// // Returns: "assets_my_image_png"
+        /// </code>
+        /// </example>
         private static string SanitizeFileName(string fileName)
         {
             // Replace non-alphanumeric characters with underscores
@@ -123,6 +170,23 @@ namespace forge
             return sb.ToString();
         }
 
+        /// <summary>
+        /// Creates the test directory structure and configures Google Test for the project.
+        /// </summary>
+        /// <remarks>
+        /// This method sets up the testing infrastructure by:
+        /// 1. Creating the test/ directory if it doesn't exist
+        /// 2. Creating a basic test/main.cpp with sample tests
+        /// 3. Adding googletest as a dependency in package.toml if not already present
+        /// 
+        /// This is called automatically by the test command when tests need to be set up.
+        /// </remarks>
+        /// <example>
+        /// <code>
+        /// // Initialize testing framework
+        /// Utils.CreateTests();
+        /// </code>
+        /// </example>
         public static void CreateTests()
         {
             // Create tests directory
