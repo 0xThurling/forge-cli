@@ -1,269 +1,398 @@
 # Forge Testing Plan
 
-## Table of Contents
+## Overview
 
-1. [Overview](#overview)
-2. [Test Categories](#test-categories)
-3. [Project Type Scenarios](#project-type-scenarios)
-4. [Build and Integration Tests](#build-and-integration-tests)
-5. [Running Tests](#running-tests)
-6. [Test Environment Setup](#test-environment-setup)
-7. [Expected Results](#expected-results)
-8. [Troubleshooting](#troubleshooting)
+This document outlines the comprehensive testing plan for the Forge modular CMake generator system. The testing plan aligns with the Registry + Priority Pattern implemented in the CMake generation system.
+
+**System Under Test**: Modular CMake Generator with Lua Integration
+**Reference**: See [IMPLEMENTATION_PLAN.md](../planning/IMPLEMENTATION_PLAN.md)
 
 ---
 
-## Overview
+## Test Priority System
 
-This document outlines the comprehensive testing plan for Forge, a C++ project management tool. The testing plan covers multiple scenarios including different project types (graphics, fullstack, libraries), build verification, and integration testing across supported platforms.
+The CMake generator uses a priority-based system where lower numbers appear earlier in the generated file.
 
-**Supported Platforms**:
-- Linux (x64)
-- macOS (x64, arm64)
-- Windows (x64)
+| Priority | Section | Purpose |
+|----------|---------|---------|
+| 0 | FormatSection | Code formatting |
+| 1 | StandardSection | C++ standard config |
+| 5 | ConanSection | Conan packages |
+| 10 | FetchContentSection | Git dependencies |
+| 30 | ProjectTargetSection | add_executable/library |
+| 40 | LinkingSection | target_link_libraries |
+| 45 | CustomCMakeSection | From Lua scripts |
+| 50 | TestingSection | Google Test |
 
 ---
 
 ## Test Categories
 
-### 1. Unit Tests
-- Internal C# tests for Forge commands and utilities
-- Tests for configuration parsing (package.toml)
-- Tests for CMake generation logic
-
-### 2. Integration Tests
-- End-to-end project creation and build workflows
-- Dependency resolution with Conan
-- Resource embedding verification
-
-### 3. Project Type Tests
-- Executable projects
-- Library projects (static/shared)
-- Graphics projects (SDL2, OpenGL, Vulkan)
-- Fullstack projects (with web servers or APIs)
-
-### 4. Platform Tests
-- Linux-specific builds
-- macOS-specific builds
-- Windows-specific builds
+### 1. Section Registration Tests
+### 2. Priority Order Tests
+### 3. Lua Integration Tests
+### 4. CMake Generation Tests
+### 5. End-to-End Project Tests
 
 ---
 
-## Project Type Scenarios
+## Test Category 1: Section Registration
 
-### Scenario 1: Basic Executable Project
+### Test 1.1: Verify All Built-in Sections Register
 
-**Purpose**: Verify basic project creation and build functionality.
+**Purpose**: Ensure all CMake sections are properly registered in CMakeRegistry.
 
 **Test Steps**:
 
 ```bash
-# 1. Create new executable project
-forge create test_executable
+# 1. Create test project
+forge create test_sections
 
-# 2. Navigate to project
-cd test_executable
-
-# 3. Build the project
+# 2. Build to trigger CMake generation
+cd test_sections
 forge build
 
-# 4. Run the executable
-forge run
-
-# 5. Clean build artifacts
-forge clean
+# 3. Check generated CMakeLists.txt
+cat .config/cmake/CMakeLists.txt
 ```
 
 **Verification Points**:
-- [ ] Directory structure created correctly
-- [ ] package.toml generated with correct defaults
-- [ ] CMakeLists.txt generated successfully
-- [ ] Build completes without errors
-- [ ] Executable runs and outputs expected text
-
-**Expected Output**:
-```
-Hello, C++ World!
-```
+- [ ] StandardSection generates (C++ standard)
+- [ ] FetchContentSection generates (if dependencies exist)
+- [ ] ProjectTargetSection generates
+- [ ] LinkingSection generates
+- [ ] TestingSection generates (if test/ and googletest exist)
+- [ ] CustomCMakeSection generates (if Lua scripts add content)
 
 ---
 
-### Scenario 2: Library Project
+### Test 1.2: Section Name Verification
 
-**Purpose**: Verify library project creation and build.
+**Purpose**: Verify each section has correct Name property.
+
+**Verification Points**:
+- [ ] `StandardSection.Name == "standard"`
+- [ ] `FetchContentSection.Name == "fetchcontent"`
+- [ ] `ConanSection.Name == "conan"`
+- [ ] `ProjectTargetSection.Name == "project_target"`
+- [ ] `LinkingSection.Name == "linking"`
+- [ ] `TestingSection.Name == "testing"`
+- [ ] `CustomCMakeSection.Name == "custom"`
+
+---
+
+## Test Category 2: Priority Order Tests
+
+### Test 2.1: Priority Ordering Verification
+
+**Purpose**: Verify sections appear in correct order in generated CMake.
 
 **Test Steps**:
 
 ```bash
-# 1. Create library project
-forge create test_library --type library
+# 1. Create project with all features
+forge create test_priority
 
-# 2. Navigate to project
-cd test_library
+# 2. Add dependencies to trigger multiple sections
+cat > test_priority/package.toml << 'EOF'
+[project]
+name = "test_priority"
+type = "executable"
 
-# 3. Build the project
+[dependencies]
+fmt = { git = "https://github.com/fmtlib/fmt.git", tag = "10.2.1" }
+googletest = { git = "https://github.com/google/googletest.git", tag = "release-1.12.1", target = "GTest::gtest" }
+EOF
+
+# 3. Add test directory
+mkdir -p test_priority/test
+cat > test_priority/test/main.cpp << 'EOF'
+#include <gtest/gtest.h>
+TEST(BasicTest, Pass) { EXPECT_TRUE(true); }
+int main(int argc, char** argv) { testing::InitGoogleTest(&argc, argv); return RUN_ALL_TESTS(); }
+EOF
+
+# 4. Build and check order
+cd test_priority
 forge build
 
-# 4. Verify library was created
-ls -la build/
+# 5. Verify order in CMakeLists.txt
+grep -n "CMAKE_CXX_STANDARD\|FetchContent_Declare\|add_executable\|target_link_libraries\|enable_testing\|Custom CMake" .config/cmake/CMakeLists.txt
 ```
 
+**Expected Order**:
+1. StandardSection (Priority 1)
+2. FetchContentSection (Priority 10)
+3. ProjectTargetSection (Priority 30)
+4. LinkingSection (Priority 40)
+5. CustomCMakeSection (Priority 45)
+6. TestingSection (Priority 50)
+
 **Verification Points**:
-- [ ] Library type set correctly in package.toml
-- [ ] Static library (.a or .lib) generated
-- [ ] CMakeLists.txt configured as library
+- [ ] Standard appears before FetchContent
+- [ ] FetchContent appears before ProjectTarget
+- [ ] ProjectTarget appears before Linking
+- [ ] Linking appears before Custom CMake
+- [ ] Custom CMake appears before Testing
 
 ---
 
-### Scenario 3: Graphics Project (SDL2)
+### Test 2.2: Custom Priority Positioning
 
-**Purpose**: Verify graphics library integration with SDL2.
+**Purpose**: Verify new sections can be inserted at specific priorities.
 
 **Test Steps**:
 
-```bash
-# 1. Create executable project
-forge create test_graphics
-
-# 2. Navigate to project
-cd test_graphics
-
-# 3. Add SDL2 as dependency (edit package.toml)
-# package.toml should contain:
-# [dependencies]
-# sdl = { git = "https://github.com/libsdl-org/SDL.git", tag = "release-2.30.3", target = "SDL2::SDL2" }
-
-# 4. Build the project
-forge build --verbose
+```csharp
+// Example: Add new section at priority 35
+public class MyCustomSection : CMakeSectionBase
+{
+    public override string Name => "my_custom";
+    public override int Priority => 35;  // Between ProjectTarget (30) and Linking (40)
+}
 ```
 
 **Verification Points**:
-- [ ] SDL2 fetched via CMake FetchContent
-- [ ] Build completes without linker errors
-- [ ] Test executable runs (headless test or display required)
+- [ ] Section appears in correct position
+- [ ] Priority comparison works correctly
 
 ---
 
-### Scenario 4: Graphics Project (OpenGL)
+## Test Category 3: Lua Integration Tests
 
-**Purpose**: Verify OpenGL graphics project setup.
+### Test 3.1: Custom CMake via Lua
+
+**Purpose**: Verify `forge.add_cmake()` function works.
 
 **Test Steps**:
 
 ```bash
 # 1. Create project
-forge create test_opengl
+forge create test_lua_cmake
 
-# 2. Add OpenGL dependencies
-# On Linux (Ubuntu/Debian):
-# forge run  # This will run pre-build script if defined
+# 2. Create Lua build script
+mkdir -p test_lua_cmake/.config/forge/build
+cat > test_lua_cmake/.config/forge/build/custom.lua << 'EOF'
+forge.log.info("Testing custom CMake injection...")
 
-# 3. Create source file with OpenGL code
-# src/main.cpp should include OpenGL headers
+forge.add_cmake([[
+# This is custom CMake from Lua!
+message(STATUS "Hello from custom CMake!")
+]])
 
-# 4. Build
-forge build --verbose
-```
+forge.log.info("Custom CMake added!")
+EOF
 
-**Verification Points**:
-- [ ] OpenGL headers found
-- [ ] Library linking successful
-- [ ] Build completes
-
----
-
-### Scenario 5: Fullstack C++ Project
-
-**Purpose**: Verify C++ project with server/API components.
-
-**Test Steps**:
-
-```bash
-# 1. Create project
-forge create test_fullstack
-
-# 2. Add dependencies (e.g., Boost, nlohmann_json)
-# Edit package.toml:
-# [conan-dependencies]
-# nlohmann_json = "3.10.5"
-# boost = "1.85.0"
-
-# 3. Install Conan dependencies
-forge install
-
-# 4. Build
+# 3. Build
+cd test_lua_cmake
 forge build
 ```
 
 **Verification Points**:
-- [ ] Conan dependencies resolved correctly
-- [ ] nlohmann_json available for use
-- [ ] CMake finds Boost components
+- [ ] Lua script executes
+- [ ] Custom CMake appears in generated file
+- [ ] Message displays during CMake configure
 
----
+### Test 3.2: Multiple Custom CMake Snippets
 
-### Scenario 6: Project with Resources
-
-**Purpose**: Verify resource embedding system.
+**Purpose**: Verify multiple Lua scripts can add CMake.
 
 **Test Steps**:
 
 ```bash
-# 1. Create project
-forge create test_resources
+# 1. Create multiple Lua scripts
+cat > .config/forge/build/script1.lua << 'EOF'
+forge.add_cmake([[
+# From script1
+add_definitions(SCRIPT1_FLAG)
+]])
+EOF
 
-# 2. Add a resource file
-mkdir -p test_resources/assets
-echo "test data" > test_resources/assets/config.json
+cat > .config/forge/build/script2.lua << 'EOF'
+forge.add_cmake([[
+# From script2
+add_definitions(SCRIPT2_FLAG)
+]])
+EOF
 
-# 3. Register the resource
-cd test_resources
-forge embed assets/config.json
-
-# 4. Build
+# 2. Build
 forge build
-
-# 5. Verify embedded_resources.h and .cpp generated
-ls -la src/
 ```
 
 **Verification Points**:
-- [ ] Resource added to package.toml
-- [ ] embedded_resources.h generated
-- [ ] embedded_resources.cpp generated with correct data
-- [ ] Resource accessible via Embedded::get()
+- [ ] Both snippets appear in generated CMake
+- [ ] Order matches script execution order
+
+### Test 3.3: PROJECT_NAME Placeholder Replacement
+
+**Purpose**: Verify `${PROJECT_NAME}` is replaced correctly.
+
+**Test Steps**:
+
+```bash
+# 1. Create Lua script with placeholder
+cat > .config/forge/build/placeholder.lua << 'EOF'
+forge.add_cmake([[
+target_compile_definitions(${PROJECT_NAME} PRIVATE MY_DEFINE)
+]])
+EOF
+
+# 2. Build
+forge build
+```
+
+**Verification Points**:
+- [ ] `${PROJECT_NAME}` replaced with actual project name
+- [ ] Generated CMake is valid
 
 ---
 
-### Scenario 7: Project with Tests
+## Test Category 4: CMake Generation Tests
+
+### Test 4.1: StandardSection Generation
+
+**Purpose**: Verify C++ standard is set correctly.
+
+**Test Steps**:
+
+```bash
+# Build with different standards
+forge create test_std11 && cd test_std11 && forge build --standard 11 && grep -q "CMAKE_CXX_STANDARD 11" .config/cmake/CMakeLists.txt
+forge create test_std17 && cd test_std17 && forge build --standard 17 && grep -q "CMAKE_CXX_STANDARD 17" .config/cmake/CMakeLists.txt
+forge create test_std20 && cd test_std20 && forge build --standard 20 && grep -q "CMAKE_CXX_STANDARD 20" .config/cmake/CMakeLists.txt
+```
+
+**Verification Points**:
+- [ ] CMAKE_CXX_STANDARD set to 11 when --standard 11
+- [ ] CMAKE_CXX_STANDARD set to 17 when --standard 17
+- [ ] CMAKE_CXX_STANDARD set to 20 when --standard 20
+- [ ] CMAKE_CXX_STANDARD_REQUIRED ON
+- [ ] CMAKE_CXX_EXTENSIONS OFF
+
+---
+
+### Test 4.2: FetchContentSection Generation
+
+**Purpose**: Verify Git dependencies generate correctly.
+
+**Test Steps**:
+
+```bash
+# 1. Create project with git dependencies
+forge create test_fetch
+
+cat > test_fetch/package.toml << 'EOF'
+[project]
+name = "test_fetch"
+type = "executable"
+
+[dependencies]
+sdl = { git = "https://github.com/libsdl-org/SDL.git", tag = "release-2.30.3", target = "SDL2::SDL2" }
+fmt = { git = "https://github.com/fmtlib/fmt.git", tag = "10.2.1" }
+EOF
+
+# 2. Build
+cd test_fetch
+forge build
+
+# 3. Check CMake
+cat .config/cmake/CMakeLists.txt
+```
+
+**Verification Points**:
+- [ ] `include(FetchContent)` present
+- [ ] `FetchContent_Declare()` for each dependency
+- [ ] `FetchContent_MakeAvailable()` for each dependency
+- [ ] Correct GIT_REPOSITORY URLs
+- [ ] Correct GIT_TAG versions
+
+---
+
+### Test 4.3: ProjectTargetSection Generation
+
+**Purpose**: Verify executable/library targets generated correctly.
+
+**Test Steps**:
+
+```bash
+# Test executable
+forge create test_exec
+cd test_exec
+forge build
+grep -q "add_executable(test_exec" .config/cmake/CMakeLists.txt
+
+# Test library
+forge create test_lib --type library
+cd test_lib
+forge build
+grep -q "add_library(test_lib STATIC" .config/cmake/CMakeLists.txt
+```
+
+**Verification Points**:
+- [ ] Executable projects generate `add_executable()`
+- [ ] Library projects generate `add_library() STATIC`
+- [ ] GLOB_RECURSE SOURCES used correctly
+
+---
+
+### Test 4.4: LinkingSection Generation
+
+**Purpose**: Verify dependencies are linked correctly.
+
+**Test Steps**:
+
+```bash
+# Create project with dependencies
+forge create test_linking
+
+cat > test_linking/package.toml << 'EOF'
+[project]
+name = "test_linking"
+type = "executable"
+
+[dependencies]
+sdl = { git = "https://github.com/libsdl-org/SDL.git", tag = "release-2.30.3", target = "SDL2::SDL2" }
+EOF
+
+cd test_linking
+forge build
+grep -q "target_link_libraries(test_linking PRIVATE" .config/cmake/CMakeLists.txt
+```
+
+**Verification Points**:
+- [ ] `target_link_libraries()` generated
+- [ ] Uses correct CMake targets from dependencies
+- [ ] SDL2::SDL2 linked correctly
+
+---
+
+### Test 4.5: TestingSection Generation
 
 **Purpose**: Verify Google Test integration.
 
 **Test Steps**:
 
 ```bash
-# 1. Create project
-forge create test_with_tests
+# 1. Create project with tests
+forge create test_gtest
 
-# 2. Navigate to project
-cd test_with_tests
+# 2. Add googletest to dependencies
+cat > test_gtest/package.toml << 'EOF'
+[project]
+name = "test_gtest"
+type = "executable"
 
-# 3. Add googletest dependency
-# Edit package.toml:
-# [dependencies]
-# googletest = { git = "https://github.com/google/googletest.git", tag = "release-1.12.1", target = "GTest::gtest" }
+[dependencies]
+googletest = { git = "https://github.com/google/googletest.git", tag = "release-1.12.1", target = "GTest::gtest" }
+EOF
 
-# 4. Create test files
-mkdir -p test
-cat > test/main.cpp << 'EOF'
+# 3. Create test directory and file
+mkdir -p test_gtest/test
+cat > test_gtest/test/main.cpp << 'EOF'
 #include <gtest/gtest.h>
 
 TEST(MathTest, Addition) {
     EXPECT_EQ(1 + 1, 2);
-}
-
-TEST(MathTest, Multiplication) {
-    EXPECT_EQ(3 * 4, 12);
 }
 
 int main(int argc, char** argv) {
@@ -272,347 +401,196 @@ int main(int argc, char** argv) {
 }
 EOF
 
-# 5. Run tests
-forge test
+# 4. Build
+cd test_gtest
+forge build
 ```
 
 **Verification Points**:
-- [ ] Test directory created
-- [ ] CMake enables testing
-- [ ] Tests compile and link
-- [ ] Tests run successfully
+- [ ] `enable_testing()` present
+- [ ] TEST_SOURCES glob correct
+- [ ] `add_executable(run_tests ...)` present
+- [ ] `gtest_discover_tests(run_tests)` present
 
 ---
 
-### Scenario 8: Project with Pre/Post Build Scripts
+### Test 4.6: ConanSection Generation
 
-**Purpose**: Verify build script execution.
+**Purpose**: Verify Conan dependencies generate correctly.
 
 **Test Steps**:
 
 ```bash
-# 1. Create project
-forge create test_scripts
+# 1. Create project with Conan deps
+forge create test_conan
 
-# 2. Edit package.toml to add scripts:
-# [scripts]
-# pre-build = "echo 'Pre-build: Starting...'"
-# post-build = "echo 'Post-build: Complete!'"
+cat > test_conan/package.toml << 'EOF'
+[project]
+name = "test_conan"
+type = "executable"
+
+[conan-dependencies]
+fmt = "10.2.1"
+spdlog = "1.12.0"
+EOF
+
+# 2. Install Conan dependencies
+cd test_conan
+forge install
 
 # 3. Build
 forge build
 ```
 
 **Verification Points**:
-- [ ] Pre-build script runs before CMake
-- [ ] Post-build script runs after CMake build
-- [ ] Scripts execute in correct order
+- [ ] `find_package()` calls generated for each Conan dep
+- [ ] ConanSection only enabled when FindDependencies not empty
 
 ---
 
-### Scenario 9: Multi-Dependency Project
+## Test Category 5: End-to-End Project Tests
 
-**Purpose**: Verify complex dependency scenarios.
+### Test 5.1: Minimal Project
 
-**Test Steps**:
-
-```bash
-# 1. Create project
-forge create test_multi_deps
-
-# 2. Edit package.toml with multiple dependencies:
-# [dependencies]
-# sdl = { git = "https://github.com/libsdl-org/SDL.git", tag = "release-2.30.3", target = "SDL2::SDL2" }
-# fmt = { git = "https://github.com/fmtlib/fmt.git", tag = "10.2.1" }
-# 
-# [conan-dependencies]
-# spdlog = "1.12.0"
-
-# 3. Install Conan dependencies
-forge install
-
-# 4. Build
-forge build --verbose
-```
-
-**Verification Points**:
-- [ ] Git dependencies fetched via FetchContent
-- [ ] Conan dependencies resolved
-- [ ] All dependencies linked correctly
-- [ ] No symbol conflicts
-
----
-
-### Scenario 10: Custom C++ Standard
-
-**Purpose**: Verify C++ standard configuration.
-
-**Test Steps**:
+**Purpose**: Test basic project without special features.
 
 ```bash
-# 1. Create project
-forge create test_cpp17
-
-# 2. Build with specific standard
-forge build --standard 17
-```
-
-**Verification Points**:
-- [ ] CMAKE_CXX_STANDARD set to 17
-- [ ] Project compiles with C++17 features
-
----
-
-## Build and Integration Tests
-
-### Test Suite 1: Core Commands
-
-| Command | Test | Expected Result |
-|---------|------|-----------------|
-| `forge create` | Create new project | Project directories and files created |
-| `forge build` | Build existing project | CMake generates, build succeeds |
-| `forge run` | Run executable | Application executes |
-| `forge test` | Run test suite | Tests execute and pass |
-| `forge clean` | Clean build artifacts | build/ directory removed |
-| `forge embed` | Register resource | Resource added to config |
-
-### Test Suite 2: Code Generation
-
-| Command | Test | Expected Result |
-|---------|------|-----------------|
-| `forge new class Player` | Generate class | Player.h and Player.cpp created |
-| `forge new struct Point` | Generate struct | Point.h created |
-| `forge new header util` | Generate header | util.h created with guards |
-| `forge new source math` | Generate source pair | math.h and math.cpp created |
-
-### Test Suite 3: Project Information
-
-| Command | Test | Expected Result |
-|---------|------|-----------------|
-| `forge project info` | Display project info | Correct configuration displayed |
-| `forge project tree` | Display file tree | Directory structure shown |
-| `forge project stats` | Display statistics | File counts correct |
-| `forge project dependencies` | List dependencies | All deps listed |
-| `forge project scripts` | List scripts | Available scripts shown |
-
----
-
-## Running Tests
-
-### Running All Project Scenarios
-
-```bash
-#!/bin/bash
-# Run all test scenarios sequentially
-
-SCENARIOS=(
-    "test_executable"
-    "test_library"
-    "test_graphics"
-    "test_fullstack"
-    "test_resources"
-    "test_with_tests"
-    "test_scripts"
-    "test_multi_deps"
-    "test_cpp17"
-)
-
-for scenario in "${SCENARIOS[@]}"; do
-    echo "=== Testing: $scenario ==="
-    forge create "$scenario"
-    cd "$scenario"
-    forge build
-    cd ..
-    forge clean
-done
-```
-
-### Running Specific Test Category
-
-```bash
-# Graphics tests only
-forge create graphics_test
-cd graphics_test
-# Add graphics dependencies manually
-forge build --verbose
-
-# Fullstack tests only
-forge create fullstack_test
-cd fullstack_test
-# Add server dependencies
-forge install
+forge create test_minimal
+cd test_minimal
 forge build
 ```
 
-### Running with Verbose Output
-
-```bash
-# For detailed debugging
-forge build --verbose
-
-# For test debugging
-forge test --filter="*TestName*"
-```
+**Verification Points**:
+- [ ] Builds without errors
+- [ ] StandardSection only section generated
+- [ ] Executable created
 
 ---
 
-## Test Environment Setup
+### Test 5.2: Full-Featured Project
 
-### Prerequisites
+**Purpose**: Test all features together.
 
-Before running tests, ensure the following are installed:
-
-| Tool | Version | Purpose |
-|------|---------|---------|
-| CMake | >= 3.23 | Build system |
-| Conan | >= 2.0 | Package manager |
-| Git | Any | Version control |
-| C++ Compiler | GCC/Clang/MSVC | Compilation |
-| Google Test | 1.12.1+ | Testing framework |
-
-### Installation Commands
-
-**Linux (Ubuntu/Debian)**:
 ```bash
-sudo apt-get update
-sudo apt-get install cmake g++ git
-pip install conan
+forge create test_full
+
+# Add package.toml with all features
+cat > test_full/package.toml << 'EOF'
+[project]
+name = "test_full"
+type = "executable"
+
+[dependencies]
+fmt = { git = "https://github.com/fmtlib/fmt.git", tag = "10.2.1" }
+googletest = { git = "https://github.com/google/googletest.git", tag = "release-1.12.1", target = "GTest::gtest" }
+
+[conan-dependencies]
+spdlog = "1.12.0"
+EOF
+
+# Add test files
+mkdir -p test_full/test
+cat > test_full/test/main.cpp << 'EOF'
+#include <gtest/gtest.h>
+TEST(Basic, Pass) { EXPECT_TRUE(true); }
+int main(int argc, char** argv) { testing::InitGoogleTest(&argc, argv); return RUN_ALL_TESTS(); }
+EOF
+
+# Add Lua custom CMake
+mkdir -p test_full/.config/forge/build
+cat > test_full/.config/forge/build/custom.lua << 'EOF'
+forge.add_cmake([[
+# Custom build step
+message(STATUS "Custom CMake from Lua!")
+]])
+EOF
+
+# Build
+cd test_full
+forge build
+forge test
 ```
 
-**macOS**:
-```bash
-brew install cmake git
-pip install conan
-```
-
-**Windows**:
-```powershell
-winget install CMake.Git.Conan
-```
+**Verification Points**:
+- [ ] All sections generated
+- [ ] Correct priority order
+- [ ] Build succeeds
+- [ ] Tests run
 
 ---
 
-## Expected Results
+### Test 5.3: Library Project
 
-### Successful Build Output
-
-```
-=== Building project ===
-Loading package.toml...
-Installing Conan dependencies...
-Generating CMakeLists.txt...
-CMake configure: Done
-CMake build: Done
-Build complete!
-```
-
-### Successful Test Output
-
-```
-=== Running Tests ===
-[==========] Running 2 tests from 1 test suite.
-[----------] Global test environment set-up.
-[----------] 2 tests from 1 test suite.
-[----------] MathTest.Addition
-[       OK ] MathTest.Addition (0 ms)
-[----------] MathTest.Multiplication
-[       OK ] MathTest.Multiplication (0 ms)
-[----------] Global test environment tear-down
-[==========] 2 tests from 1 test suite ran. (0 ms total)
-
-All tests passed.
-```
-
-### Error Outputs
-
-| Scenario | Error Message |
-|----------|---------------|
-| No CMake | `Error: cmake command not found` |
-| No package.toml | `Error: Not a forge project` |
-| No Conan | `Error: conan command not found` |
-| Build failure | `Error: Build failed` |
-| Test failure | `Error: Tests failed` |
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| CMake not found | CMake not installed | Install CMake |
-| package.toml not found | Not in project root | Run from project directory |
-| Conan not found | Conan not installed | Install Conan |
-| Build fails | Missing dependency | Check package.toml |
-| Resource not found | Wrong path | Use relative paths |
-| Tests fail | GTest not configured | Add googletest to deps |
-
-### Debug Commands
+**Purpose**: Test library project generation.
 
 ```bash
-# Check project configuration
-forge project info
-
-# View dependency tree
-forge project dependencies
-
-# List available scripts
-forge project scripts
-
-# Verbose build output
-forge build --verbose
+forge create test_library --type library
+cd test_library
+forge build
 ```
 
-### Test Isolation
+**Verification Points**:
+- [ ] `add_library(NAME STATIC ...)` generated
+- [ ] Install targets generated if `install_headers = true`
 
-Each test scenario should be isolated:
-- Use separate project directories
-- Run `forge clean` between tests
-- Remove test projects after verification
+---
+
+### Test 5.4: Resource Embedding Project
+
+**Purpose**: Test resource embedding with modular CMake.
 
 ```bash
-# Cleanup after testing
-rm -rf test_*
+forge create test_resources
+cd test_resources
+echo "test" > assets/config.json
+forge embed assets/config.json
+forge build
 ```
 
----
-
-## Platform-Specific Notes
-
-### Linux
-
-- Default generators work correctly
-- Package managers: apt-get, pacman, brew
-- Test display: May need X server for graphics tests
-
-### macOS
-
-- Default generators work correctly
-- Homebrew for system packages
-- Architecture: x64 and arm64 (Apple Silicon)
-
-### Windows
-
-- Default generator may need adjustment
-- Package managers: winget, choco
-- Visual Studio or MinGW for compilers
+**Verification Points**:
+- [ ] Resources section generates correctly
+- [ ] Embedded files accessible in code
 
 ---
 
-## Appendix: Test Checklist
+## Troubleshooting Tests
 
-- [ ] Basic executable project creation and build
-- [ ] Library project creation and build
-- [ ] SDL2 graphics project build
-- [ ] OpenGL graphics project build
-- [ ] Fullstack project with Conan dependencies
-- [ ] Resource embedding verification
-- [ ] Google Test integration
-- [ ] Pre/post build scripts execution
-- [ ] Multiple dependency resolution
-- [ ] Custom C++ standard (17, 20)
-- [ ] Code generation commands (class, struct, header, source)
-- [ ] Project information commands (info, tree, stats, dependencies, scripts)
-- [ ] Clean command verification
-- [ ] Cross-platform testing (Linux, macOS, Windows)
+| Issue | Test |
+|-------|------|
+| Sections not registering | Check CMakeRegistry.Initialize() called |
+| Custom CMake not appearing | Check CustomCMakeSnippets not cleared prematurely |
+| Priority wrong | Lower = earlier, verify with grep line numbers |
+| Interface not found | Add `using forge.CMakeGeneration;` |
+
+---
+
+## Test Checklist
+
+### Section Registration
+- [ ] All 7 built-in sections register
+- [ ] Each section has correct Name
+- [ ] Sections stored in dictionary by name
+
+### Priority Order
+- [ ] StandardSection (1) appears first
+- [ ] TestingSection (50) appears last
+- [ ] Custom sections insert at correct position
+
+### Lua Integration
+- [ ] forge.add_cmake() function works
+- [ ] Multiple snippets accumulate
+- [ ] ${PROJECT_NAME} placeholder replaced
+- [ ] CustomCMakeSection shows in correct position (45)
+
+### CMake Generation
+- [ ] StandardSection: C++ standard set correctly
+- [ ] FetchContentSection: Git deps generate
+- [ ] ProjectTargetSection: Executable/library correct
+- [ ] LinkingSection: Dependencies linked
+- [ ] TestingSection: Google Test configured
+- [ ] ConanSection: find_package() generated
+
+### End-to-End
+- [ ] Minimal project builds
+- [ ] Full-featured project builds and tests run
+- [ ] Library project generates correctly

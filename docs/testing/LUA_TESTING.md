@@ -1,1045 +1,587 @@
-# Forge Lua Engine Testing Plan
-
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Lua Scripting Basics](#lua-scripting-basics)
-3. [Project Scenarios](#project-scenarios)
-4. [WebGPU Projects](#webgpu-projects)
-5. [Graphics Projects](#graphics-projects)
-6. [Platform-Specific Projects](#platform-specific-projects)
-7. [Advanced Scenarios](#advanced-scenarios)
-8. [Running Lua Tests](#running-lua-tests)
-9. [Troubleshooting](#troubleshooting)
-
----
+# Forge Lua Testing Plan
 
 ## Overview
 
-This document covers testing scenarios that utilize Forge's Lua engine for build automation. Lua scripts in `.config/forge/build/` are executed during the build process to handle platform-specific setup, dependency management, and custom build configurations.
+This document covers testing scenarios for the Lua engine integration with the modular CMake generator system. The Lua engine enables custom CMake injection via the `forge.add_cmake()` function.
 
-**Lua Script Locations**:
-- `.config/forge/build/*.lua` - Build-time scripts
-- `.config/forge/definitions/` - Environment definitions
+**Reference**: See [IMPLEMENTATION_PLAN.md](../planning/IMPLEMENTATION_PLAN.md)
+**Quick Reference**: See [QUICK_REFERENCE.md](../planning/QUICK_REFERENCE.md)
 
 ---
 
-## Lua Scripting Basics
+## Lua API Reference
 
-### Available Lua API
+### Available Functions
 
 ```lua
--- Operating System Detection
-forge.os.current        -- "linux", "macos", "windows"
-forge.os.windows       -- true/false
-forge.os.macos         -- true/false
-forge.os.linux         -- true/false
+-- Logging
+forge.log.info("message")
 
--- Linux Distribution
-forge.distro.my_distro -- Auto-detected distro
-forge.distro.ubuntu
-forge.distro.debian
-forge.distro.arch
-forge.distro.manjaro
-forge.distro.fedora
-forge.distro.nixos
+-- Git
+forge.pull_repo("https://github.com/user/repo.git")
 
--- Package Managers
-forge.package_manager.brew
-forge.package_manager.aptget
-forge.package_manager.pacman
-forge.package_manager.winget
-forge.package_manager.chocolatey
-forge.package_manager.nopass
+-- System packages
+forge.get_packages("nopass", forge.package_manager.aptget, {"package"})
 
--- Functions
-forge.pull_repo(url)                    -- Clone git repository
-forge.get_packages(password, manager, packages)  -- Install packages
-forge.log.info(message)                 -- Log message
+-- Custom CMake (key feature!)
+forge.add_cmake("cmake_command")
 
 -- Environment
-forge.current_working_dir               -- Current directory
+forge.os.current           -- "linux", "macos", "windows"
+forge.distro.my_distro    -- detected Linux distro
+forge.current_working_dir -- current working directory
 ```
 
-### Lua Script Execution Flow
+### Custom CMake Placeholders
 
-```mermaid
-flowchart TB
-    Start[forge build] --> Load[Load package.toml]
-    Load --> Lua[Execute .config/forge/build/*.lua]
-    Lua --> PreBuild[Run pre-build script]
-    PreBuild --> Conan[Install Conan deps]
-    Conan --> CMake[Generate CMakeLists.txt]
-    CMake --> Build[CMake build]
-    Build --> PostBuild[Run post-build script]
-```
+| Placeholder | Replaced With |
+|-------------|---------------|
+| `${PROJECT_NAME}` | Actual project name |
 
 ---
 
-## Project Scenarios
+## Test Category 1: Core Lua Functions
 
-### Scenario 1: Basic Lua Script Execution
+### Test 1.1: forge.add_cmake() Function
 
-**Purpose**: Verify Lua scripts execute correctly during build.
+**Purpose**: Verify custom CMake injection via Lua.
 
 **Test Steps**:
 
 ```bash
 # 1. Create project
-forge create test_lua_basic
+forge create test_add_cmake
+cd test_add_cmake
 
 # 2. Create Lua build script
-mkdir -p test_lua_basic/.config/forge/build
-cat > test_lua_basic/.config/forge/build/setup.lua << 'EOF'
-forge.log.info("Hello from Lua!")
+mkdir -p .config/forge/build
+cat > .config/forge/build/test.lua << 'EOF'
+forge.log.info("Adding custom CMake...")
+
+forge.add_cmake([[
+# Custom CMake from Lua
+message(STATUS "Hello from custom CMake!")
+]])
+
+forge.log.info("Custom CMake added successfully!")
+EOF
+
+# 3. Build
+forge build
+```
+
+**Verification Points**:
+- [ ] Lua script executes without error
+- [ ] Custom CMake appears in `.config/cmake/CMakeLists.txt`
+- [ ] Message displays during CMake configure
+
+---
+
+### Test 1.2: PROJECT_NAME Placeholder
+
+**Purpose**: Verify `${PROJECT_NAME}` replacement.
+
+**Test Steps**:
+
+```bash
+# 1. Create project
+forge create test_placeholder
+
+# 2. Create Lua script with placeholder
+cat > test_placeholder/.config/forge/build/placeholder.lua << 'EOF'
+forge.add_cmake([[
+target_compile_definitions(${PROJECT_NAME} PRIVATE MY_CUSTOM_FLAG)
+message(STATUS "Added define to ${PROJECT_NAME}")
+]])
+EOF
+
+# 3. Build
+cd test_placeholder
+forge build
+
+# 4. Check generated CMake
+cat .config/cmake/CMakeLists.txt
+```
+
+**Expected Output**:
+```cmake
+target_compile_definitions(test_placeholder PRIVATE MY_CUSTOM_FLAG)
+message(STATUS "Added define to test_placeholder")
+```
+
+**Verification Points**:
+- [ ] `${PROJECT_NAME}` replaced with actual project name
+- [ ] Generated CMake is syntactically valid
+
+---
+
+### Test 1.3: Multiple Custom CMake Snippets
+
+**Purpose**: Verify multiple Lua scripts can add CMake.
+
+**Test Steps**:
+
+```bash
+# 1. Create multiple Lua scripts
+cat > .config/forge/build/script_a.lua << 'EOF'
+forge.add_cmake([[
+# From script A
+add_definitions(FROM_SCRIPT_A)
+]])
+forge.log.info("Script A executed")
+EOF
+
+cat > .config/forge/build/script_b.lua << 'EOF'
+forge.add_cmake([[
+# From script B  
+add_definitions(FROM_SCRIPT_B)
+]])
+forge.log.info("Script B executed")
+EOF
+
+# 2. Build
+forge build
+```
+
+**Verification Points**:
+- [ ] Both snippets appear in generated CMake
+- [ ] Both log messages appear in output
+
+---
+
+### Test 1.4: Custom CMake Position in Priority Order
+
+**Purpose**: Verify CustomCMakeSection appears at priority 45.
+
+**Test Steps**:
+
+```bash
+# 1. Create project with deps and custom CMake
+forge create test_priority_cmake
+
+cat > test_priority_cmake/package.toml << 'EOF'
+[project]
+name = "test_priority_cmake"
+type = "executable"
+
+[dependencies]
+fmt = { git = "https://github.com/fmtlib/fmt.git", tag = "10.2.1" }
+EOF
+
+cat > test_priority_cmake/.config/forge/build/custom.lua << 'EOF'
+forge.add_cmake([[
+# Custom CMake at priority 45
+message(STATUS "Custom CMake section")
+]])
+EOF
+
+# 2. Build
+cd test_priority_cmake
+forge build
+
+# 3. Check order
+grep -n "CMAKE_CXX_STANDARD\|FetchContent_Declare\|add_executable\|target_link_libraries\|Custom CMake\|enable_testing" .config/cmake/CMakeLists.txt
+```
+
+**Expected Order**:
+1. StandardSection (1) - CMAKE_CXX_STANDARD
+2. FetchContentSection (10) - FetchContent_Declare
+3. ProjectTargetSection (30) - add_executable
+4. LinkingSection (40) - target_link_libraries
+5. **CustomCMakeSection (45)** - Custom CMake
+6. TestingSection (50) - enable_testing
+
+**Verification Points**:
+- [ ] Custom CMake appears after LinkingSection
+- [ ] Custom CMake appears before TestingSection
+
+---
+
+## Test Category 2: Platform Detection via Lua
+
+### Test 2.1: OS Detection
+
+**Purpose**: Verify `forge.os.current` returns correct OS.
+
+**Test Steps**:
+
+```bash
+# Create Lua script to detect OS
+cat > .config/forge/build/detect_os.lua << 'EOF'
 forge.log.info("Current OS: " .. forge.os.current)
-forge.log.info("Current directory: " .. forge.current_working_dir)
+forge.log.info("Is Linux: " .. tostring(forge.os.linux))
+forge.log.info("Is macOS: " .. tostring(forge.os.macos))
+forge.log.info("Is Windows: " .. tostring(forge.os.windows))
 EOF
 
-# 3. Build
-cd test_lua_basic
 forge build
 ```
 
 **Verification Points**:
-- [ ] Lua script executes before build
-- [ ] Log messages appear in output
-- [ ] OS detection works correctly
-- [ ] No Lua errors during execution
+- [ ] `forge.os.current` returns "linux", "macos", or "windows"
+- [ ] `forge.os.linux` is true on Linux
+- [ ] `forge.os.macos` is true on macOS
+- [ ] `forge.os.windows` is true on Windows
 
 ---
 
-### Scenario 2: Git Repository Cloning
+### Test 2.2: Linux Distribution Detection
 
-**Purpose**: Verify `forge.pull_repo()` function works.
+**Purpose**: Verify `forge.distro.my_distro` returns correct distro.
 
 **Test Steps**:
 
 ```bash
-# 1. Create project
-forge create test_git_clone
+cat > .config/forge/build/detect_distro.lua << 'EOF'
+local distro = forge.distro.my_distro
+forge.log.info("Detected distribution: " .. distro)
 
-# 2. Create Lua script to clone repository
-cat > test_git_clone/.config/forge/build/deps.lua << 'EOF'
-forge.log.info("Cloning dependency repository...")
-
--- Clone a library (example: nlohmann_json)
-forge.pull_repo("https://github.com/nlohmann/json.git")
-
-forge.log.info("Repository cloned successfully!")
+-- Check specific distros
+forge.log.info("Is Ubuntu: " .. tostring(forge.distro.ubuntu))
+forge.log.info("Is Debian: " .. tostring(forge.distro.debian))
+forge.log.info("Is Arch: " .. tostring(forge.distro.arch))
+forge.log.info("Is Fedora: " .. tostring(forge.distro.fedora))
 EOF
 
-# 3. Build
-cd test_git_clone
-forge build
-
-# 4. Verify external/ directory
-ls -la external/
-```
-
-**Verification Points**:
-- [ ] Repository cloned to external/ directory
-- [ ] Git clone completes without error
-- [ ] Repository is usable in CMake
-
----
-
-### Scenario 3: System Package Installation
-
-**Purpose**: Verify system package installation via Lua.
-
-**Test Steps**:
-
-```bash
-# 1. Create project
-forge create test_packages
-
-# 2. Create Lua script for package installation
-cat > test_packages/.config/forge/build/packages.lua << 'EOF'
-forge.log.info("Installing system packages...")
-
-local os_name = forge.os.current
-forge.log.info("Detected OS: " .. os_name)
-
-if forge.os.linux then
-    local distro = forge.distro.my_distro
-    forge.log.info("Detected distro: " .. distro)
-    
-    if distro == "ubuntu" or distro == "debian" then
-        forge.get_packages("nopass", forge.package_manager.aptget, {"libxrandr-dev", "libxinerama-dev"})
-    elseif distro == "arch" or distro == "manjaro" then
-        forge.get_packages("nopass", forge.package_manager.pacman, {"libxrandr", "libxinerama"})
-    elseif distro == "fedora" then
-        forge.get_packages("nopass", forge.package_manager.dnf, {"libXrandr-devel", "libXinerama-devel"})
-    end
-elseif forge.os.macos then
-    forge.get_packages("nopass", forge.package_manager.brew, {"xrandr", "xineram-libs"})
-elseif forge.os.windows then
-    forge.log.info("Windows: Use vcpkg or manual install")
-end
-
-forge.log.info("Package installation complete!")
-EOF
-
-# 3. Build
-cd test_packages
 forge build
 ```
 
 **Verification Points**:
-- [ ] OS detection works correctly
-- [ ] Distribution detection works (Linux)
-- [ ] Correct package manager identified
-- [ ] Packages installed successfully (if permission available)
+- [ ] `forge.distro.my_distro` returns correct distro name
+- [ ] Specific distro flags return correct boolean
 
 ---
 
-## WebGPU Projects
+## Test Category 3: Git Integration via Lua
 
-### Scenario 4: WebGPU with wgpu-native (Option A)
+### Test 3.1: forge.pull_repo()
 
-**Purpose**: Test WebGPU project setup using pre-compiled wgpu-native.
+**Purpose**: Verify repository cloning.
 
 **Test Steps**:
 
 ```bash
 # 1. Create project
-forge create webgpu_wgpu
-
-# 2. Create Lua build script
-cat > webgpu_wgpu/.config/forge/build/webgpu.lua << 'EOF'
-forge.log.info("Setting up WebGPU with wgpu-native...")
-
--- Download WebGPU distribution
-local webgpu_url = "https://github.com/eliemichel/WebGPU-distribution/archive/refs/tags/wgpu-v24.0.0.2.zip"
-
-forge.log.info("WebGPU setup complete for wgpu-native backend")
-EOF
-
-# 3. Create main.cpp with WebGPU code
-cat > webgpu_wgpu/src/main.cpp << 'EOF'
-#define WEBGPU_BACKEND_WGPU
-#include <webgpu/webgpu.h>
-#include <iostream>
-
-int main() {
-    WGPUInstanceDescriptor desc = {};
-    desc.nextInChain = nullptr;
-    
-    WGPUInstance instance = wgpuCreateInstance(&desc);
-    
-    if (!instance) {
-        std::cerr << "Could not initialize WebGPU!" << std::endl;
-        return 1;
-    }
-    
-    std::cout << "WGPU instance: " << instance << std::endl;
-    
-    wgpuInstanceRelease(instance);
-    std::cout << "WebGPU test passed!" << std::endl;
-    return 0;
-}
-EOF
-
-# 4. Download WebGPU headers manually (Lua can't download zip easily)
-cd webgpu_wgpu
-curl -L -o webgpu.zip "https://github.com/eliemichel/WebGPU-distribution/archive/refs/tags/wgpu-v24.0.0.2.zip"
-unzip -o webgpu.zip
-mv WebGPU-distribution-* webgpu
-rm webgpu.zip
-
-# 5. Edit package.toml to include webgpu
-cat > package.toml << 'EOF'
-[project]
-name = "webgpu_wgpu"
-type = "executable"
-
-[dependencies]
-
-[resources]
-EOF
-
-# 6. Create CMakeLists.txt manually or use build script
-forge build
-```
-
-**Verification Points**:
-- [ ] WebGPU headers found
-- [ ] wgpu-native library linked
-- [ ] Instance creation succeeds
-- [ ] Application runs without errors
-
----
-
-### Scenario 5: WebGPU with Dawn (Option B)
-
-**Purpose**: Test WebGPU project setup using Dawn backend.
-
-**Test Steps**:
-
-```bash
-# 1. Create project
-forge create webgpu_dawn
-
-# 2. Create Lua build script for Dawn
-cat > webgpu_dawn/.config/forge/build/webgpu.lua << 'EOF'
-forge.log.info("Setting up WebGPU with Dawn backend...")
-
--- Dawn requires additional system packages
-if forge.os.linux then
-    forge.log.info("Installing Dawn dependencies...")
-    
-    local distro = forge.distro.my_distro
-    if distro == "ubuntu" or distro == "debian" then
-        forge.get_packages("nopass", forge.package_manager.aptget, {
-            "libxrandr-dev",
-            "libxinerama-dev", 
-            "libxcursor-dev",
-            "mesa-common-dev",
-            "libx11-xcb-dev",
-            "pkg-config"
-        })
-    end
-end
-
-forge.log.info("Dawn dependencies installed!")
-EOF
-
-# 3. Download Dawn distribution
-cd webgpu_dawn
-curl -L -o dawn.zip "https://github.com/eliemichel/WebGPU-distribution/archive/refs/tags/dawn-6536.zip"
-unzip -o dawn.zip
-mv WebGPU-distribution-* webgpu
-rm dawn.zip
-
-# 4. Create source files
-cat > src/main.cpp << 'EOF'
-#define WEBGPU_BACKEND_DAWN
-#include <webgpu/webgpu.h>
-#include <iostream>
-
-int main() {
-    WGPUInstanceDescriptor desc = {};
-    WGPUInstance instance = wgpuCreateInstance(&desc);
-    
-    if (!instance) {
-        std::cerr << "Could not initialize WebGPU with Dawn!" << std::endl;
-        return 1;
-    }
-    
-    std::cout << "Dawn WGPU instance: " << instance << std::endl;
-    wgpuInstanceRelease(instance);
-    
-    std::cout << "Dawn WebGPU test passed!" << std::endl;
-    return 0;
-}
-EOF
-
-# 5. Build
-forge build
-```
-
-**Verification Points**:
-- [ ] Dawn dependencies installed via Lua
-- [ ] Dawn library built/found
-- [ ] Instance creation succeeds
-- [ ] Better error messages available
-
----
-
-### Scenario 6: WebGPU with Dynamic Backend Selection (Option C)
-
-**Purpose**: Test WebGPU project with runtime backend selection.
-
-**Test Steps**:
-
-```bash
-# 1. Create project
-forge create webgpu_flex
-
-# 2. Create Lua script for flexible backend
-cat > webgpu_flex/.config/forge/build/webgpu.lua << 'EOF'
-forge.log.info("Setting up WebGPU with flexible backend...")
-
--- Check for WEBGPU_BACKEND environment variable or default to WGPU
-local backend = os.getenv("WEBGPU_BACKEND") or "WGPU"
-forge.log.info("Using WebGPU backend: " .. backend)
-
--- This could set CMake options dynamically
-cmakeOptions = {
-    backend = backend
-}
-
-forge.log.info("WebGPU backend configuration complete")
-EOF
-
-# 3. Download combined distribution
-cd webgpu_flex
-curl -L -o webgpu.zip "https://github.com/eliemichel/WebGPU-distribution/archive/refs/tags/main-v0.2.0.zip"
-unzip -o webgpu.zip
-mv WebGPU-distribution-* webgpu
-rm webgpu.zip
-
-# 4. Create source
-cat > src/main.cpp << 'EOF'
-#include <webgpu/webgpu.h>
-#include <iostream>
-
-int main() {
-    WGPUInstanceDescriptor desc = {};
-    WGPUInstance instance = wgpuCreateInstance(&desc);
-    
-    if (!instance) {
-        std::cerr << "Could not initialize WebGPU!" << std::endl;
-        return 1;
-    }
-    
-#ifdef WEBGPU_BACKEND_DAWN
-    std::cout << "Using Dawn backend" << std::endl;
-#elif defined(WEBGPU_BACKEND_WGPU)
-    std::cout << "Using wgpu-native backend" << std::endl;
-#endif
-    
-    wgpuInstanceRelease(instance);
-    std::cout << "Flexible WebGPU test passed!" << std::endl;
-    return 0;
-}
-EOF
-
-# 5. Build with specific backend
-WEBGPU_BACKEND=DAWN forge build
-# or
-WEBGPU_BACKEND=WGPU forge build
-```
-
-**Verification Points**:
-- [ ] Lua reads environment variables
-- [ ] Backend selection works
-- [ ] Can build both backends in separate directories
-
----
-
-## Graphics Projects
-
-### Scenario 7: SDL2 with Platform Detection
-
-**Purpose**: Test SDL2 setup with platform-specific Lua script.
-
-**Test Steps**:
-
-```bash
-# 1. Create project
-forge create sdl2_platform
-
-# 2. Create Lua build script
-cat > sdl2_platform/.config/forge/build/sdl2.lua << 'EOF'
-forge.log.info("Setting up SDL2 for platform...")
-
-local os_name = forge.os.current
-forge.log.info("Building for: " .. os_name)
-
-if forge.os.linux then
-    local distro = forge.distro.my_distro
-    forge.log.info("Linux distro: " .. distro)
-    
-    if distro == "ubuntu" or distro == "debian" then
-        forge.get_packages("nopass", forge.package_manager.aptget, {"libsdl2-dev", "libsdl2-image-dev"})
-    elseif distro == "arch" or distro == "manjaro" then
-        forge.get_packages("nopass", forge.package_manager.pacman, {"sdl2", "sdl2_image"})
-    elseif distro == "fedora" then
-        forge.get_packages("nopass", forge.package_manager.dnf, {"SDL2-devel", "SDL2_image-devel"})
-    end
-elseif forge.os.macos then
-    forge.get_packages("nopass", forge.package_manager.brew, {"sdl2", "sdl2_image"})
-elseif forge.os.windows then
-    forge.log.info("Windows: SDL2 should be in package.toml dependencies")
-end
-
-forge.log.info("SDL2 setup complete!")
-EOF
-
-# 3. Add SDL2 to dependencies
-cat > sdl2_platform/package.toml << 'EOF'
-[project]
-name = "sdl2_platform"
-type = "executable"
-
-[dependencies]
-sdl = { git = "https://github.com/libsdl-org/SDL.git", tag = "release-2.30.3", target = "SDL2::SDL2" }
-EOF
-
-# 4. Build
-cd sdl2_platform
-forge build
-```
-
-**Verification Points**:
-- [ ] Platform detection works
-- [ ] Correct packages for each distro
-- [ ] SDL2 links correctly
-- [ ] System packages installed
-
----
-
-### Scenario 8: OpenGL with Multi-Package Setup
-
-**Purpose**: Test OpenGL project with multiple system dependencies.
-
-**Test Steps**:
-
-```bash
-# 1. Create project
-forge create opengl_multi
+forge create test_pull
 
 # 2. Create Lua script
-cat > opengl_multi/.config/forge/build/opengl.lua << 'EOF'
-forge.log.info("Setting up OpenGL development environment...")
+cat > test_pull/.config/forge/build/git_clone.lua << 'EOF'
+forge.log.info("Cloning repository...")
 
-if forge.os.linux then
-    local distro = forge.distro.my_distro
-    local packages = {}
-    
-    if distro == "ubuntu" or distro == "debian" then
-        packages = {
-            "libgl1-mesa-dev",
-            "libglu1-mesa-dev",
-            "libxrandr-dev",
-            "libxinerama-dev",
-            "libxcursor-dev",
-            "libxi-dev",
-            "libxxf86vm-dev"
-        }
-    elseif distro == "arch" or distro == "manjaro" then
-        packages = {
-            "mesa",
-            "glu",
-            "libxrandr",
-            "libxinerama",
-            "libxcursor",
-            "libxi",
-            "libxxf86vm"
-        }
-    end
-    
-    if #packages > 0 then
-        forge.log.info("Installing " .. #packages .. " packages...")
-        forge.get_packages("nopass", forge.package_manager.aptget, packages)
-    end
-elseif forge.os.macos then
-    forge.log.info("macOS: OpenGL is system-provided")
-elseif forge.os.windows then
-    forge.log.info("Windows: Install via vcpkg or download from NVIDIA/AMD")
-end
+-- Clone a small header-only library
+forge.pull_repo("https://github.com/fmtlib/fmt.git")
 
-forge.log.info("OpenGL setup complete!")
+forge.log.info("Clone complete!")
 EOF
 
 # 3. Build
-cd opengl_multi
-forge build
-```
-
-**Verification Points**:
-- [ ] Multiple packages installed
-- [ ] OpenGL headers found
-- [ ] GLU headers found
-- [ ] X11 development files present
-
----
-
-### Scenario 9: Vulkan Project Setup
-
-**Purpose**: Test Vulkan SDK setup via Lua.
-
-**Test Steps**:
-
-```bash
-# 1. Create project
-forge create vulkan_setup
-
-# 2. Create Lua script for Vulkan
-cat > vulkan_setup/.config/forge/build/vulkan.lua << 'EOF'
-forge.log.info("Setting up Vulkan SDK...")
-
-if forge.os.linux then
-    local distro = forge.distro.my_distro
-    
-    if distro == "ubuntu" or distro == "debian" then
-        -- Try to install Vulkan SDK via apt or use LunarG
-        forge.get_packages("nopass", forge.package_manager.aptget, {
-            "vulkan-tools",
-            "libvulkan-dev",
-            "spirv-tools",
-            "glslang-tools"
-        })
-        
-        forge.log.info("Vulkan SDK installed via apt")
-    elseif distro == "arch" or distro == "manjaro" then
-        forge.get_packages("nopass", forge.package_manager.pacman, {
-            "vulkan-devel",
-            "spirv-tools",
-            "glslang"
-        })
-    else
-        forge.log.info("Please install Vulkan SDK manually from vulkan.lunarg.com")
-    end
-elseif forge.os.macos then
-    forge.log.info("macOS: Install Vulkan SDK from vulkan.lunarg.com")
-elseif forge.os.windows then
-    forge.log.info("Windows: Install Vulkan SDK from vulkan.lunarg.com")
-end
-
-forge.log.info("Vulkan setup attempted!")
-EOF
-
-# 3. Add Vulkan to package.toml
-cat > vulkan_setup/package.toml << 'EOF'
-[project]
-name = "vulkan_setup"
-type = "executable"
-
-[dependencies]
-vulkan = { git = "https://github.com/KhronosGroup/Vulkan-Headers.git", tag = "v1.3.280" }
-EOF
-
-# 4. Build
-cd vulkan_setup
-forge build
-```
-
-**Verification Points**:
-- [ ] Vulkan headers available
-- [ ] SPIRV tools present
-- [ ] GLSLang compiler available
-
----
-
-## Platform-Specific Projects
-
-### Scenario 10: Windows-Specific Build (Winget/Chocolatey)
-
-**Purpose**: Test Windows package manager usage in Lua.
-
-**Test Steps**:
-
-```powershell
-# 1. Create project (on Windows)
-forge create windows_deps
-
-# 2. Create Lua script
-cat > windows_deps/.config/forge/build/windows.lua << 'EOF'
-forge.log.info("Setting up Windows dependencies...")
-
-if forge.os.windows then
-    local use_choco = os.getenv("USE_CHOCOLATEY")
-    local use_winget = os.getenv("USE_WINGET")
-    
-    if use_choco == "1" then
-        forge.log.info("Using Chocolatey...")
-        forge.get_packages("nopass", forge.package_manager.chocolatey, {
-            "cmake",
-            "vcpkg",
-            "git"
-        })
-    else
-        forge.log.info("Using Winget...")
-        forge.get_packages("nopass", forge.package_manager.winget, {
-            "Git.Git",
-            "Kitware.CMake"
-        })
-    end
-else
-    forge.log.info("This script is for Windows only!")
-end
-EOF
-
-# 3. Build
-cd windows_deps
-forge build
-```
-
-**Verification Points**:
-- [ ] Windows OS detected correctly
-- [ ] Package manager identified
-- [ ] Packages installed (if running as administrator)
-
----
-
-### Scenario 11: macOS-Specific Build (Homebrew)
-
-**Purpose**: Test macOS Homebrew integration.
-
-**Test Steps**:
-
-```bash
-# 1. Create project
-forge create macos_brew
-
-# 2. Create Lua script
-cat > macos_brew/.config/forge/build/macos.lua << 'EOF'
-forge.log.info("Setting up macOS dependencies...")
-
-if forge.os.macos then
-    forge.log.info("Using Homebrew...")
-    
-    -- Install common dependencies
-    forge.get_packages("nopass", forge.package_manager.brew, {
-        "sdl2",
-        "glm",
-        "glfw",
-        "assimp"
-    })
-    
-    forge.log.info("Homebrew packages installed!")
-else
-    forge.log.info("This script is for macOS only!")
-end
-EOF
-
-# 3. Add dependencies to package.toml
-cat > macos_brew/package.toml << 'EOF'
-[project]
-name = "macos_brew"
-type = "executable"
-
-[dependencies]
-glfw = { git = "https://github.com/glfw/glfw.git", tag = "3.4" }
-EOF
-
-# 4. Build
-cd macos_brew
-forge build
-```
-
-**Verification Points**:
-- [ ] macOS detected correctly
-- [ ] Homebrew packages installed
-- [ ] Build succeeds with Homebrew libraries
-
----
-
-### Scenario 12: Cross-Platform Project
-
-**Purpose**: Test unified Lua script handling all platforms.
-
-**Test Steps**:
-
-```bash
-# 1. Create project
-forge create cross_platform
-
-# 2. Create comprehensive Lua script
-cat > cross_platform/.config/forge/build/cross_platform.lua << 'EOF'
--- Cross-platform build script
-forge.log.info("===========================================")
-forge.log.info("Cross-Platform Build Configuration")
-forge.log.info("===========================================")
-
-local os_name = forge.os.current
-forge.log.info("Target OS: " .. os_name)
-
--- Detect and log detailed system info
-if forge.os.linux then
-    local distro = forge.distro.my_distro
-    forge.log.info("Linux Distribution: " .. distro)
-    
-    -- Install common dependencies based on distro
-    local packages = {}
-    
-    if distro == "ubuntu" or distro == "debian" then
-        packages = {"build-essential", "cmake", "git"}
-    elseif distro == "arch" or distro == "manjaro" then
-        packages = {"base-devel", "cmake", "git"}
-    elseif distro == "fedora" then
-        packages = {"gcc-c++", "cmake", "git"}
-    elseif distro == "nixos" then
-        forge.log.info("NixOS: Dependencies managed via nix-env")
-    end
-    
-    if #packages > 0 then
-        forge.log.info("Installing base packages: " .. table.concat(packages, ", "))
-        forge.get_packages("nopass", forge.package_manager.aptget, packages)
-    end
-    
-elseif forge.os.macos then
-    forge.log.info("macOS Version: " .. (os.getenv("MACOSX_DEPLOYMENT_TARGET") or "default"))
-    forge.get_packages("nopass", forge.package_manager.brew, {"cmake", "git", "pkg-config"})
-    
-elseif forge.os.windows then
-    forge.log.info("Windows: Ensure Visual Studio or MinGW installed")
-    forge.log.info("Consider using: winget install Microsoft.VisualStudio.2022.BuildTools")
-end
-
-forge.log.info("Base environment setup complete!")
-forge.log.info("===========================================")
-EOF
-
-# 3. Build on different platforms
-cd cross_platform
-forge build
-
-# Test on Linux container or CI
-# docker run -it ubuntu:latest /bin/bash
-# Then run forge build
-```
-
-**Verification Points**:
-- [ ] Correct OS detection on all platforms
-- [ ] Distro detection works on Linux
-- [ ] Appropriate packages for each platform
-- [ ] Build succeeds on all supported platforms
-
----
-
-## Advanced Scenarios
-
-### Scenario 13: Custom CMake Options via Lua
-
-**Purpose**: Test passing CMake options from Lua.
-
-**Test Steps**:
-
-```bash
-# 1. Create project
-forge create cmake_options
-
-# 2. Create Lua script with CMake options
-cat > cmake_options/.config/forge/build/cmake_options.lua << 'EOF'
-forge.log.info("Configuring CMake options...")
-
--- Define custom CMake options
-cmakeOptions = {
-    -- Build type
-    CMAKE_BUILD_TYPE = "Debug",  -- or "Release"
-    
-    -- Custom defines
-    MY_OPTION = "ON",
-    
-    -- Extra include directories
-    extra_includes = {"/path/to/includes"},
-    
-    -- Extra libraries
-    extra_libs = {"mylib"}
-}
-
-forge.log.info("CMake options configured:")
-forge.log.info("  CMAKE_BUILD_TYPE: " .. cmakeOptions.CMAKE_BUILD_TYPE)
-forge.log.info("  MY_OPTION: " .. cmakeOptions.MY_OPTION)
-EOF
-
-# 3. Build
-cd cmake_options
-forge build --verbose
-```
-
-**Verification Points**:
-- [ ] CMake options set correctly
-- [ ] Custom defines available in CMake
-- [ ] Build type applied
-
----
-
-### Scenario 14: Conditional Dependency Loading
-
-**Purpose**: Test Lua-controlled dependency loading.
-
-**Test Steps**:
-
-```bash
-# 1. Create project
-forge create conditional_deps
-
-# 2. Create Lua script
-cat > conditional_deps/.config/forge/build/conditional.lua << 'EOF'
-forge.log.info("Checking conditional dependencies...")
-
--- Check for optional features
-local use_opengl = os.getenv("USE_OPENGL")
-local use_vulkan = os.getenv("USE_VULKAN")
-local use_debug = os.getenv("DEBUG_BUILD")
-
-forge.log.info("USE_OPENGL: " .. (use_opengl or "not set"))
-forge.log.info("USE_VULKAN: " .. (use_vulkan or "not set"))
-forge.log.info("DEBUG_BUILD: " .. (use_debug or "not set"))
-
--- Conditionally clone repos
-if use_opengl == "ON" then
-    forge.log.info("OpenGL requested - would clone GLM")
-    -- forge.pull_repo("https://github.com/g-truc/glm.git")
-end
-
-if use_vulkan == "ON" then
-    forge.log.info("Vulkan requested - would clone Vulkan-Headers")
-    -- forge.pull_repo("https://github.com/KhronosGroup/Vulkan-Headers.git")
-end
-EOF
-
-# 3. Build with environment variables
-cd conditional_deps
-USE_OPENGL=ON USE_VULKAN=ON DEBUG_BUILD=ON forge build
-```
-
-**Verification Points**:
-- [ ] Environment variables read correctly
-- [ ] Conditional logic executes
-- [ ] Appropriate setup based on flags
-
----
-
-### Scenario 15: Multi-Repository Setup
-
-**Purpose**: Test cloning multiple repositories via Lua.
-
-**Test Steps**:
-
-```bash
-# 1. Create project
-forge create multi_repo
-
-# 2. Create Lua script for multiple repos
-cat > multi_repo/.config/forge/build/repos.lua << 'EOF'
-forge.log.info("Setting up multiple repositories...")
-
--- List of repositories to clone
-local repos = {
-    { url = "https://github.com/g-truc/glm.git", name = "glm" },
-    { url = "https://github.com/gabime/spdlog.git", name = "spdlog" },
-    { url = "https://github.com/fmtlib/fmt.git", name = "fmt" }
-}
-
-for i, repo in ipairs(repos) do
-    forge.log.info("Cloning repository " .. i .. ": " .. repo.name)
-    -- Uncomment to actually clone:
-    -- forge.pull_repo(repo.url)
-end
-
-forge.log.info("Multi-repo setup complete!")
-EOF
-
-# 3. Build
-cd multi_repo
+cd test_pull
 forge build
 
 # 4. Verify
 ls -la external/
 ```
 
-**Verification Points**- [ ] Multiple repositories identified
-- [ ] Loop executes correctly
-- [ ] Repositories cloned to external/
+**Verification Points**:
+- [ ] Repository cloned to external/ directory
+- [ ] No git errors
 
 ---
 
-## Running Lua Tests
+### Test 3.2: Git Clone with CMake Integration
 
-### Test Execution Commands
+**Purpose**: Test complete workflow of cloning + CMake usage.
+
+**Test Steps**:
 
 ```bash
-# Run basic Lua test
-forge create test_lua
-cd test_lua
+# 1. Create project
+forge create test_git_cmake
+
+# 2. Lua script that clones and adds CMake
+cat > test_git_cmake/.config/forge/build/glm_setup.lua << 'EOF'
+forge.log.info("Setting up GLM...")
+
+-- Clone GLM (header-only)
+forge.pull_repo("https://github.com/g-truc/glm.git")
+
+-- Add include directory
+forge.add_cmake([[
+target_include_directories(${PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/external/glm)
+]])
+
+forge.log.info("GLM setup complete!")
+EOF
+
+# 3. Create source using GLM
+cat > test_git_cmake/src/main.cpp << 'EOF'
+#include <glm/glm.hpp>
+#include <iostream>
+
+int main() {
+    glm::vec4 vec(1.0f);
+    std::cout << "GLM test: " << vec.x << std::endl;
+    return 0;
+}
+EOF
+
+# 4. Build
+cd test_git_cmake
 forge build
+```
 
-# Run with verbose Lua output
-forge build --verbose
+**Verification Points**:
+- [ ] GLM cloned to external/glm
+- [ ] Custom CMake adds include directory
+- [ ] Project compiles with GLM
 
-# Test specific Lua script
-cat > .config/forge/build/test.lua << 'EOF'
-forge.log.info("Test message")
+---
+
+## Test Category 4: System Package Installation via Lua
+
+### Test 4.1: Ubuntu/Debian Package Installation
+
+**Purpose**: Verify `forge.get_packages()` on Ubuntu.
+
+**Test Steps**:
+
+```bash
+# Create Lua script for Ubuntu
+cat > .config/forge/build/ubuntu_deps.lua << 'EOF'
+if forge.os.linux then
+    local distro = forge.distro.my_distro
+    if distro == "ubuntu" or distro == "debian" then
+        forge.log.info("Installing packages via apt-get...")
+        forge.get_packages("nopass", forge.package_manager.aptget, {"libxrandr-dev"})
+        forge.log.info("Packages installed!")
+    end
+end
 EOF
 
 forge build
 ```
 
-### Debugging Lua Scripts
+**Verification Points**:
+- [ ] OS detection works
+- [ ] Distro detection works
+- [ ] Package manager identified
+
+---
+
+### Test 4.2: macOS Package Installation
+
+**Purpose**: Verify `forge.get_packages()` on macOS.
+
+**Test Steps**:
 
 ```bash
-# Check current environment
-cat > .config/forge/build/debug.lua << 'EOF'
-forge.log.info("OS: " .. forge.os.current)
-forge.log.info("Distro: " .. forge.distro.my_distro)
-forge.log.info("Working dir: " .. forge.current_working_dir)
-forge.log.info("Package manager: " .. forge.package_manager.aptget)
+# Create Lua script for macOS
+cat > .config/forge/build/macos_deps.lua << 'EOF'
+if forge.os.macos then
+    forge.log.info("Installing packages via Homebrew...")
+    forge.get_packages("nopass", forge.package_manager.brew, {"sdl2"})
+    forge.log.info("Homebrew packages installed!")
+end
 EOF
 
 forge build
 ```
 
+**Verification Points**:
+- [ ] macOS detected correctly
+- [ ] Homebrew package manager identified
+
 ---
 
-## Troubleshooting
+### Test 4.3: Cross-Platform Package Script
 
-### Common Lua Errors
+**Purpose**: Test unified script for all platforms.
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| `attempt to index a nil value (field 'os')` | Lua engine not initialized | Ensure Forge initializes Lua before build |
-| `function not found` | API not exposed | Check LuaEngine.cs for available functions |
-| `git clone failed` | No git installed or network issue | Install git, check network |
-| `package manager not found` | Unsupported OS | Use manual installation |
-
-### Debug Commands
+**Test Steps**:
 
 ```bash
-# Check Lua environment
-cat > .config/forge/build/debug_env.lua << 'EOF'
-for k, v in pairs(forge.os) do
-    print("forge.os." .. k .. " = " .. tostring(v))
+cat > .config/forge/build/cross_platform_packages.lua << 'EOF'
+local os_name = forge.os.current
+forge.log.info("Setting up for: " .. os_name)
+
+if os_name == "linux" then
+    local distro = forge.distro.my_distro
+    if distro == "ubuntu" or distro == "debian" then
+        forge.get_packages("nopass", forge.package_manager.aptget, {"libxrandr-dev"})
+    elseif distro == "arch" then
+        forge.get_packages("nopass", forge.package_manager.pacman, {"libxrandr"})
+    end
+elseif os_name == "macos" then
+    forge.get_packages("nopass", forge.package_manager.brew, {"xrandr"})
+elseif os_name == "windows" then
+    forge.log.info("Windows: packages managed via vcpkg or manual")
 end
 
-for k, v in pairs(forge.distro) do
-    print("forge.distro." .. k .. " = " .. tostring(v))
-end
+forge.log.info("Package setup complete!")
 EOF
 
 forge build
-
-# Verbose output
-forge build --verbose 2>&1 | grep -A5 "Lua"
 ```
 
-### Testing Best Practices
-
-1. **Start Simple**: Test basic Lua execution first
-2. **Incremental Complexity**: Add one feature at a time
-3. **Platform Detection First**: Always check OS before platform-specific code
-4. **Error Handling**: Wrap potentially failing operations
-5. **Logging**: Use `forge.log.info()` liberally for debugging
+**Verification Points**:
+- [ ] All platforms handled correctly
+- [ ] Correct package manager per platform
 
 ---
 
-## Appendix: Lua Script Templates
+## Test Category 5: Graphics Project Scenarios
 
-### Template 1: Basic Platform Setup
+### Test 5.1: SDL2 with Lua Setup
 
-```lua
--- .config/forge/build/platform_setup.lua
-forge.log.info("Platform: " .. forge.os.current)
+**Purpose**: Test SDL2 integration with Lua system package installation.
+
+**Test Steps**:
+
+```bash
+# 1. Create project
+forge create test_sdl2_lua
+
+# 2. Add SDL2 to package.toml
+cat > test_sdl2_lua/package.toml << 'EOF'
+[project]
+name = "test_sdl2_lua"
+type = "executable"
+
+[dependencies]
+sdl = { git = "https://github.com/libsdl-org/SDL.git", tag = "release-2.30.3", target = "SDL2::SDL2" }
+EOF
+
+# 3. Add Lua setup script
+cat > test_sdl2_lua/.config/forge/build/sdl2_setup.lua << 'EOF'
+forge.log.info("Setting up SDL2...")
 
 if forge.os.linux then
     local distro = forge.distro.my_distro
-    forge.log.info("Distro: " .. distro)
-    
     if distro == "ubuntu" or distro == "debian" then
-        forge.get_packages("nopass", forge.package_manager.aptget, {"build-essential"})
+        forge.get_packages("nopass", forge.package_manager.aptget, {
+            "libsdl2-dev",
+            "libsdl2-image-dev"
+        })
     end
-elseif forge.os.macos then
-    forge.get_packages("nopass", forge.package_manager.brew, {"build-essential"})
 end
+
+forge.log.info("SDL2 setup complete!")
+EOF
+
+# 4. Build
+cd test_sdl2_lua
+forge build
 ```
 
-### Template 2: Graphics Project Setup
+**Verification Points**:
+- [ ] SDL2 fetched via FetchContent
+- [ ] System packages installed (if permission)
+- [ ] Build succeeds
 
-```lua
--- .config/forge/build/graphics_setup.lua
-forge.log.info("Setting up graphics development environment...")
+---
 
-local packages = {}
+### Test 5.2: WebGPU with Lua
+
+**Purpose**: Test WebGPU setup using Lua scripts.
+
+**Test Steps**:
+
+```bash
+# 1. Create project
+forge create test_webgpu_lua
+
+# 2. Download WebGPU distribution
+cd test_webgpu_lua
+curl -L -o webgpu.zip "https://github.com/eliemichel/WebGPU-distribution/archive/refs/tags/wgpu-v24.0.0.2.zip"
+unzip -o webgpu.zip
+mv WebGPU-distribution-* webgpu
+rm webgpu.zip
+
+# 3. Add Lua script for WebGPU setup
+cat > test_webgpu_lua/.config/forge/build/webgpu_setup.lua << 'EOF'
+forge.log.info("Setting up WebGPU...")
 
 if forge.os.linux then
-    if forge.distro.my_distro == "ubuntu" then
+    local distro = forge.distro.my_distro
+    if distro == "ubuntu" or distro == "debian" then
+        forge.get_packages("nopass", forge.package_manager.aptget, {
+            "libxrandr-dev",
+            "libxinerama-dev",
+            "libxcursor-dev",
+            "mesa-common-dev"
+        })
+    end
+end
+
+-- Add WebGPU subdirectory
+forge.add_cmake([[
+add_subdirectory(webgpu)
+target_link_libraries(${PROJECT_NAME} PRIVATE webgpu)
+message(STATUS "WebGPU linked")
+]])
+
+forge.log.info("WebGPU setup complete!")
+EOF
+
+# 4. Add minimal source
+cat > test_webgpu_lua/src/main.cpp << 'EOF'
+#define WEBGPU_BACKEND_WGPU
+#include <webgpu/webgpu.h>
+#include <iostream>
+
+int main() {
+    WGPUInstanceDescriptor desc = {};
+    WGPUInstance instance = wgpuCreateInstance(&desc);
+    if (!instance) {
+        std::cerr << "WebGPU not available" << std::endl;
+        return 1;
+    }
+    std::cout << "WebGPU instance created successfully" << std::endl;
+    wgpuInstanceRelease(instance);
+    return 0;
+}
+EOF
+
+# 5. Update package.toml
+cat > test_webgpu_lua/package.toml << 'EOF'
+[project]
+name = "test_webgpu_lua"
+type = "executable"
+EOF
+
+# 6. Build
+cd test_webgpu_lua
+forge build
+```
+
+**Verification Points**:
+- [ ] WebGPU system deps installed
+- [ ] add_subdirectory(webgpu) in generated CMake
+- [ ] target_link_libraries includes webgpu
+
+---
+
+### Test 5.3: OpenGL with Lua
+
+**Purpose**: Test OpenGL project with platform-specific setup.
+
+**Test Steps**:
+
+```bash
+# 1. Create project
+forge create test_opengl_lua
+
+# 2. Create Lua script
+cat > test_opengl_lua/.config/forge/build/opengl.lua << 'EOF'
+forge.log.info("Setting up OpenGL...")
+
+if forge.os.linux then
+    local packages = {}
+    local distro = forge.distro.my_distro
+    
+    if distro == "ubuntu" or distro == "debian" then
         packages = {"libgl1-mesa-dev", "libglu1-mesa-dev", "libxrandr-dev", "libxinerama-dev"}
-    elseif forge.distro.my_distro == "arch" then
+    elseif distro == "arch" or distro == "manjaro" then
         packages = {"mesa", "glu", "libxrandr", "libxinerama"}
     end
     
@@ -1047,52 +589,240 @@ if forge.os.linux then
         forge.get_packages("nopass", forge.package_manager.aptget, packages)
     end
 end
+
+forge.add_cmake([[
+find_package(OpenGL REQUIRED)
+target_link_libraries(${PROJECT_NAME} PRIVATE OpenGL::GL)
+]])
+
+forge.log.info("OpenGL setup complete!")
+EOF
+
+# 3. Build
+cd test_opengl_lua
+forge build
 ```
 
-### Template 3: WebGPU Setup
+**Verification Points**:
+- [ ] Correct packages installed per distro
+- [ ] find_package(OpenGL) in generated CMake
+- [ ] OpenGL::GL linked
 
-```lua
--- .config/forge/build/webgpu_setup.lua
-forge.log.info("Setting up WebGPU...")
+---
 
--- Install system dependencies for WebGPU
-if forge.os.linux then
-    if forge.distro.my_distro == "ubuntu" then
-        forge.get_packages("nopass", forge.package_manager.aptget, {
-            "libxrandr-dev",
-            "libxinerama-dev",
-            "libxcursor-dev",
-            "mesa-common-dev",
-            "libx11-xcb-dev"
-        })
-    end
+## Test Category 6: Complex Scenarios
+
+### Test 6.1: Conditional CMake via Environment Variables
+
+**Purpose**: Test CMake generation based on environment variables.
+
+**Test Steps**:
+
+```bash
+# 1. Create Lua script that reads env vars
+cat > .config/forge/build/conditional.lua << 'EOF'
+local use_debug = os.getenv("DEBUG_BUILD")
+local use_coverage = os.getenv("COVERAGE")
+
+forge.log.info("DEBUG_BUILD: " .. (use_debug or "not set"))
+forge.log.info("COVERAGE: " .. (use_coverage or "not set"))
+
+if use_debug == "ON" then
+    forge.add_cmake([[
+        set(CMAKE_BUILD_TYPE Debug)
+    ]])
 end
 
-forge.log.info("WebGPU system dependencies installed")
-```
-
-### Template 4: Cross-Platform Graphics
-
-```lua
--- .config/forge/build/cross_platform_graphics.lua
-local os_name = forge.os.current
-local packages = {}
-
-if os_name == "linux" then
-    local distro = forge.distro.my_distro
-    if distro == "ubuntu" or distro == "debian" then
-        packages = {"libsdl2-dev", "libgl1-mesa-dev", "libxrandr-dev"}
-    elseif distro == "arch" or distro == "manjaro" then
-        packages = {"sdl2", "mesa", "libxrandr"}
-    elseif distro == "fedora" then
-        packages = {"SDL2-devel", "mesa-libGL-devel", "libXrandr-devel"}
-    end
-    forge.get_packages("nopass", forge.package_manager.aptget, packages)
-    
-elseif os_name == "macos" then
-    forge.get_packages("nopass", forge.package_manager.brew, {"sdl2", "glm"})
-    
-elseif os_name == "windows" then
-    forge.log.info("Windows: Install SDL2 via vcpkg or download from libsdl.org")
+if use_coverage == "ON" then
+    forge.add_cmake([[
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage")
+    ]])
 end
+EOF
+
+# 2. Build with environment variables
+DEBUG_BUILD=ON COVERAGE=ON forge build
 ```
+
+**Verification Points**:
+- [ ] Environment variables read correctly
+- [ ] Conditional CMake added based on variables
+
+---
+
+### Test 6.2: Multiple Dependencies with Custom CMake
+
+**Purpose**: Test complex project with multiple deps and custom CMake.
+
+**Test Steps**:
+
+```bash
+# 1. Create project
+forge create test_complex
+
+# 2. package.toml
+cat > test_complex/package.toml << 'EOF'
+[project]
+name = "test_complex"
+type = "executable"
+
+[dependencies]
+sdl = { git = "https://github.com/libsdl-org/SDL.git", tag = "release-2.30.3", target = "SDL2::SDL2" }
+fmt = { git = "https://github.com/fmtlib/fmt.git", tag = "10.2.1" }
+
+[conan-dependencies]
+spdlog = "1.12.0"
+EOF
+
+# 3. Lua setup
+cat > test_complex/.config/forge/build/setup.lua << 'EOF'
+-- Install system deps
+if forge.os.linux and forge.distro.my_distro == "ubuntu" then
+    forge.get_packages("nopass", forge.package_manager.aptget, {"libsdl2-dev"})
+end
+
+-- Add custom CMake
+forge.add_cmake([[
+# Custom compile options
+target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra)
+]])
+
+forge.log.info("Complex setup complete!")
+EOF
+
+# 4. Install Conan deps
+cd test_complex
+forge install
+
+# 5. Build
+forge build
+```
+
+**Verification Points**:
+- [ ] All FetchContent deps work
+- [ ] Conan deps resolved
+- [ ] Custom CMake combines with all sections
+- [ ] Priority order maintained
+
+---
+
+### Test 6.3: CMakeGenerator Full Integration
+
+**Purpose**: Complete end-to-end test of CMakeRegistry + Lua.
+
+**Test Steps**:
+
+```bash
+# 1. Create full-featured project
+forge create test_full_integration
+
+# 2. Add all configuration
+cat > test_full_integration/package.toml << 'EOF'
+[project]
+name = "test_full_integration"
+type = "executable"
+standard = "20"
+
+[dependencies]
+fmt = { git = "https://github.com/fmtlib/fmt.git", tag = "10.2.1" }
+googletest = { git = "https://github.com/google/googletest.git", tag = "release-1.12.1", target = "GTest::gtest" }
+
+[conan-dependencies]
+spdlog = "1.12.0"
+EOF
+
+# 3. Create test files
+mkdir -p test_full_integration/test
+cat > test_full_integration/test/main.cpp << 'EOF'
+#include <gtest/gtest.h>
+#include <fmt/core.h>
+
+TEST(FullTest, Format) {
+    EXPECT_EQ(fmt::format("{}", 42), "42");
+}
+
+TEST(FullTest, Basic) {
+    EXPECT_TRUE(true);
+}
+
+int main(int argc, char** argv) {
+    testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}
+EOF
+
+# 4. Create Lua build script
+mkdir -p test_full_integration/.config/forge/build
+cat > test_full_integration/.config/forge/build/full.lua << 'EOF'
+forge.log.info("Full integration test...")
+
+-- Add custom compile definitions
+forge.add_cmake([[
+# Custom definitions for full integration test
+add_compile_definitions(FULL_INTEGRATION_TEST)
+message(STATUS "Full integration: custom CMake added")
+]])
+
+forge.log.info("Full integration setup complete!")
+EOF
+
+# 5. Install Conan deps
+cd test_full_integration
+forge install
+
+# 6. Build
+forge build
+
+# 7. Run tests
+forge test
+```
+
+**Verification Points**:
+- [ ] All 7 CMake sections generated
+- [ ] Priority order correct
+- [ ] Lua custom CMake at priority 45
+- [ ] Build completes successfully
+- [ ] Tests run and pass
+- [ ] Custom definitions in compiled binary
+
+---
+
+## Test Checklist
+
+### Core Lua Functions
+- [ ] forge.add_cmake() adds to CustomCMakeSnippets
+- [ ] ${PROJECT_NAME} placeholder replaced correctly
+- [ ] Multiple snippets accumulate
+- [ ] CustomCMakeSection appears at priority 45
+
+### Platform Detection
+- [ ] forge.os.current returns correct OS
+- [ ] forge.os.linux/macos/windows booleans work
+- [ ] forge.distro.my_distro returns correct distro
+- [ ] Distro-specific flags work
+
+### Git Integration
+- [ ] forge.pull_repo() clones to external/
+- [ ] Cloned repos usable in CMake
+
+### Package Installation
+- [ ] forge.get_packages() works on Ubuntu
+- [ ] forge.get_packages() works on macOS
+- [ ] Correct package manager per platform
+
+### Graphics Projects
+- [ ] SDL2 with Lua setup works
+- [ ] WebGPU with Lua setup works
+- [ ] OpenGL with Lua setup works
+
+### Complex Scenarios
+- [ ] Environment variables read correctly
+- [ ] Multiple dependencies + custom CMake works
+- [ ] Full integration (all sections + Lua) works
+
+### Priority Order Verification
+- [ ] StandardSection (1) before FetchContent (10)
+- [ ] FetchContent (10) before ProjectTarget (30)
+- [ ] ProjectTarget (30) before Linking (40)
+- [ ] Linking (40) before CustomCMake (45)
+- [ ] CustomCMake (45) before Testing (50)
