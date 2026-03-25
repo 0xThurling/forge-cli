@@ -50,18 +50,104 @@ public class LuaConfigLoader
     // Parse Project Sections
     if (table["project"].TryRead<LuaTable>(out var projectTable))
     {
-       config.Project = ParseProjectSection(projectTable); 
+            ParseProjectSection(ref config, projectTable); 
     }
 
     // Parse Dependencies
-    if (table["project"].TryRead<LuaTable>(out var projectTable))
+    if (table["dependencies"].TryRead<LuaTable>(out var dependenciesTable))
     {
-       config.Project = ParseProjectSection(projectTable); 
+       ParseDependencies(ref config, dependenciesTable); 
     }
+
+    // Parse Resources 
+    if (table["resources"].TryRead<LuaTable>(out var resourcesTable))
+    {
+       ParseResources(ref config, resourcesTable); 
+    }
+
+    // Parse Scripts 
+    if (table["scripts"].TryRead<LuaTable>(out var scriptsTable))
+    {
+       ParseScripts(ref config, scriptsTable); 
+    }
+
+    // Parse Features 
+    if (table["features"].TryRead<LuaTable>(out var featuresTable))
+    {
+       ParseFeatures(ref config, featuresTable); 
+    }
+
+    return config;
   }
 
-    private ProjectSection ParseProjectSection(LuaTable projectTable)
+    private void ParseFeatures(ref ProjectConfig config, LuaTable table)
     {
         throw new NotImplementedException();
+    }
+
+    private void ParseScripts(ref ProjectConfig config, LuaTable table)
+    {
+        throw new NotImplementedException();
+    }
+
+    private void ParseResources(ref ProjectConfig config, LuaTable table)
+    {
+        throw new NotImplementedException();
+    }
+
+    private static void ParseDependencies(ref ProjectConfig config, LuaTable table)
+    {
+      if (table["git"].TryRead<LuaTable>(out var gitTable))
+      {
+        foreach (var kvp in gitTable) {
+          var name = kvp.Key.ToString();
+
+          if (table[name].TryRead<LuaTable>(out var depTable)) {
+            config.Dependencies[name] = ParseDependencyFromTable(depTable);
+          }
+        }
+      }
+    }
+
+    private static Dependency ParseDependencyFromTable(LuaTable table)
+    {
+      var dep = new Dependency();
+
+      if (table["git"].TryRead<LuaValue>(out var git))
+      {
+        dep.Git = git.ToString();
+      }
+
+      if (table["tag"].TryRead<LuaValue>(out var tag))
+      {
+        dep.Tag = tag.ToString();
+      }
+
+      if (table["target"].TryRead<LuaValue>(out var target))
+      {
+        dep.Target = target.ToString();
+      }
+
+      return dep;
+    }
+
+    private static void ParseProjectSection(ref ProjectConfig config, LuaTable table)
+    {
+      if (table["name"].TryRead<LuaValue>(out var name))
+      {
+        config.Project.Name = name.ToString();
+      }
+      if (table["type"].TryRead<LuaValue>(out var type))
+      {
+        config.Project.Type = type.ToString();
+      }
+      if (table["standard"].TryRead<LuaValue>(out var standard))
+      {
+        config.Project.Standard = standard.ToString();
+      }
+      if (table["install_headers"].TryRead<LuaValue>(out var install))
+      {
+        config.Project.InstallHeaders = install.ToBoolean();
+      }
     }
 }

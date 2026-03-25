@@ -34,6 +34,9 @@ namespace forge.Models
         /// Defaults to "executable".
         /// </value>
         public string Type { get; set; } = "executable"; // Default to executable
+
+        ///
+        public string Standard { get; set; } = string.Empty;
         
         /// <summary>
         /// Gets or sets whether to install headers when building a library.
