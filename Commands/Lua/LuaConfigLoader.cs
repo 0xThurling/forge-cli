@@ -44,7 +44,7 @@ public class LuaConfigLoader
     throw new Exception("forge.lua must return a table");
   }
 
-  private ProjectConfig ParseLuaTable(LuaTable table) {
+  private static ProjectConfig ParseLuaTable(LuaTable table) {
     var config = new ProjectConfig();
 
     // Parse Project Sections
@@ -80,19 +80,63 @@ public class LuaConfigLoader
     return config;
   }
 
-    private void ParseFeatures(ref ProjectConfig config, LuaTable table)
+    private static void ParseFeatures(ref ProjectConfig config, LuaTable table)
     {
-        throw new NotImplementedException();
+      foreach (var kvp in table)
+      {
+        var name = kvp.Key.ToString();
+        
+        if (kvp.Value.TryRead<LuaTable>(out var featureTable))
+        {
+          var featureConfig = new FeatureConfig();
+
+          if (featureTable["enabled"].TryRead<LuaValue>(out var enabled))
+          {
+            featureConfig.Enabled = bool.TryParse(kvp.Value.ToString(), out var e) && e;
+          }
+
+          foreach (var optKvp in featureTable)
+          {
+            var optName = optKvp.Key.ToString();
+            var optValue = optKvp.Value.ToString();
+
+            if (optName != "enabled")
+            {
+              featureConfig.Options[optName] = optValue;
+            }
+          }
+
+          config.Features[name] = featureConfig;
+        } else {
+          config.Features[name] = new FeatureConfig {
+            Enabled = bool.TryParse(kvp.Value.ToString(), out var e) && e
+          };
+        }
+      }
     }
 
-    private void ParseScripts(ref ProjectConfig config, LuaTable table)
+    private static void ParseScripts(ref ProjectConfig config, LuaTable table)
     {
-        throw new NotImplementedException();
+        foreach (var kvp in table)
+        {
+          var name = kvp.Key.ToString();
+          var script = kvp.Value.ToString();
+
+          config.Scripts[name] = script;
+        }
     }
 
-    private void ParseResources(ref ProjectConfig config, LuaTable table)
+    private static void ParseResources(ref ProjectConfig config, LuaTable table)
     {
-        throw new NotImplementedException();
+      
+      if (table["files"].TryRead<LuaTable>(out var filesTable))
+      {
+        foreach (var kvp in filesTable)
+        {
+          var file = kvp.Value.ToString();
+          config.Resources.Files.Add(file);
+        }
+      }
     }
 
     private static void ParseDependencies(ref ProjectConfig config, LuaTable table)
@@ -105,6 +149,17 @@ public class LuaConfigLoader
           if (table[name].TryRead<LuaTable>(out var depTable)) {
             config.Dependencies[name] = ParseDependencyFromTable(depTable);
           }
+        }
+      }
+
+      if (table["conan"].TryRead<LuaTable>(out var conanTable))
+      {
+        foreach (var kvp in conanTable)
+        {
+          var name = kvp.Key.ToString();
+          var version = kvp.Value.ToString();
+
+          config.ConanDependencies[name] = version; 
         }
       }
     }
