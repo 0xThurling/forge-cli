@@ -33,8 +33,11 @@ namespace forge.Commands.Lua
       foreach (var file in files)
       {
         var results = await LuaEngine.GetLuaEngine().DoFileAsync(file);
+
+        if (results == null || results?.Length == 0) continue;
+
         // Read the mapped Lua Table for processing
-        if (results[0].TryRead<LuaTable>(out var table))
+        if (results != null && results[0].TryRead<LuaTable>(out var table))
         {
           if (table["cmakeOptions"].TryRead<LuaTable>(out var optionsTable))
           {

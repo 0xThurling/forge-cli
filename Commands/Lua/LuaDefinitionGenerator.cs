@@ -25,6 +25,12 @@ namespace forge.Commands.Lua
       sb.AppendLine("forge = {}");
       sb.AppendLine();
 
+      // --- forge custom CMake
+      sb.AppendLine("---Adds custom CMake commands to the generated CMakeLists file");
+      sb.AppendLine("---@param snippet string The custom CMake command");
+      sb.AppendLine("function forge.add_cmake(snippet: string) end");
+      sb.AppendLine();
+
       // --- forge logging utility
       // ---@class forge.log
       // forge = {}

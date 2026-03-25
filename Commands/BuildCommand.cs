@@ -102,11 +102,14 @@ namespace forge.Commands
           }
 
           // Needs to run synchronously
-          LuaBuilder.RunBuilderScripts().RunSynchronously();
+          Task.Run(() => LuaBuilder.RunBuilderScripts()).Wait();
 
           var cmakeContent = CMakeRegistry.Instance.Generate(projectConfig, Standard);
 
           ProjectBuildManager.CustomCmakeSnippets.Clear();
+
+          var cmakeConfigPath = Path.Combine(".config", "cmake", "CMakeLists.txt");
+          File.WriteAllText(cmakeConfigPath, cmakeContent);
 
           var rootCmakeContent = new StringBuilder();
 
@@ -114,8 +117,7 @@ namespace forge.Commands
           rootCmakeContent.AppendLine();
           rootCmakeContent.AppendLine($"project({projectName} LANGUAGES CXX C)");
           rootCmakeContent.AppendLine();
-          rootCmakeContent.AppendLine("# Include the generated project configuration");
-          rootCmakeContent.AppendLine($"include({cmakeContent})");
+          rootCmakeContent.AppendLine("include(.config/cmake/CMakeLists.txt)");
 
           File.WriteAllText("CMakeLists.txt", rootCmakeContent.ToString());
 

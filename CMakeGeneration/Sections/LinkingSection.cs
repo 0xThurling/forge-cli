@@ -26,8 +26,8 @@ public class LinkingSection : CMakeSectionBase
       if (linkTargets.Count == 0) return string.Empty;
 
       return $@"
-      # --- Linking ---
-      target_link_libraries({config.Project.Name} PRIVATE {string.Join(" ", linkTargets)})
+# --- Linking ---
+target_link_libraries({config.Project.Name} PRIVATE {string.Join(" ", linkTargets)})
       ";
     }
 }
