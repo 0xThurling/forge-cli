@@ -13,6 +13,7 @@ public class CMakeRegistry
   private readonly Dictionary<string, ICMakeSection> _sections = [];
 
   private bool _initialized = false;
+  private string _standard = "20";
 
   private CMakeRegistry() {}
 
@@ -23,7 +24,7 @@ public class CMakeRegistry
   public void Initialize() {
     if (_initialized) return;
 
-    Register(new StandardSection());
+    Register(new StandardSection(_standard));
     Register(new FetchContentSection());
     Register(new ConanSection());
     Register(new ProjectTargetSection());
@@ -34,7 +35,9 @@ public class CMakeRegistry
     _initialized = true;
   }
 
-  public string Generate(ProjectConfig config) {
+  public string Generate(ProjectConfig config, string standard) {
+    _standard = standard;
+
     Initialize();
 
     var sb = new StringBuilder();

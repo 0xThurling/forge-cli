@@ -75,6 +75,7 @@ namespace forge.Commands.Lua
       SetLoggingFunctionsAndDefinitions();
       SetEnvironmentVariableInformation();
       SetGetPackagesFunction();
+      SetCustomCMakeFunctions();
 
       state.Environment["forge"] = _cpm;
     }
@@ -330,6 +331,22 @@ namespace forge.Commands.Lua
       if (OperatingSystem.IsMacOS()) return "macos";
       if (OperatingSystem.IsWindows()) return "windows";
       return string.Empty;
+    }
+
+    private static void SetCustomCMakeFunctions()
+    {
+      var addCmakeFunc = new LuaFunction("add_cmake", (context, token) =>
+      {
+        var cmakeSnippet = context.GetArgument<string>(0);
+
+        ProjectBuildManager.CustomCmakeSnippets.Add(cmakeSnippet);
+
+        AnsiConsole.MarkupLine($"[green]Added custome CMake snippet[/]");
+
+        return ValueTask.FromResult(0);
+      });
+
+      _cpm[new LuaValue("add_cmake")] = new LuaValue(addCmakeFunc);
     }
 
     /// <summary>
