@@ -92,7 +92,7 @@ public class LuaConfigLoader
 
           if (featureTable["enabled"].TryRead<LuaValue>(out var enabled))
           {
-            featureConfig.Enabled = bool.TryParse(kvp.Value.ToString(), out var e) && e;
+            featureConfig.Enabled = bool.TryParse(enabled.ToString(), out var e) && e;
           }
 
           foreach (var optKvp in featureTable)
@@ -202,7 +202,7 @@ public class LuaConfigLoader
       }
       if (table["install_headers"].TryRead<LuaValue>(out var install))
       {
-        config.Project.InstallHeaders = install.ToBoolean();
+        config.Project.InstallHeaders = bool.TryParse(install.ToString(), out var v) && v;
       }
     }
 }

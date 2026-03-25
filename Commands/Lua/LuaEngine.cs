@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using forge.Models;
 using Lua;
 using Lua.Standard;
 using Spectre.Console;
@@ -347,6 +348,31 @@ namespace forge.Commands.Lua
       });
 
       _cpm[new LuaValue("add_cmake")] = new LuaValue(addCmakeFunc);
+    }
+
+    private static void SetConfigFunctions()
+    {
+      var configGetFunc = new LuaFunction("config_get", (context, token) => {
+
+      });
+    }
+
+    private static string? GetConfigValue(ProjectConfig config, string key)
+    {
+      var parts = key.Split('.');
+
+      if (parts[0] == "project")
+      {
+        if (parts.Length > 1 && parts[1] == "name") return config.Project.Name;
+        if (parts.Length > 1 && parts[1] == "type") return config.Project.Type;
+        if (parts.Length > 1 && parts[1] == "standard") return config.Project.Standard;
+      } else if (parts[0] == "features" && parts.Length > 1) {
+        var featureName = parts[1];
+        if (config.Features.TryGetValue(featureName, out var feature))
+          return feature.Enabled.ToString();
+      }
+
+      return null;
     }
 
     /// <summary>
