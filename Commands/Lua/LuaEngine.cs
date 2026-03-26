@@ -352,11 +352,14 @@ namespace forge.Commands.Lua
 
     private static void SetConfigFunctions()
     {
-      var configGetFunc = new LuaFunction("config_get", (context, token) => {
+      // forge.config.get(key) - get config key
+      var configGetFunc = new LuaFunction("config_get", (context, token) =>
+      {
         var key = context.GetArgument<string>(0);
 
         var config = ProjectConfigManager.LoadConfig();
-        if (config == null) {
+        if (config == null)
+        {
           context.Return(LuaValue.Nil);
           return new ValueTask<int>(1);
         }
@@ -366,11 +369,47 @@ namespace forge.Commands.Lua
         return new ValueTask<int>(1);
       });
 
+      // forge.config.set(key, value) - Set config value (for runtime modification)
       var configSecFunc = new LuaFunction("config_set", (context, token) =>
       {
         var key = context.GetArgument<string>(0);
         var value = context.GetArgument<string>(1);
 
+        SetConfigValue(key, value);
+        AnsiConsole.MarkupLine($"[green]Config set: {key} = {value}[/]");
+
+        return ValueTask.FromResult(0);
+      });
+
+      // forge.config.has_feature(name) - Check if feature is enabled
+      var configHasFeatureFunc = new LuaFunction("config_has_feature", (context, token) =>
+      {
+        var feature = context.GetArgument<string>(0);
+
+        var config = ProjectConfigManager.LoadConfig();
+        var hasFeature = config?.Features.ContainsKey(feature) == true &&
+            config.Features[feature].Enabled;
+
+        context.Return(hasFeature);
+        return new ValueTask<int>(1);
+      });
+
+      var configGetFeatureOptionFunc = new LuaFunction("config_get_feature_option",
+          (context, token) =>
+      {
+        var feature = context.GetArgument<string>(0);
+        var option = context.GetArgument<string>(1);
+        var defaultValue = context.GetArgument<string>(2);
+
+        var config = ProjectConfigManager.LoadConfig();
+        if (config?.Features.TryGetValue(feature, out var featureConfig) == true &&
+            featureConfig.Options.TryGetValue(option, out var value))
+        {
+          context.Return(value);
+          return new ValueTask<int>(1);
+        }
+
+        context.Return(defaultValue);
         return new ValueTask<int>(1);
       });
     }
@@ -387,10 +426,52 @@ namespace forge.Commands.Lua
         if (parts[1] == "name") config.Project.Name = value;
         if (parts[1] == "type") config.Project.Type = value;
         if (parts[1] == "standard") config.Project.Standard = value;
-      } else if (parts[0] == "features" && parts.Length > 2) {
+
+        if (parts[1] == "install_headers")
+          config.Project.InstallHeaders = bool.TryParse(value, out var v) && v;
+
+      }
+      else if (parts[0] == "features" && parts.Length > 2)
+      {
         var featureName = parts[1];
         var featureKey = parts[2];
 
+        if (!config.Features.TryGetValue(featureName, out var feature))
+        {
+          feature = new FeatureConfig();
+          config.Features[featureName] = feature;
+        }
+
+        if (featureKey == "enabled")
+        {
+          feature.Enabled = bool.TryParse(value, out var e) && e;
+        }
+        else
+        {
+          feature.Options[featureKey] = value;
+        }
+      }
+      else if (parts[0] == "dependencies")
+      {
+        if (parts.Length == 4 && parts[1] == "git")
+        {
+          var depName = parts[2];
+          var depProp = parts[3];
+
+          if (!config.Dependencies.TryGetValue(depName, out var dep))
+          {
+            dep = new Dependency();
+            config.Dependencies[depName] = dep;
+          }
+
+          if (depProp == "git") dep.Git = value;
+          if (depProp == "tag") dep.Tag = value;
+          if (depProp == "target") dep.Target = value;
+        }
+      }
+      else if (parts.Length == 3 && parts[1] == "conan")
+      {
+        config.ConanDependencies[parts[2]] = value;
       }
     }
 
@@ -403,10 +484,13 @@ namespace forge.Commands.Lua
         if (parts.Length > 1 && parts[1] == "name") return config.Project.Name;
         if (parts.Length > 1 && parts[1] == "type") return config.Project.Type;
         if (parts.Length > 1 && parts[1] == "standard") return config.Project.Standard;
-      } else if (parts[0] == "features" && parts.Length > 1) {
+      }
+      else if (parts[0] == "features" && parts.Length > 1)
+      {
         var featureName = parts[1];
 
-        if (config.Features.TryGetValue(featureName, out var feature)) {
+        if (config.Features.TryGetValue(featureName, out var feature))
+        {
           if (parts.Length > 2 && parts[2] == "enabled")
             return feature.Enabled.ToString();
 
@@ -415,15 +499,22 @@ namespace forge.Commands.Lua
 
           return feature.Enabled.ToString();
         }
-      } else if (parts[0] == "dependencies" && parts.Length >= 3) {
+      }
+      else if (parts[0] == "dependencies" && parts.Length >= 3)
+      {
         if (parts[0] == "git" && config.Dependencies.TryGetValue(parts[2], out var dep))
         {
           if (parts.Length > 3)
           {
-            if(parts[3] == "git") return dep.Git;
-            if(parts[3] == "tag") return dep.Tag;
-            if(parts[3] == "target") return dep.Target;
+            if (parts[3] == "git") return dep.Git;
+            if (parts[3] == "tag") return dep.Tag;
+            if (parts[3] == "target") return dep.Target;
           }
+        }
+        else if (parts[1] == "conan" &&
+            config.ConanDependencies.TryGetValue(parts[2], out var conanVer))
+        {
+          return conanVer;
         }
       }
 
