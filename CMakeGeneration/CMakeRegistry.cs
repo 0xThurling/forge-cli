@@ -25,6 +25,7 @@ public class CMakeRegistry
     if (_initialized) return;
 
     Register(new StandardSection(_standard));
+    Register(new FeaturesSection());
     Register(new FetchContentSection());
     Register(new ConanSection());
     Register(new ProjectTargetSection());
