@@ -161,6 +161,25 @@ namespace forge.Commands.Lua
             "The APT package manager for Debian/Ubuntu")
           .AddConstantInformation("type", "string"));
 
+      // Extraction/Download/Fetching
+      _categories.Add(new LuaDefinitionCategory("forge.download",
+            "Downloads a file from a URL",
+            new LuaParameter("url", "string", "The URL to download"),
+            new LuaParameter("output", "string", "The output file path")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.extract",
+            "Extracts an archive file",
+            new LuaParameter("archive", "string", "Path to archive file"),
+            new LuaParameter("output", "string", "Output directory"),
+            new LuaParameter("string_components", "int", "The number of path components to strip (default: 1)")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.fetch",
+            "Downloads and extracts an archive in one step",
+            new LuaParameter("url", "string", "The URL to fetch"),
+            new LuaParameter("output", "string", "Output directory"),
+            new LuaParameter("string_components", "int", "The number of path components to strip (default: 1)")));
+
+
       // General Information
       _categories.Add(new LuaDefinitionCategory("forge.current_working_dir",
             "The current working directory")

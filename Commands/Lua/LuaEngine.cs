@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Compression;
 using System.Text;
 using forge.Models;
 using Lua;
@@ -77,6 +78,8 @@ namespace forge.Commands.Lua
       SetEnvironmentVariableInformation();
       SetGetPackagesFunction();
       SetCustomCMakeFunctions();
+      SetConfigFunctions();
+      SetDownloadFunctions();
 
       state.Environment["forge"] = _cpm;
     }
@@ -164,10 +167,10 @@ namespace forge.Commands.Lua
 
       using var process = Process.Start(installationProcess);
 
-      if (process == null) throw new Exception("Failed to start CMake process.");
+      if (process is null) throw new Exception("Failed to start CMake process.");
       AnsiConsole.WriteLine("Installing packages...");
 
-      process!.WaitForExit();
+      process.WaitForExit();
     }
 
     /// <summary>
@@ -220,7 +223,23 @@ namespace forge.Commands.Lua
         return ValueTask.FromResult(0);
       });
 
+      var logWarningFunc = new LuaFunction("warn", (context, _) =>
+      {
+        var info = context.GetArgument<string>(0);
+        AnsiConsole.MarkupLine($"[bold yellow]INFO[/]: {info}");
+        return ValueTask.FromResult(0);
+      });
+
+      var logErrorFunc = new LuaFunction("error", (context, _) =>
+      {
+        var info = context.GetArgument<string>(0);
+        AnsiConsole.MarkupLine($"[bold red]INFO[/]: {info}");
+        return ValueTask.FromResult(0);
+      });
+
       log[new LuaValue("info")] = new LuaValue(logInformationFunc);
+      log[new LuaValue("warn")] = new LuaValue(logWarningFunc);
+      log[new LuaValue("error")] = new LuaValue(logErrorFunc);
       _cpm[new LuaValue("log")] = new LuaValue(log);
     }
 
@@ -528,6 +547,107 @@ namespace forge.Commands.Lua
       }
 
       return null;
+    }
+
+    private static void SetDownloadFunctions()
+    {
+      // forge.download(url, output_path)
+      var downloadFunc = new LuaFunction("download", async (context, token) =>
+      {
+        var url = context.GetArgument<string>(0);
+        var output = context.GetArgument<string>(1);
+
+        using var client = new HttpClient();
+        client.DefaultRequestHeaders.Add("User-Agent", "Forge/1.0");
+
+        var bytes = await client.GetByteArrayAsync(url, token);
+        await File.WriteAllBytesAsync(output, bytes, token);
+
+        AnsiConsole.MarkupLine($"[green]Downloaded:[/] {output} ({bytes.Length} bytes)");
+
+        return 0;
+      });
+
+      // forge.extract(archive_path, output_dir, string_components?)
+      var extractFunc = new LuaFunction("extract", (context, token) =>
+      {
+        var archive = context.GetArgument<string>(0);
+        var output = context.GetArgument<string>(1);
+        var stripComponents = context.GetArgument<string>(2);
+
+        try
+        {
+          Directory.CreateDirectory(output);
+
+          var ext = Path.GetExtension(archive).ToLower();
+          if (ext is ".zip")
+          {
+            ZipFile.ExtractToDirectory(archive, output, true);
+          }
+          else if (ext is ".tar" or ".tgz" or ".gz")
+          {
+            var psi = new ProcessStartInfo("tar", $"-xf \"{archive}\" -c \"{output}\" --strip-components={stripComponents}")
+            {
+              UseShellExecute = false,
+              RedirectStandardOutput = true,
+              RedirectStandardError = true
+            };
+
+            using var p = Process.Start(psi);
+            p?.WaitForExit();
+          }
+
+          AnsiConsole.MarkupLine($"[green]Extracted:[/] {output}");
+        }
+        catch (Exception ex)
+        {
+          AnsiConsole.MarkupLine($"[red]Extraction failed:[/] {ex.Message}");
+          return ValueTask.FromResult(1);
+        }
+
+        return ValueTask.FromResult(0);
+      });
+
+      // forge.fetch(url, output_dir) - download + extract in one step
+      var fetchFunc = new LuaFunction("fetch", async (context, token) =>
+      {
+        var url = context.GetArgument<string>(0);
+        var output = context.GetArgument<string>(1);
+        var stripComponents = context.GetArgument<string>(2); // default 1 
+
+        var tempFile = Path.Combine(Path.GetTempPath(), $"forge_fetch_{Guid.NewGuid()}.zip");
+
+        try
+        {
+          // Download
+          using var client = new HttpClient();
+          client.DefaultRequestHeaders.Add("User-Agent", "Forge/1.0");
+
+          AnsiConsole.MarkupLine($"[cyan]Fetching:[/] {url}");
+          var bytes = await client.GetByteArrayAsync(url, token);
+          await File.WriteAllBytesAsync(tempFile, bytes, token);
+
+          // Extract
+          Directory.CreateDirectory(output);
+          ZipFile.ExtractToDirectory(tempFile, output, true);
+
+          File.Delete(tempFile);
+
+          AnsiConsole.MarkupLine($"[green]Fetch complete:[/] {output}");
+        }
+        catch (Exception ex)
+        {
+          if (File.Exists(tempFile)) File.Delete(tempFile);
+          AnsiConsole.MarkupLine($"[red]Fetch failed:[/] {ex.Message}");
+          return 1;
+        }
+
+        return 0;
+      });
+
+      _cpm[new LuaValue("download")] = new LuaValue(downloadFunc);
+      _cpm[new LuaValue("extract")] = new LuaValue(extractFunc);
+      _cpm[new LuaValue("fetch")] = new LuaValue(fetchFunc);
     }
 
     /// <summary>
