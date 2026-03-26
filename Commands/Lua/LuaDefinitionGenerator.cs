@@ -1,181 +1,188 @@
 using System.Text;
+using forge.Models;
 
 namespace forge.Commands.Lua
 {
   public static class LuaDefinitionGenerator
   {
+    private static readonly List<LuaDefinitionCategory> _categories = [];
+
+    static LuaDefinitionGenerator()
+    {
+      InitializeDefinitions();
+    }
+
+    private static void InitializeDefinitions()
+    {
+      // Core forge object
+      _categories.Add(new LuaDefinitionCategory("forge", "Global forge API object")
+          .AddConstantInformation("class", "forge"));
+
+      _categories.Add(new LuaDefinitionCategory("forge.log",
+            "Forge logging utility")
+          .AddConstantInformation("class", "forge.log"));
+
+      // Functions - Generic
+      _categories.Add(new LuaDefinitionCategory("forge.add_cmake",
+            "Adds custom CMake commands to the generated CMakeLists.txt",
+            new LuaParameter("snippet", "string", "The custom CMake command")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.log.info",
+            "Logs an information message to the console",
+            new LuaParameter("message", "string", "The message to log")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.log.warn",
+            "Logs a warning message to the console",
+            new LuaParameter("message", "string", "The message to log")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.log.error",
+            "Logs a error message to the console",
+            new LuaParameter("message", "string", "The message to log")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.pull_repo",
+            "Clones a Git repository to external/",
+            new LuaParameter("repo_url", "string", "The URL for the GitHub repository"))
+          .AddReturn(new LuaParameterReturn("string", "The path location where it's saved'")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.get_packages",
+            "Installs packages using the Specified package manager",
+            new LuaParameter("password", "string", "Password or 'nopass'"),
+            new LuaParameter("package_manager", "string", "The package manager"),
+            new LuaParameter("packages", "string[]", "List of packages"))
+          .AddReturn(new LuaParameterReturn("int", "0 on success")));
+
+      // Config Functions
+      _categories.Add(new LuaDefinitionCategory("forge.config.get",
+            "Gets a config value by key",
+            new LuaParameter("key", "string", "Dot-notation key (e.g., 'project.name')"))
+          .AddReturn(new LuaParameterReturn("string", "The config value")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.config.set",
+            "Sets a config value (runtime) only",
+            new LuaParameter("key", "string", "Dot-notation key"),
+            new LuaParameter("value", "string", "Valeu to set")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.config.has_feature",
+            "Checks if a feature is enabled",
+            new LuaParameter("feature", "string", "Feature name"))
+          .AddReturn(new LuaParameterReturn("boolean", "True if enabled")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.config.get_feature_option",
+            "Gets a feature option value",
+            new LuaParameter("feature", "string", "Feature name"),
+            new LuaParameter("option", "string", "Option name"),
+            new LuaParameter("default", "string", "Default value if not set"))
+          .AddReturn(new LuaParameterReturn("string", "The option value")));
+
+      // Environment tables
+      // Operating System information
+      _categories.Add(new LuaDefinitionCategory("forge.os", 
+            "Operating System information")
+          .AddConstantInformation("class", "forge.os"));
+
+      _categories.Add(new LuaDefinitionCategory("forge.os.current",
+            "The current operating system")
+          .AddConstantInformation("type", "string"));
+
+      _categories.Add(new LuaDefinitionCategory("forge.os.windows",
+            "The Windows operating system")
+          .AddConstantInformation("type", "string"));
+
+      _categories.Add(new LuaDefinitionCategory("forge.os.macos",
+            "The MacOS operating system")
+          .AddConstantInformation("type", "string"));
+
+      _categories.Add(new LuaDefinitionCategory("forge.os.linux",
+            "The Linux operating system")
+          .AddConstantInformation("type", "string"));
+
+      // Distrobution information
+      _categories.Add(new LuaDefinitionCategory("forge.disto",
+            "Linux distribution information")
+          .AddConstantInformation("class", "forge.distro"));
+      
+      _categories.Add(new LuaDefinitionCategory("forge.distro.my_distro",
+            "Current Linux distrobution")
+          .AddConstantInformation("type", "string"));
+      
+      _categories.Add(new LuaDefinitionCategory("forge.distro.arch",
+            "The Arch Linux distrobution... btw")
+          .AddConstantInformation("type", "string"));
+      
+      _categories.Add(new LuaDefinitionCategory("forge.distro.nixos",
+            "The NixOs Linux distrobution")
+          .AddConstantInformation("type", "string"));
+      
+      _categories.Add(new LuaDefinitionCategory("forge.distro.debian",
+            "The Debian Linux distrobution")
+          .AddConstantInformation("type", "string"));
+      
+      _categories.Add(new LuaDefinitionCategory("forge.distro.ubuntu",
+            "The Ubuntu Linux Distrobution")
+          .AddConstantInformation("type", "string"));
+      
+      _categories.Add(new LuaDefinitionCategory("forge.distro.manjaro",
+            "The Manjaro Linux distrobution")
+          .AddConstantInformation("type", "string"));
+      
+      _categories.Add(new LuaDefinitionCategory("forge.distro.fedora",
+            "The Fedora Linux distrobution")
+          .AddConstantInformation("type", "string"));
+      
+      _categories.Add(new LuaDefinitionCategory("forge.distro.unknown",
+            "Unknown Linux distrobution")
+          .AddConstantInformation("type", "string"));
+
+      _categories.Add(new LuaDefinitionCategory("forge.package_manager",
+            "Package manager constants")
+          .AddConstantInformation("class", "forge.package_manager"));
+      
+      _categories.Add(new LuaDefinitionCategory("forge.package_manager.no_pass",
+            "Use no password for package manager")
+          .AddConstantInformation("type", "string"));
+      
+      _categories.Add(new LuaDefinitionCategory("forge.package_manager.winget",
+            "The WinGet package manager for Windows")
+          .AddConstantInformation("type", "string"));
+      
+      _categories.Add(new LuaDefinitionCategory("forge.package_manager.chocolatey",
+            "The Chocolatey package manager for Windows")
+          .AddConstantInformation("type", "string"));
+      
+      _categories.Add(new LuaDefinitionCategory("forge.package_manager.brew",
+            "The Homebrew package manager for MacOs")
+          .AddConstantInformation("type", "string"));
+      
+      _categories.Add(new LuaDefinitionCategory("forge.package_manager.pacman",
+            "The Pacman package manager for Arch")
+          .AddConstantInformation("type", "string"));
+      
+      _categories.Add(new LuaDefinitionCategory("forge.package_manager.aptget",
+            "The APT package manager for Debian/Ubuntu")
+          .AddConstantInformation("type", "string"));
+
+      // General Information
+      _categories.Add(new LuaDefinitionCategory("forge.current_working_dir",
+            "The current working directory")
+          .AddConstantInformation("type", "string"));
+    }
+
     public static string GenerateDefinitions()
     {
       var sb = new StringBuilder();
 
       sb.AppendLine("---@meta");
       sb.AppendLine();
-
       sb.AppendLine("---");
-      sb.AppendLine("--- Provides access to forge variables and functions for the Lua LSP");
-      sb.AppendLine("--- This file is automatically generally");
+      sb.AppendLine("--- Forge Lua API Type Definitions");
+      sb.AppendLine("--- Auto-generated for Lua Language Server (lua_ls)");
       sb.AppendLine("---");
-
-      // Function definitions
-      // --- Global forge API object
-      // ---@class forge
-      // forge = {}
-      sb.AppendLine("--- Global forge API object");
-      sb.AppendLine("---@class forge");
-      sb.AppendLine("forge = {}");
       sb.AppendLine();
 
-      // --- forge custom CMake
-      sb.AppendLine("---Adds custom CMake commands to the generated CMakeLists file");
-      sb.AppendLine("---@param snippet string The custom CMake command");
-      sb.AppendLine("function forge.add_cmake(snippet: string) end");
-      sb.AppendLine();
-
-      // --- forge logging utility
-      // ---@class forge.log
-      // forge = {}
-      sb.AppendLine("--- forge logging utility");
-      sb.AppendLine("---@class forge.log");
-      sb.AppendLine("forge.log = {}");
-      sb.AppendLine();
-
-      // --- forge logging information 
-      sb.AppendLine("--- Logs an information message to the console");
-      sb.AppendLine("---@param message string The message to log.");
-      sb.AppendLine("function forge.log.info(message) end");
-      sb.AppendLine();
-
-      // --- forge pull repo 
-      sb.AppendLine("--- Logs an information message to the console");
-      sb.AppendLine("---@param repo_url string The URL for the github repository.");
-      sb.AppendLine("---@return string The path location where it get's saved");
-      sb.AppendLine("function forge.pull_repo(repo_url) end");
-      sb.AppendLine();
-
-      // Get packages
-      sb.AppendLine("--- Gets the packages with a specific package manager");
-      sb.AppendLine("---@param password string This is the password used for the package_manager");
-      sb.AppendLine("---@param package_manager string The Package Manager Specified.");
-      sb.AppendLine("---@param packages string[] The list of package you wish to download.");
-      sb.AppendLine("---@return string The path location where it get's saved");
-      sb.AppendLine("---@remarks Can also be used with `forge.package_manager.no_pass` to skip sudo install");
-      sb.AppendLine("function forge.get_packages(password, package_manager, packages) end");
-      sb.AppendLine();
-
-      // Environment Variables
-      sb.AppendLine("--- The current working directory");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.current_working_dir = \"\"");
-      sb.AppendLine();
-
-      // Operating Systems
-      sb.AppendLine("--- The Operating System for the Build");
-      sb.AppendLine("---@class forge.os");
-      sb.AppendLine("forge.os = {}");
-      sb.AppendLine();
-
-      sb.AppendLine("--- The current operating system");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.os.current = \"\"");
-      sb.AppendLine();
-
-      sb.AppendLine("--- The Windows operating system");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.os.windows = \"\"");
-      sb.AppendLine();
-
-      sb.AppendLine("--- The MacOS operating system");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.os.macos = \"\"");
-      sb.AppendLine();
-
-      sb.AppendLine("--- The MacOS operating system");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.os.linux = \"\"");
-      sb.AppendLine();
-
-      // Distrobution table
-      sb.AppendLine("--- The Linux Operating System");
-      sb.AppendLine("---@class forge.disto.linux");
-      sb.AppendLine("forge.distro = {}");
-      sb.AppendLine();
-
-      sb.AppendLine("--- The current linux distrobution.");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.distro.my_distro = \"\"");
-      sb.AppendLine();
-
-      sb.AppendLine("--- The Arch Linux distrobution...btw");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.distro.arch = \"\"");
-      sb.AppendLine();
-
-      sb.AppendLine("--- The NixOS Linux distrobution");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.distro.nixos = \"\"");
-      sb.AppendLine();
-
-      sb.AppendLine("--- The Debian Linux distrobution");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.distro.debian = \"\"");
-      sb.AppendLine();
-
-      sb.AppendLine("--- The Ubuntu Linux distrobution");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.distro.ubuntu = \"\"");
-      sb.AppendLine();
-
-      sb.AppendLine("--- The Manjaro Linux distrobution");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.distro.manjaro = \"\"");
-      sb.AppendLine();
-
-      sb.AppendLine("--- The Fedora Linux distrobution");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.distro.fedora = \"\"");
-      sb.AppendLine();
-
-      sb.AppendLine("--- Unknown Linux distrobution");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.distro.unknown = \"\"");
-      sb.AppendLine();
-
-      // Package managers
-      sb.AppendLine("--- The package managers for various operating systems");
-      sb.AppendLine("---@class forge.package_manager");
-      sb.AppendLine("forge.package_manager = {}");
-      sb.AppendLine();
-
-      sb.AppendLine("--- Use no password for package manager");
-      sb.AppendLine("---@desc This will set the get_packages function to not install packages with sudo");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.package_manager.no_pass = \"\"");
-      sb.AppendLine();
-
-      sb.AppendLine("--- The WinGet package manager for Windows");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.package_manager.winget = \"\"");
-      sb.AppendLine();
-
-      sb.AppendLine("--- The Chocolatey package manager for Windows");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.package_manager.chocolatey = \"\"");
-      sb.AppendLine();
-
-      sb.AppendLine("--- The Homebrew package manager for MacOS");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.package_manager.brew = \"\"");
-      sb.AppendLine();
-
-      sb.AppendLine("--- The Pacman Package Manager for Arch");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.package_manager.pacman = \"\"");
-      sb.AppendLine();
-
-      sb.AppendLine("--- The APT package manager for Debian");
-      sb.AppendLine("---@type string");
-      sb.AppendLine("forge.package_manager.aptget = \"\"");
-      sb.AppendLine();
+      foreach (var category in _categories)
+      {
+         sb.AppendLine(category.ToDefinition()); 
+      }
 
       return sb.ToString();
     }

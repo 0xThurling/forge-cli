@@ -370,7 +370,7 @@ namespace forge.Commands.Lua
       });
 
       // forge.config.set(key, value) - Set config value (for runtime modification)
-      var configSecFunc = new LuaFunction("config_set", (context, token) =>
+      var configSetFunc = new LuaFunction("config_set", (context, token) =>
       {
         var key = context.GetArgument<string>(0);
         var value = context.GetArgument<string>(1);
@@ -394,6 +394,7 @@ namespace forge.Commands.Lua
         return new ValueTask<int>(1);
       });
 
+      // forge.config.get_feature_option(feature, option, default)
       var configGetFeatureOptionFunc = new LuaFunction("config_get_feature_option",
           (context, token) =>
       {
@@ -412,6 +413,14 @@ namespace forge.Commands.Lua
         context.Return(defaultValue);
         return new ValueTask<int>(1);
       });
+
+      var configTable = new LuaTable();
+      configTable[new LuaValue("get")] = new LuaValue(configGetFunc);
+      configTable[new LuaValue("set")] = new LuaValue(configSetFunc);
+      configTable[new LuaValue("has_feature")] = new LuaValue(configHasFeatureFunc);
+      configTable[new LuaValue("get_feature_option")] = new LuaValue(configGetFeatureOptionFunc);
+
+      _cpm[new LuaValue("config")] = new LuaValue(configTable);
     }
 
     private static void SetConfigValue(string key, string value)
