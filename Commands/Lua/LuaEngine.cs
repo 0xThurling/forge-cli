@@ -353,8 +353,45 @@ namespace forge.Commands.Lua
     private static void SetConfigFunctions()
     {
       var configGetFunc = new LuaFunction("config_get", (context, token) => {
+        var key = context.GetArgument<string>(0);
 
+        var config = ProjectConfigManager.LoadConfig();
+        if (config == null) {
+          context.Return(LuaValue.Nil);
+          return new ValueTask<int>(1);
+        }
+
+        var value = GetConfigValue(config, key);
+        context.Return(value ?? "");
+        return new ValueTask<int>(1);
       });
+
+      var configSecFunc = new LuaFunction("config_set", (context, token) =>
+      {
+        var key = context.GetArgument<string>(0);
+        var value = context.GetArgument<string>(1);
+
+        return new ValueTask<int>(1);
+      });
+    }
+
+    private static void SetConfigValue(string key, string value)
+    {
+      var config = ProjectConfigManager.LoadConfig();
+      if (config == null) return;
+
+      var parts = key.Split(' ');
+
+      if (parts[0] == "project" && parts.Length > 1)
+      {
+        if (parts[1] == "name") config.Project.Name = value;
+        if (parts[1] == "type") config.Project.Type = value;
+        if (parts[1] == "standard") config.Project.Standard = value;
+      } else if (parts[0] == "features" && parts.Length > 2) {
+        var featureName = parts[1];
+        var featureKey = parts[2];
+
+      }
     }
 
     private static string? GetConfigValue(ProjectConfig config, string key)
@@ -368,8 +405,26 @@ namespace forge.Commands.Lua
         if (parts.Length > 1 && parts[1] == "standard") return config.Project.Standard;
       } else if (parts[0] == "features" && parts.Length > 1) {
         var featureName = parts[1];
-        if (config.Features.TryGetValue(featureName, out var feature))
+
+        if (config.Features.TryGetValue(featureName, out var feature)) {
+          if (parts.Length > 2 && parts[2] == "enabled")
+            return feature.Enabled.ToString();
+
+          if (parts.Length > 2 && feature.Options.TryGetValue(parts[2], out var optVal))
+            return optVal;
+
           return feature.Enabled.ToString();
+        }
+      } else if (parts[0] == "dependencies" && parts.Length >= 3) {
+        if (parts[0] == "git" && config.Dependencies.TryGetValue(parts[2], out var dep))
+        {
+          if (parts.Length > 3)
+          {
+            if(parts[3] == "git") return dep.Git;
+            if(parts[3] == "tag") return dep.Tag;
+            if(parts[3] == "target") return dep.Target;
+          }
+        }
       }
 
       return null;
