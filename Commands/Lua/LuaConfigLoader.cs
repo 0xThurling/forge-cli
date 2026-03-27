@@ -145,11 +145,7 @@ public class LuaConfigLoader
 
         if (directTable[name].TryRead<LuaTable>(out var depTable))
         {
-          Console.WriteLine("Get here");
           config.Dependencies[name] = ParseDependencyFromTable(depTable);
-
-          var dependency = ParseDependencyFromTable(depTable);
-          Console.WriteLine($"{name}, {dependency.Git}, {dependency.Tag}, {dependency.Target}");
         }
       }
     }
