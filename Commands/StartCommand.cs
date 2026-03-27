@@ -23,10 +23,10 @@ namespace forge.Commands
     /// Builds the project and executes the resulting binary.
     /// </summary>
     /// <returns>0 on success, non-zero on failure.</returns>
-    public async Task<int> Run()
+    public async Task<int> RunAsync()
     {
       var buildCommand = new BuildCommand();
-      if (await buildCommand.Run() != 0)
+      if (await buildCommand.RunAsync() != 0)
       {
         return 1;
       }

@@ -19,7 +19,7 @@ public class ConfigCommand
   )]
   public class MigrateCommand
   {
-    public async Task<int> Run()
+    public async Task<int> RunAsync()
     {
       var config = ProjectConfigManager.TomlConfigLoader();
       if (config is null)

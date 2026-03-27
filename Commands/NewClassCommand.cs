@@ -35,7 +35,7 @@ namespace forge.Commands
     /// <summary>
     /// Generates the class header and source files.
     /// </summary>
-    public async Task Run()
+    public async Task RunAsync()
     {
       var className = Name;
       if (!Directory.Exists("src"))

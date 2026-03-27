@@ -22,7 +22,7 @@ namespace forge.Commands
     /// Displays the project directory tree.
     /// </summary>
     /// <returns>0 on success, 1 if project root cannot be found.</returns>
-    public async Task<int> Run()
+    public async Task<int> RunAsync()
     {
       var projectRoot = ProjectConfigManager.FindProjectRoot();
       if (projectRoot == null)

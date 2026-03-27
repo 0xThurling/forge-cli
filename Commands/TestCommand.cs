@@ -60,7 +60,7 @@ namespace forge.Commands
     /// <returns>
     /// 0 if all tests pass, non-zero if tests fail or build fails.
     /// </returns>
-    public async Task<int> Run()
+    public async Task<int> RunAsync()
     {
       if (!Directory.Exists("test"))
       {
@@ -74,7 +74,7 @@ namespace forge.Commands
         Standard = Standard
       };
 
-      if (await buildCommand.Run() != 0)
+      if (await buildCommand.RunAsync() != 0)
       {
         return 1; // Build failed
       }

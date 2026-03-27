@@ -30,7 +30,7 @@ namespace forge.Commands
     /// <summary>
     /// Generates the header and source files.
     /// </summary>
-    public async Task Run()
+    public async Task RunAsync()
     {
       var fileName = Name;
       if (!Directory.Exists("src"))

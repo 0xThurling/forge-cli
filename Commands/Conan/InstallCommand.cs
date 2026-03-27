@@ -31,7 +31,7 @@ namespace forge.Commands.Conan
     /// Generates conanfile.txt and runs Conan to install dependencies.
     /// </summary>
     /// <returns>0 on success, 1 on failure.</returns>
-    public static async Task<int> Run()
+    public async Task<int> RunAsync()
     {
       var config = await ProjectConfigManager.LoadConfigAsync();
       if (config == null) return 1;

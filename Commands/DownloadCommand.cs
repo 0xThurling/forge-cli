@@ -60,7 +60,7 @@ public class ExtractCommand
   [CliOption(Description = "Strip components from path (default: 1)")]
   public int StripComponents { get; set; } = 1;
 
-  public async Task<int> Run()
+  public async Task<int> RunAsync()
   {
     try
     {

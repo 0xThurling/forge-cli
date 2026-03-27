@@ -22,7 +22,7 @@ namespace forge.Commands
     /// Lists all dependencies in a formatted table.
     /// </summary>
     /// <returns>0 on success, 1 if project configuration cannot be loaded.</returns>
-    public async Task<int> Run()
+    public async Task<int> RunAsync()
     {
       var config = await ProjectConfigManager.LoadConfigAsync();
       if (config == null)

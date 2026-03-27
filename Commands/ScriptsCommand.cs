@@ -22,7 +22,7 @@ namespace forge.Commands
     /// Lists all available scripts.
     /// </summary>
     /// <returns>Always returns 0.</returns>
-    public async Task<int> Run()
+    public async Task<int> RunAsync()
     {
       var config = await ProjectConfigManager.LoadConfigAsync();
       if (config?.Scripts == null || config.Scripts.Count == 0)

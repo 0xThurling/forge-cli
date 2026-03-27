@@ -36,7 +36,7 @@ namespace forge.Commands
     /// <summary>
     /// Registers the resource file in package.toml.
     /// </summary>
-    public async Task Run()
+    public async Task RunAsync()
     {
       if (!File.Exists(FilePath))
       {

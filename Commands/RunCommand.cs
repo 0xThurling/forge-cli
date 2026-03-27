@@ -40,14 +40,14 @@ namespace forge.Commands
     /// <returns>
     /// 0 if the execution completed successfully, non-zero if there was an error.
     /// </returns>
-    public async Task<int> Run()
+    public async Task<int> RunAsync()
     {
       var config = await ProjectConfigManager.LoadConfigAsync();
 
       if (string.IsNullOrEmpty(ScriptName))
       {
         var startCommand = new StartCommand();
-        return await startCommand.Run();
+        return await startCommand.RunAsync();
       }
 
       AnsiConsole.Status().Start(ScriptName != null ? $"Running {ScriptName}" : "Running project...", _ =>

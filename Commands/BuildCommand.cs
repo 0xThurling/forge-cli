@@ -59,7 +59,7 @@ namespace forge.Commands
     /// <returns>
     /// 0 if the build completed successfully, non-zero if there was an error.
     /// </returns>
-    public async Task<int> Run()
+    public async Task<int> RunAsync()
     {
       var projectConfig = await ProjectConfigManager.LoadConfigAsync();
 
@@ -72,7 +72,7 @@ namespace forge.Commands
       if (projectConfig.Scripts.TryGetValue("pre-build", out _))
       {
         var runCommand = new RunCommand { ScriptName = "pre-build" };
-        if (await runCommand.Run() != 0)
+        if (await runCommand.RunAsync() != 0)
         {
           AnsiConsole.MarkupLine("[bold red]Error:[/] Pre-build script failed.");
           return 1;
@@ -80,7 +80,7 @@ namespace forge.Commands
       }
 
       var installPackages = new InstallCommand();
-      if (await InstallCommand.Run() != 0)
+      if (await installPackages.RunAsync() != 0)
       {
         AnsiConsole.WriteLine("Error install conan packages");
         return 1;
@@ -219,7 +219,7 @@ namespace forge.Commands
       if (projectConfig.Scripts.TryGetValue("post-build", out _))
       {
         var runCommand = new RunCommand { ScriptName = "post-build" };
-        if (await runCommand.Run() != 0)
+        if (await runCommand.RunAsync() != 0)
         {
           AnsiConsole.MarkupLine("[bold red]Error:[/] Post-build script failed.");
           return 1;

@@ -56,8 +56,9 @@ namespace forge.Commands
     /// - package.toml with project configuration
     /// - .gitignore with appropriate patterns
     /// </remarks>
-    public async Task Run()
+    public async Task RunAsync()
     {
+      Console.WriteLine("test");
       var projectName = Name;
       AnsiConsole.MarkupLine($"[bold cyan]--- Creating project: {projectName} --- [/]");
 

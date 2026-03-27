@@ -16,4 +16,4 @@ using forge.Commands.Lua;
 // Start the Lua Sandbox Engine
 LuaEngine.InitialiseLuaEngine();
 
-Cli.Run<RootCommand>(args);
+await Cli.RunAsync<RootCommand>(args);
