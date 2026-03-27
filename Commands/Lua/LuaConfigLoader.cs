@@ -27,7 +27,7 @@ public class LuaConfigLoader
 
     // Read the mapped Lua Table for processing
     if (result != null &&
-        result?.Length == 0 &&
+        result?.Length > 0 &&
         result[0].TryRead<LuaTable>(out var table))
     {
       return ParseLuaTable(table);
@@ -166,19 +166,19 @@ public class LuaConfigLoader
   {
     var dep = new Dependency();
 
-    if (table["git"].TryRead<LuaValue>(out var git))
+    if (table["git"] != LuaValue.Nil)
     {
-      dep.Git = git.ToString();
+      dep.Git = table["git"].ToString();
     }
 
-    if (table["tag"].TryRead<LuaValue>(out var tag))
+    if (table["tag"] != LuaValue.Nil)
     {
-      dep.Tag = tag.ToString();
+      dep.Tag = table["tag"].ToString();
     }
 
-    if (table["target"].TryRead<LuaValue>(out var target))
+    if (table["target"] != LuaValue.Nil)
     {
-      dep.Target = target.ToString();
+      dep.Target = table["target"].ToString();
     }
 
     return dep;
@@ -186,21 +186,21 @@ public class LuaConfigLoader
 
   private static void ParseProjectSection(ref ProjectConfig config, LuaTable table)
   {
-    if (table["name"].TryRead<LuaValue>(out var name))
+    if (table["name"] != LuaValue.Nil)
     {
-      config.Project.Name = name.ToString();
+      config.Project.Name = table["name"].ToString();
     }
-    if (table["type"].TryRead<LuaValue>(out var type))
+    if (table["type"] != LuaValue.Nil)
     {
-      config.Project.Type = type.ToString();
+      config.Project.Type = table["type"].ToString();
     }
-    if (table["standard"].TryRead<LuaValue>(out var standard))
+    if (table["standard"] != LuaValue.Nil)
     {
-      config.Project.Standard = standard.ToString();
+      config.Project.Standard = table["standard"].ToString();
     }
-    if (table["install_headers"].TryRead<LuaValue>(out var install))
+    if (table["install_headers"] != LuaValue.Nil)
     {
-      config.Project.InstallHeaders = bool.TryParse(install.ToString(), out var v) && v;
+      config.Project.InstallHeaders = bool.TryParse(table["install_headers"].ToString(), out var v) && v;
     }
   }
 }

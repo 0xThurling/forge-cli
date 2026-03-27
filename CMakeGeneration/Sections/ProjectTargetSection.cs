@@ -14,7 +14,7 @@ public class ProjectTargetSection : CMakeSectionBase
     var sb = new StringBuilder();
 
     sb.AppendLine("# --- Project Target ---");
-    sb.AppendLine($"file(GLOB_RECURSE SOURCES ${{PROJECT_SOURCE_DIR}}/src/*.cpp)");
+    sb.AppendLine($"file(GLOB_RECURSE SOURCES RELATIVE ${{PROJECT_SOURCE_DIR}} ${{PROJECT_SOURCE_DIR}}/src/*.cpp)");
 
     if (config.Project.Type == "executable")
     {

@@ -36,11 +36,7 @@ namespace forge.Commands.Conan
       var config = await ProjectConfigManager.LoadConfigAsync();
       if (config == null) return 1;
 
-      if (config.ConanDependencies.Count == 0)
-      {
-        AnsiConsole.MarkupLine("[yellow]No conan dependencies defined in package.toml[/]");
-        return 0;
-      }
+      if (config.ConanDependencies.Count == 0) return 0;
 
       Directory.CreateDirectory(".config");
 

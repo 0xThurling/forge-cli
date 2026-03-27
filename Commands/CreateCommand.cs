@@ -58,7 +58,6 @@ namespace forge.Commands
     /// </remarks>
     public async Task RunAsync()
     {
-      Console.WriteLine("test");
       var projectName = Name;
       AnsiConsole.MarkupLine($"[bold cyan]--- Creating project: {projectName} --- [/]");
 
@@ -90,14 +89,15 @@ namespace forge.Commands
 
         // Create package.toml
         var installHeaders = Type == "library" ? "install_headers = true," : ""; 
-        var forgeLuaContent = @$"return {{
-          project = {{
-            name = ""{projectName}"",
-            type = ""{Type}"",
-            standard = ""20"",
-            {installHeaders}
-          }}
-        }}";
+        var forgeLuaContent = 
+@$"return {{
+  project = {{
+    name = ""{projectName}"",
+    type = ""{Type}"",
+    standard = ""20"",
+    {installHeaders}
+  }}
+}}";
 
         File.WriteAllText(Path.Combine(projectName, "forge.lua"), forgeLuaContent);
 
