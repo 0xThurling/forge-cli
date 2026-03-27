@@ -137,15 +137,19 @@ public class LuaConfigLoader
 
   private static void ParseDependencies(ref ProjectConfig config, LuaTable table)
   {
-    if (table["git"].TryRead<LuaTable>(out var gitTable))
+    if (table["direct"].TryRead<LuaTable>(out var directTable))
     {
-      foreach (var kvp in gitTable)
+      foreach (var kvp in directTable)
       {
         var name = kvp.Key.ToString();
 
-        if (table[name].TryRead<LuaTable>(out var depTable))
+        if (directTable[name].TryRead<LuaTable>(out var depTable))
         {
+          Console.WriteLine("Get here");
           config.Dependencies[name] = ParseDependencyFromTable(depTable);
+
+          var dependency = ParseDependencyFromTable(depTable);
+          Console.WriteLine($"{name}, {dependency.Git}, {dependency.Tag}, {dependency.Target}");
         }
       }
     }

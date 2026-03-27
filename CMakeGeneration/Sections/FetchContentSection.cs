@@ -32,7 +32,7 @@ public class FetchContentSection : CMakeSectionBase
         continue;
       }
 
-      sb.AppendLine($"FetchContent_Declare({name} GIT REPOSITORY \"{details.Git}\" GIT_TAG \"{details.Tag}\")");
+      sb.AppendLine($"FetchContent_Declare({name} GIT_REPOSITORY \"{details.Git}\" GIT_TAG \"{details.Tag}\")");
       sb.AppendLine($"FetchContent_MakeAvailable({name})");
     }
 
