@@ -19,7 +19,5 @@ namespace forge.Commands
   /// </code>
   /// </example>
   [CliCommand(Description = "A C++ project manager.")]
-  public class RootCommand
-  {
-  }
+  public class RootCommand { }
 }

@@ -22,16 +22,16 @@ namespace forge.Commands
     /// Lists all dependencies in a formatted table.
     /// </summary>
     /// <returns>0 on success, 1 if project configuration cannot be loaded.</returns>
-    public int Run()
+    public async Task<int> Run()
     {
-      var config = ProjectConfigManager.LoadConfig();
+      var config = await ProjectConfigManager.LoadConfigAsync();
       if (config == null)
       {
         AnsiConsole.MarkupLine("[bold red]Error:[/] Not a forge project. `package.toml` not found or is missing project name.");
         return 1;
       }
 
-      if (!config.Dependencies.Any())
+      if (config.Dependencies.Count == 0)
       {
         AnsiConsole.MarkupLine("[yellow]No dependencies defined in package.toml.[/]");
         return 0;

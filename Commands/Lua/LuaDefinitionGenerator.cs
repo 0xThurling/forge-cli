@@ -76,7 +76,7 @@ namespace forge.Commands.Lua
 
       // Environment tables
       // Operating System information
-      _categories.Add(new LuaDefinitionCategory("forge.os", 
+      _categories.Add(new LuaDefinitionCategory("forge.os",
             "Operating System information")
           .AddConstantInformation("class", "forge.os"));
 
@@ -100,35 +100,35 @@ namespace forge.Commands.Lua
       _categories.Add(new LuaDefinitionCategory("forge.disto",
             "Linux distribution information")
           .AddConstantInformation("class", "forge.distro"));
-      
+
       _categories.Add(new LuaDefinitionCategory("forge.distro.my_distro",
             "Current Linux distrobution")
           .AddConstantInformation("type", "string"));
-      
+
       _categories.Add(new LuaDefinitionCategory("forge.distro.arch",
             "The Arch Linux distrobution... btw")
           .AddConstantInformation("type", "string"));
-      
+
       _categories.Add(new LuaDefinitionCategory("forge.distro.nixos",
             "The NixOs Linux distrobution")
           .AddConstantInformation("type", "string"));
-      
+
       _categories.Add(new LuaDefinitionCategory("forge.distro.debian",
             "The Debian Linux distrobution")
           .AddConstantInformation("type", "string"));
-      
+
       _categories.Add(new LuaDefinitionCategory("forge.distro.ubuntu",
             "The Ubuntu Linux Distrobution")
           .AddConstantInformation("type", "string"));
-      
+
       _categories.Add(new LuaDefinitionCategory("forge.distro.manjaro",
             "The Manjaro Linux distrobution")
           .AddConstantInformation("type", "string"));
-      
+
       _categories.Add(new LuaDefinitionCategory("forge.distro.fedora",
             "The Fedora Linux distrobution")
           .AddConstantInformation("type", "string"));
-      
+
       _categories.Add(new LuaDefinitionCategory("forge.distro.unknown",
             "Unknown Linux distrobution")
           .AddConstantInformation("type", "string"));
@@ -136,27 +136,27 @@ namespace forge.Commands.Lua
       _categories.Add(new LuaDefinitionCategory("forge.package_manager",
             "Package manager constants")
           .AddConstantInformation("class", "forge.package_manager"));
-      
+
       _categories.Add(new LuaDefinitionCategory("forge.package_manager.no_pass",
             "Use no password for package manager")
           .AddConstantInformation("type", "string"));
-      
+
       _categories.Add(new LuaDefinitionCategory("forge.package_manager.winget",
             "The WinGet package manager for Windows")
           .AddConstantInformation("type", "string"));
-      
+
       _categories.Add(new LuaDefinitionCategory("forge.package_manager.chocolatey",
             "The Chocolatey package manager for Windows")
           .AddConstantInformation("type", "string"));
-      
+
       _categories.Add(new LuaDefinitionCategory("forge.package_manager.brew",
             "The Homebrew package manager for MacOs")
           .AddConstantInformation("type", "string"));
-      
+
       _categories.Add(new LuaDefinitionCategory("forge.package_manager.pacman",
             "The Pacman package manager for Arch")
           .AddConstantInformation("type", "string"));
-      
+
       _categories.Add(new LuaDefinitionCategory("forge.package_manager.aptget",
             "The APT package manager for Debian/Ubuntu")
           .AddConstantInformation("type", "string"));
@@ -200,7 +200,7 @@ namespace forge.Commands.Lua
 
       foreach (var category in _categories)
       {
-         sb.AppendLine(category.ToDefinition()); 
+        sb.AppendLine(category.ToDefinition());
       }
 
       return sb.ToString();

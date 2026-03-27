@@ -60,11 +60,11 @@ namespace forge.Commands
     /// <returns>
     /// 0 if all tests pass, non-zero if tests fail or build fails.
     /// </returns>
-    public int Run()
+    public async Task<int> Run()
     {
       if (!Directory.Exists("test"))
       {
-        Utils.CreateTests();
+        await Utils.CreateTests();
       }
 
       // Build the project (which includes tests if googletest is present)
@@ -74,7 +74,7 @@ namespace forge.Commands
         Standard = Standard
       };
 
-      if (buildCommand.Run() != 0)
+      if (await buildCommand.Run() != 0)
       {
         return 1; // Build failed
       }

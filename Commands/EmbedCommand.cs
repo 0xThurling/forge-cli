@@ -36,7 +36,7 @@ namespace forge.Commands
     /// <summary>
     /// Registers the resource file in package.toml.
     /// </summary>
-    public void Run()
+    public async Task Run()
     {
       if (!File.Exists(FilePath))
       {
@@ -46,10 +46,10 @@ namespace forge.Commands
 
       AnsiConsole.MarkupLine($"[bold cyan]--- Registering resource: {FilePath} ---[/]");
 
-      var config = ProjectConfigManager.LoadConfig();
+      var config = await ProjectConfigManager.LoadConfigAsync();
       if (config == null)
       {
-        AnsiConsole.MarkupLine("[bold red]Error:[/] `package.toml` not found.");
+        AnsiConsole.MarkupLine("[bold red]Error:[/] `forge.lua` not found.");
         return;
       }
 
@@ -62,7 +62,7 @@ namespace forge.Commands
         try
         {
           ProjectConfigManager.SaveConfig(config);
-          AnsiConsole.MarkupLine($"[bold green]Successfully registered `[bold]{relativePath}[/]` in package.toml.[/]");
+          AnsiConsole.MarkupLine($"[bold green]Successfully registered `[bold]{relativePath}[/]` in forge.lua.[/]");
         }
         catch (Exception ex)
         {

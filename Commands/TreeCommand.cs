@@ -22,7 +22,7 @@ namespace forge.Commands
     /// Displays the project directory tree.
     /// </summary>
     /// <returns>0 on success, 1 if project root cannot be found.</returns>
-    public int Run()
+    public async Task<int> Run()
     {
       var projectRoot = ProjectConfigManager.FindProjectRoot();
       if (projectRoot == null)
@@ -33,14 +33,14 @@ namespace forge.Commands
 
       var root = new Tree(":open_file_folder: [yellow]" + new DirectoryInfo(projectRoot).Name + "[/]");
 
-      AddDirectoryNodes(root, new DirectoryInfo(projectRoot), new HashSet<string> { "build", ".git", ".github", "obj", ".cache" });
+      AddDirectoryNodes(root, new DirectoryInfo(projectRoot), ["build", ".git", ".github", "obj", ".cache"]);
 
       AnsiConsole.Write(root);
 
       return 0;
     }
 
-    private void AddDirectoryNodes(IHasTreeNodes parent, DirectoryInfo directory, HashSet<string> excludedFolders)
+    private static void AddDirectoryNodes(IHasTreeNodes parent, DirectoryInfo directory, HashSet<string> excludedFolders)
     {
       foreach (var subDirectory in directory.GetDirectories().Where(d => !excludedFolders.Contains(d.Name)))
       {

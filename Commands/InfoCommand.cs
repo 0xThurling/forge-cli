@@ -22,9 +22,9 @@ namespace forge.Commands
     /// Displays project configuration summary.
     /// </summary>
     /// <returns>0 on success, 1 if project configuration cannot be loaded.</returns>
-    public int Run()
+    public async Task<int> Run()
     {
-      var config = ProjectConfigManager.LoadConfig();
+      var config = await ProjectConfigManager.LoadConfigAsync();
       if (config == null)
       {
         AnsiConsole.MarkupLine("[bold red]Error:[/] Not a forge project. `package.toml` not found or is missing project name.");
@@ -34,12 +34,12 @@ namespace forge.Commands
       AnsiConsole.MarkupLine($"[bold]Project Name:[/] {config.Project.Name}");
       AnsiConsole.MarkupLine($"[bold]Project Type:[/] {config.Project.Type}");
 
-      if (config.Dependencies.Any())
+      if (config.Dependencies.Count != 0)
       {
         AnsiConsole.MarkupLine("[bold]Dependencies:[/]" + " " + config.Dependencies.Count);
       }
 
-      if (config.Scripts.Any())
+      if (config.Scripts.Count != 0)
       {
         AnsiConsole.MarkupLine("[bold]Scripts:[/]" + " " + config.Scripts.Count);
       }

@@ -37,8 +37,9 @@ public class LuaDefinitionCategory
     _returns.Add(returnParam);
     return this;
   }
-  
-  public LuaDefinitionCategory AddConstantInformation(string type, string name) {
+
+  public LuaDefinitionCategory AddConstantInformation(string type, string name)
+  {
     // Limit this constants by 1
     if (_constants.Count > 0) return this;
 
@@ -57,7 +58,9 @@ public class LuaDefinitionCategory
       if (!string.IsNullOrEmpty(param.Description))
       {
         sb.AppendLine($"---@param {param.Name} {param.Type} {param.Description}");
-      } else {
+      }
+      else
+      {
         sb.AppendLine($"---@param {param.Name} {param.Type}");
       }
     }
@@ -74,7 +77,7 @@ public class LuaDefinitionCategory
       }
     }
 
-    foreach(var kv in _constants)
+    foreach (var kv in _constants)
     {
       sb.AppendLine($"---@{kv.Key} {kv.Value}");
 

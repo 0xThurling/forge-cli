@@ -1,4 +1,4 @@
-namespace forge.ForgeEngine
+namespace forge.ForgeEngine.LifeCycleHooks
 {
     /// <summary>
     /// Placeholder for build lifecycle hooks.

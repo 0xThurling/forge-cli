@@ -15,13 +15,15 @@ public class CMakeRegistry
   private bool _initialized = false;
   private string _standard = "20";
 
-  private CMakeRegistry() {}
+  private CMakeRegistry() { }
 
-  public void Register(ICMakeSection section) {
+  public void Register(ICMakeSection section)
+  {
     _sections[section.Name] = section;
   }
 
-  public void Initialize() {
+  public void Initialize()
+  {
     if (_initialized) return;
 
     Register(new StandardSection(_standard));
@@ -36,7 +38,8 @@ public class CMakeRegistry
     _initialized = true;
   }
 
-  public string Generate(ProjectConfig config, string standard) {
+  public string Generate(ProjectConfig config, string standard)
+  {
     _standard = standard;
 
     Initialize();
@@ -50,8 +53,8 @@ public class CMakeRegistry
       var content = section.Generate(config);
       if (!string.IsNullOrWhiteSpace(content))
       {
-         sb.AppendLine(content);
-         sb.AppendLine();
+        sb.AppendLine(content);
+        sb.AppendLine();
       }
     }
 

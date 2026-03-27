@@ -31,7 +31,7 @@ namespace forge
     /// These targets are extracted from Conan's CMake output during the install phase and
     /// used when generating the CMakeLists.txt file to properly link the libraries.
     /// </remarks>
-    public static List<string> LinkDependencies = [];
+    public static List<string> LinkDependencies { get; set; } = [];
 
     /// <summary>
     /// Stores CMake module names from Conan packages that should be passed to find_package().
@@ -43,7 +43,7 @@ namespace forge
     /// These module names are extracted from Conan's CMake output and used to generate
     /// find_package() calls in the CMakeLists.txt file.
     /// </remarks>
-    public static List<string> FindDependencies = [];
+    public static List<string> FindDependencies { get; set; } = [];
 
     public static List<string> CustomCmakeSnippets { get; set; } = [];
   }

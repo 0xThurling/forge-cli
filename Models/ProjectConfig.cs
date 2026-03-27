@@ -1,11 +1,11 @@
 namespace forge.Models
 {
   /// <summary>
-  /// Represents the complete configuration of a Forge project as loaded from package.toml.
+  /// Represents the complete configuration of a Forge project as loaded from forge.lua.
   /// </summary>
   /// <remarks>
   /// This is the main container model that holds all configuration sections parsed from
-  /// the package.toml file. It includes project metadata, dependencies (both Git-based
+  /// the forge.lua file. It includes project metadata, dependencies (both Git-based
   /// and Conan), resource files, and custom scripts.
   /// </remarks>
   /// <example>

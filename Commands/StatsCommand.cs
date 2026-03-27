@@ -22,7 +22,7 @@ namespace forge.Commands
     /// Calculates and displays project statistics.
     /// </summary>
     /// <returns>0 on success, 1 if project root cannot be found.</returns>
-    public int Run()
+    public async Task<int> Run()
     {
       var projectRoot = ProjectConfigManager.FindProjectRoot();
       if (projectRoot == null)

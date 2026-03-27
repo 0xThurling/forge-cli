@@ -59,20 +59,20 @@ namespace forge.Commands
     /// <returns>
     /// 0 if the build completed successfully, non-zero if there was an error.
     /// </returns>
-    public int Run()
+    public async Task<int> Run()
     {
-      var projectConfig = ProjectConfigManager.LoadConfig();
+      var projectConfig = await ProjectConfigManager.LoadConfigAsync();
 
       if (projectConfig == null)
       {
-        AnsiConsole.MarkupLine("[bold red]Error:[/] Not a forge project. `package.toml` not found or is missing project name.");
+        AnsiConsole.MarkupLine("[bold red]Error:[/] Not a forge project. `forge.lua` not found or is missing project name.");
         return 1;
       }
 
       if (projectConfig.Scripts.TryGetValue("pre-build", out _))
       {
         var runCommand = new RunCommand { ScriptName = "pre-build" };
-        if (runCommand.Run() != 0)
+        if (await runCommand.Run() != 0)
         {
           AnsiConsole.MarkupLine("[bold red]Error:[/] Pre-build script failed.");
           return 1;
@@ -80,7 +80,7 @@ namespace forge.Commands
       }
 
       var installPackages = new InstallCommand();
-      if (installPackages.Run() != 0)
+      if (await InstallCommand.Run() != 0)
       {
         AnsiConsole.WriteLine("Error install conan packages");
         return 1;
@@ -219,7 +219,7 @@ namespace forge.Commands
       if (projectConfig.Scripts.TryGetValue("post-build", out _))
       {
         var runCommand = new RunCommand { ScriptName = "post-build" };
-        if (runCommand.Run() != 0)
+        if (await runCommand.Run() != 0)
         {
           AnsiConsole.MarkupLine("[bold red]Error:[/] Post-build script failed.");
           return 1;

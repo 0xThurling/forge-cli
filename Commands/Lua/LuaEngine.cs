@@ -1,10 +1,8 @@
-using System.Diagnostics;
-using System.IO.Compression;
 using System.Text;
+using forge.ForgeEngine.CoreUtils;
 using forge.Models;
 using Lua;
 using Lua.Standard;
-using Spectre.Console;
 
 namespace forge.Commands.Lua
 {
@@ -28,7 +26,7 @@ namespace forge.Commands.Lua
   public static class LuaEngine
   {
     private static LuaState _state = null!;
-    private static LuaTable _cpm = null!;
+    private static LuaTable _forge = null!;
 
     /// <summary>
     /// Initializes the Lua engine with standard libraries and custom Forge functions.
@@ -42,10 +40,10 @@ namespace forge.Commands.Lua
     public static void InitialiseLuaEngine()
     {
       _state = LuaState.Create();
-      _cpm = new LuaTable();
+      _forge = new LuaTable();
 
       SetEnvironmentLibraries(ref _state);
-      SetDefinitionTables(ref _state);
+      SetEnvironmentVariableInformation();
     }
 
     /// <summary>
@@ -67,214 +65,19 @@ namespace forge.Commands.Lua
       state.OpenStringLibrary();
     }
 
-    /// <summary>
-    /// Sets up Forge-specific Lua functions and environment tables.
-    /// </summary>
-    /// <param name="state">The Lua state to configure.</param>
-    private static void SetDefinitionTables(ref LuaState state)
+    private static void RegisterModules()
     {
-      SetGitFunctions();
-      SetLoggingFunctionsAndDefinitions();
-      SetEnvironmentVariableInformation();
-      SetGetPackagesFunction();
-      SetCustomCMakeFunctions();
-      SetConfigFunctions();
-      SetDownloadFunctions();
-
-      state.Environment["forge"] = _cpm;
-    }
-
-    /// <summary>
-    /// Registers the pull_repo function for cloning Git repositories.
-    /// </summary>
-    /// <remarks>
-    /// Provides forge.pull_repo(url) function that clones a Git repository
-    /// to the external/ directory.
-    /// </remarks>
-    private static void SetGitFunctions()
-    {
-      var pullRepoFunc = new LuaFunction("pull_repo", async (context, token) =>
+      var modules = new LuaFunctionModule[]
       {
-        var repoUrl = context.GetArgument<string>(0);
+        new CoreFunctionModule()
+      };
 
-        var repoName = repoUrl.Split('/')[^1].Split(".")[0];
-
-        var processStartInfo = new ProcessStartInfo("git", $"clone {repoUrl} external/{repoName}")
-        {
-          UseShellExecute = false,
-          RedirectStandardOutput = true,
-          RedirectStandardError = true,
-          CreateNoWindow = true,
-        };
-
-        using var process = Process.Start(processStartInfo) ?? throw new Exception("Failed to pull repository");
-
-        AnsiConsole.WriteLine("Cloning repo...");
-
-        await process.WaitForExitAsync(token);
-
-        return process.ExitCode;
-      });
-
-      _cpm[new LuaValue("pull_repo")] = new LuaValue(pullRepoFunc);
-    }
-
-    /// <summary>
-    /// Installs system packages using the specified package manager.
-    /// </summary>
-    /// <param name="hasPass">Whether sudo password is required.</param>
-    /// <param name="packageManager">The package manager to use.</param>
-    /// <param name="packages">List of package names to install.</param>
-    /// <param name="pass">Optional sudo password.</param>
-    private static void InstallPackages(bool hasPass, string packageManager, List<string> packages, string? pass = null)
-    {
-      string command =
-        packageManager switch
-        {
-          "brew" or "winget" or "apt-get" or "choco" => " install ",
-          "pacman" => " -S ",
-          _ => " "
-        } +
-        $"{string.Join(" ", packages)}" +
-        packageManager switch
-        {
-          "pacman" => " --noconfirm ",
-          _ => string.Empty
-        };
-
-
-      var installationProcess = new ProcessStartInfo();
-      if (hasPass && packageManager switch { "brew" or "apt-get" or "pacman" => true, _ => false })
+      foreach (var module in modules)
       {
-        installationProcess = new ProcessStartInfo("sudo", $"-S {packageManager} {command}")
-        {
-          UseShellExecute = false,
-          RedirectStandardOutput = true,
-          RedirectStandardError = true,
-          CreateNoWindow = true,
-        };
-      }
-      else
-      {
-        installationProcess = new ProcessStartInfo($"{packageManager}", $"{command}")
-        {
-          UseShellExecute = false,
-          RedirectStandardOutput = true,
-          RedirectStandardError = true,
-          CreateNoWindow = true,
-        };
+        module.RegisterFunctions(ref _forge);
       }
 
-      using var process = Process.Start(installationProcess);
-
-      if (process is null) throw new Exception("Failed to start CMake process.");
-      AnsiConsole.WriteLine("Installing packages...");
-
-      process.WaitForExit();
-    }
-
-    /// <summary>
-    /// Registers the get_packages function for installing system packages.
-    /// </summary>
-    /// <remarks>
-    /// Provides forge.get_packages(password, manager, packages) function for
-    /// cross-platform package installation.
-    /// </remarks>
-    private static void SetGetPackagesFunction()
-    {
-      var getPackagesFunc = new LuaFunction("get_packages", async (context, token) =>
-      {
-        var password = context.GetArgument<string>(0);
-        var packageManager = context.GetArgument<string>(1);
-        var packages = context.GetArgument<LuaTable>(2);
-
-        var packageList = packages.Select(x => x.Value.ToString()).ToList();
-
-        if (password == "nopass")
-        {
-          InstallPackages(false, packageManager, packageList);
-        }
-        else
-        {
-          InstallPackages(true, packageManager, packageList, password);
-        }
-
-        return 0;
-      });
-
-      _cpm[new LuaValue("get_packages")] = new LuaValue(getPackagesFunc);
-    }
-
-    /// <summary>
-    /// Registers logging functions for Lua scripts.
-    /// </summary>
-    /// <remarks>
-    /// Provides forge.log.info(message) function for displaying
-    /// informational messages in the terminal.
-    /// </remarks>
-    private static void SetLoggingFunctionsAndDefinitions()
-    {
-      var log = new LuaTable();
-
-      var logInformationFunc = new LuaFunction("info", (context, _) =>
-      {
-        var info = context.GetArgument<string>(0);
-        AnsiConsole.MarkupLine($"[bold blue]INFO[/]: {info}");
-        return ValueTask.FromResult(0);
-      });
-
-      var logWarningFunc = new LuaFunction("warn", (context, _) =>
-      {
-        var info = context.GetArgument<string>(0);
-        AnsiConsole.MarkupLine($"[bold yellow]INFO[/]: {info}");
-        return ValueTask.FromResult(0);
-      });
-
-      var logErrorFunc = new LuaFunction("error", (context, _) =>
-      {
-        var info = context.GetArgument<string>(0);
-        AnsiConsole.MarkupLine($"[bold red]INFO[/]: {info}");
-        return ValueTask.FromResult(0);
-      });
-
-      log[new LuaValue("info")] = new LuaValue(logInformationFunc);
-      log[new LuaValue("warn")] = new LuaValue(logWarningFunc);
-      log[new LuaValue("error")] = new LuaValue(logErrorFunc);
-      _cpm[new LuaValue("log")] = new LuaValue(log);
-    }
-
-    /// <summary>
-    /// Detects the current Linux distribution from /etc/os-release.
-    /// </summary>
-    /// <returns>The canonical distribution name (e.g., "ubuntu", "arch", "fedora").</returns>
-    private static string GetLinuxDistro()
-    {
-      var dict = new Dictionary<string, string>();
-      try
-      {
-        var lines = File.ReadAllLines("/etc/os-release");
-
-        foreach (var line in lines)
-        {
-          if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
-            continue;
-
-          var parts = line.Split('=', 2);
-          if (parts.Length == 2)
-          {
-            var key = parts[0].Trim();
-            var value = parts[1].Trim().Trim('"'); // remove quotes
-            dict[key] = value;
-          }
-        }
-      }
-      catch (Exception ex)
-      {
-        Console.WriteLine("Error reading distro info: " + ex.Message);
-        return "unknown";
-      }
-
-      return dict.TryGetValue("NAME", out var name) ? DistroName(name) : "unknown";
+      _state.Environment["forge"] = _forge;
     }
 
     /// <summary>
@@ -289,11 +92,11 @@ namespace forge.Commands.Lua
     /// </remarks>
     private static void SetEnvironmentVariableInformation()
     {
-      _cpm[new LuaValue("current_working_dir")] = new LuaValue(Directory.GetCurrentDirectory());
+      _forge[new LuaValue("current_working_dir")] = new LuaValue(Directory.GetCurrentDirectory());
 
       // Operating System information
       var os = new LuaTable();
-      os[new LuaValue("current")] = new LuaValue(GetOperatingSystem());
+      os[new LuaValue("current")] = new LuaValue(CoreUtils.GetOperatingSystem());
       os[new LuaValue("windows")] = new LuaValue("windows");
       os[new LuaValue("macos")] = new LuaValue("macos");
       os[new LuaValue("linux")] = new LuaValue("linux");
@@ -308,10 +111,10 @@ namespace forge.Commands.Lua
       distro[new LuaValue("debian")] = new LuaValue("debian");
       distro[new LuaValue("redhat")] = new LuaValue("redhat");
       distro[new LuaValue("unknown")] = new LuaValue("unknown");
-      distro[new LuaValue("my_distro")] = new LuaValue(GetLinuxDistro());
+      distro[new LuaValue("my_distro")] = new LuaValue(CoreUtils.GetLinuxDistro());
 
-      _cpm[new LuaValue("os")] = new LuaValue(os);
-      _cpm[new LuaValue("distro")] = new LuaValue(distro);
+      _forge[new LuaValue("os")] = new LuaValue(os);
+      _forge[new LuaValue("distro")] = new LuaValue(distro);
 
       // Package Managers
       var packageManager = new LuaTable();
@@ -321,7 +124,7 @@ namespace forge.Commands.Lua
       packageManager[new LuaValue("pacman")] = new LuaValue("pacman");
       packageManager[new LuaValue("aptget")] = new LuaValue("apt-get");
       packageManager[new LuaValue("no_pass")] = new LuaValue("nopass");
-      _cpm[new LuaValue("package_manager")] = new LuaValue(packageManager);
+      _forge[new LuaValue("package_manager")] = new LuaValue(packageManager);
     }
 
     /// <summary>
@@ -341,110 +144,9 @@ namespace forge.Commands.Lua
       File.AppendAllBytes(Path.Combine(definitionsFilePath, "definitions.lua"), Encoding.UTF8.GetBytes(definitions));
     }
 
-    /// <summary>
-    /// Detects the current operating system.
-    /// </summary>
-    /// <returns>"linux", "macos", or "windows".</returns>
-    private static string GetOperatingSystem()
+    public static async Task SetConfigValue(string key, string value)
     {
-      if (OperatingSystem.IsLinux()) return "linux";
-      if (OperatingSystem.IsMacOS()) return "macos";
-      if (OperatingSystem.IsWindows()) return "windows";
-      return string.Empty;
-    }
-
-    private static void SetCustomCMakeFunctions()
-    {
-      var addCmakeFunc = new LuaFunction("add_cmake", (context, token) =>
-      {
-        var cmakeSnippet = context.GetArgument<string>(0);
-
-        ProjectBuildManager.CustomCmakeSnippets.Add(cmakeSnippet);
-
-        AnsiConsole.MarkupLine($"[green]Added custome CMake snippet[/]");
-
-        return ValueTask.FromResult(0);
-      });
-
-      _cpm[new LuaValue("add_cmake")] = new LuaValue(addCmakeFunc);
-    }
-
-    private static void SetConfigFunctions()
-    {
-      // forge.config.get(key) - get config key
-      var configGetFunc = new LuaFunction("config_get", (context, token) =>
-      {
-        var key = context.GetArgument<string>(0);
-
-        var config = ProjectConfigManager.LoadConfig();
-        if (config == null)
-        {
-          context.Return(LuaValue.Nil);
-          return new ValueTask<int>(1);
-        }
-
-        var value = GetConfigValue(config, key);
-        context.Return(value ?? "");
-        return new ValueTask<int>(1);
-      });
-
-      // forge.config.set(key, value) - Set config value (for runtime modification)
-      var configSetFunc = new LuaFunction("config_set", (context, token) =>
-      {
-        var key = context.GetArgument<string>(0);
-        var value = context.GetArgument<string>(1);
-
-        SetConfigValue(key, value);
-        AnsiConsole.MarkupLine($"[green]Config set: {key} = {value}[/]");
-
-        return ValueTask.FromResult(0);
-      });
-
-      // forge.config.has_feature(name) - Check if feature is enabled
-      var configHasFeatureFunc = new LuaFunction("config_has_feature", (context, token) =>
-      {
-        var feature = context.GetArgument<string>(0);
-
-        var config = ProjectConfigManager.LoadConfig();
-        var hasFeature = config?.Features.ContainsKey(feature) == true &&
-            config.Features[feature].Enabled;
-
-        context.Return(hasFeature);
-        return new ValueTask<int>(1);
-      });
-
-      // forge.config.get_feature_option(feature, option, default)
-      var configGetFeatureOptionFunc = new LuaFunction("config_get_feature_option",
-          (context, token) =>
-      {
-        var feature = context.GetArgument<string>(0);
-        var option = context.GetArgument<string>(1);
-        var defaultValue = context.GetArgument<string>(2);
-
-        var config = ProjectConfigManager.LoadConfig();
-        if (config?.Features.TryGetValue(feature, out var featureConfig) == true &&
-            featureConfig.Options.TryGetValue(option, out var value))
-        {
-          context.Return(value);
-          return new ValueTask<int>(1);
-        }
-
-        context.Return(defaultValue);
-        return new ValueTask<int>(1);
-      });
-
-      var configTable = new LuaTable();
-      configTable[new LuaValue("get")] = new LuaValue(configGetFunc);
-      configTable[new LuaValue("set")] = new LuaValue(configSetFunc);
-      configTable[new LuaValue("has_feature")] = new LuaValue(configHasFeatureFunc);
-      configTable[new LuaValue("get_feature_option")] = new LuaValue(configGetFeatureOptionFunc);
-
-      _cpm[new LuaValue("config")] = new LuaValue(configTable);
-    }
-
-    private static void SetConfigValue(string key, string value)
-    {
-      var config = ProjectConfigManager.LoadConfig();
+      var config = await ProjectConfigManager.LoadConfigAsync();
       if (config == null) return;
 
       var parts = key.Split(' ');
@@ -503,7 +205,7 @@ namespace forge.Commands.Lua
       }
     }
 
-    private static string? GetConfigValue(ProjectConfig config, string key)
+    public static string? GetConfigValue(ProjectConfig config, string key)
     {
       var parts = key.Split('.');
 
@@ -549,130 +251,10 @@ namespace forge.Commands.Lua
       return null;
     }
 
-    private static void SetDownloadFunctions()
-    {
-      // forge.download(url, output_path)
-      var downloadFunc = new LuaFunction("download", async (context, token) =>
-      {
-        var url = context.GetArgument<string>(0);
-        var output = context.GetArgument<string>(1);
-
-        using var client = new HttpClient();
-        client.DefaultRequestHeaders.Add("User-Agent", "Forge/1.0");
-
-        var bytes = await client.GetByteArrayAsync(url, token);
-        await File.WriteAllBytesAsync(output, bytes, token);
-
-        AnsiConsole.MarkupLine($"[green]Downloaded:[/] {output} ({bytes.Length} bytes)");
-
-        return 0;
-      });
-
-      // forge.extract(archive_path, output_dir, string_components?)
-      var extractFunc = new LuaFunction("extract", (context, token) =>
-      {
-        var archive = context.GetArgument<string>(0);
-        var output = context.GetArgument<string>(1);
-        var stripComponents = context.GetArgument<string>(2);
-
-        try
-        {
-          Directory.CreateDirectory(output);
-
-          var ext = Path.GetExtension(archive).ToLower();
-          if (ext is ".zip")
-          {
-            ZipFile.ExtractToDirectory(archive, output, true);
-          }
-          else if (ext is ".tar" or ".tgz" or ".gz")
-          {
-            var psi = new ProcessStartInfo("tar", $"-xf \"{archive}\" -c \"{output}\" --strip-components={stripComponents}")
-            {
-              UseShellExecute = false,
-              RedirectStandardOutput = true,
-              RedirectStandardError = true
-            };
-
-            using var p = Process.Start(psi);
-            p?.WaitForExit();
-          }
-
-          AnsiConsole.MarkupLine($"[green]Extracted:[/] {output}");
-        }
-        catch (Exception ex)
-        {
-          AnsiConsole.MarkupLine($"[red]Extraction failed:[/] {ex.Message}");
-          return ValueTask.FromResult(1);
-        }
-
-        return ValueTask.FromResult(0);
-      });
-
-      // forge.fetch(url, output_dir) - download + extract in one step
-      var fetchFunc = new LuaFunction("fetch", async (context, token) =>
-      {
-        var url = context.GetArgument<string>(0);
-        var output = context.GetArgument<string>(1);
-        var stripComponents = context.GetArgument<string>(2); // default 1 
-
-        var tempFile = Path.Combine(Path.GetTempPath(), $"forge_fetch_{Guid.NewGuid()}.zip");
-
-        try
-        {
-          // Download
-          using var client = new HttpClient();
-          client.DefaultRequestHeaders.Add("User-Agent", "Forge/1.0");
-
-          AnsiConsole.MarkupLine($"[cyan]Fetching:[/] {url}");
-          var bytes = await client.GetByteArrayAsync(url, token);
-          await File.WriteAllBytesAsync(tempFile, bytes, token);
-
-          // Extract
-          Directory.CreateDirectory(output);
-          ZipFile.ExtractToDirectory(tempFile, output, true);
-
-          File.Delete(tempFile);
-
-          AnsiConsole.MarkupLine($"[green]Fetch complete:[/] {output}");
-        }
-        catch (Exception ex)
-        {
-          if (File.Exists(tempFile)) File.Delete(tempFile);
-          AnsiConsole.MarkupLine($"[red]Fetch failed:[/] {ex.Message}");
-          return 1;
-        }
-
-        return 0;
-      });
-
-      _cpm[new LuaValue("download")] = new LuaValue(downloadFunc);
-      _cpm[new LuaValue("extract")] = new LuaValue(extractFunc);
-      _cpm[new LuaValue("fetch")] = new LuaValue(fetchFunc);
-    }
-
     /// <summary>
     /// Gets the initialized Lua state for script execution.
     /// </summary>
     /// <returns>The LuaState instance.</returns>
     public static LuaState GetLuaEngine() => _state;
-
-    private static string DistroName(string name) => name switch
-    {
-      var n when n.Contains("arch", StringComparison.OrdinalIgnoreCase) => "arch",
-      var n when n.Contains("debian", StringComparison.OrdinalIgnoreCase) => "debian",
-      var n when n.Contains("ubuntu", StringComparison.OrdinalIgnoreCase) => "ubuntu",
-      var n when n.Contains("mint", StringComparison.OrdinalIgnoreCase) => "mint",
-      var n when n.Contains("kali", StringComparison.OrdinalIgnoreCase) => "kali",
-      var n when n.Contains("red hat", StringComparison.OrdinalIgnoreCase) => "redhat",
-      var n when n.Contains("fedora", StringComparison.OrdinalIgnoreCase) => "fedora",
-      var n when n.Contains("centos", StringComparison.OrdinalIgnoreCase) => "centos",
-      var n when n.Contains("rocky", StringComparison.OrdinalIgnoreCase) => "rocky",
-      var n when n.Contains("manjaro", StringComparison.OrdinalIgnoreCase) => "manjaro",
-      var n when n.Contains("garuda", StringComparison.OrdinalIgnoreCase) => "garuda",
-      var n when n.Contains("alpine", StringComparison.OrdinalIgnoreCase) => "alpine",
-      var n when n.Contains("amazon", StringComparison.OrdinalIgnoreCase) => "amazon",
-      var n when n.Contains("nixos", StringComparison.OrdinalIgnoreCase) => "nixos",
-      _ => "unknown"
-    };
   }
 }

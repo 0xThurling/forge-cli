@@ -39,9 +39,7 @@ namespace forge.Commands.Lua
         // Read the mapped Lua Table for processing
         if (results != null && results[0].TryRead<LuaTable>(out var table))
         {
-          if (table["cmakeOptions"].TryRead<LuaTable>(out var optionsTable))
-          {
-          }
+          if (table["cmakeOptions"].TryRead<LuaTable>(out var _)) { }
         }
       }
     }

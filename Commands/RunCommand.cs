@@ -40,21 +40,21 @@ namespace forge.Commands
     /// <returns>
     /// 0 if the execution completed successfully, non-zero if there was an error.
     /// </returns>
-    public int Run()
+    public async Task<int> Run()
     {
-      var config = ProjectConfigManager.LoadConfig();
+      var config = await ProjectConfigManager.LoadConfigAsync();
 
       if (string.IsNullOrEmpty(ScriptName))
       {
         var startCommand = new StartCommand();
-        return startCommand.Run();
+        return await startCommand.Run();
       }
 
       AnsiConsole.Status().Start(ScriptName != null ? $"Running {ScriptName}" : "Running project...", _ =>
       {
         if (!config!.Scripts.TryGetValue(ScriptName!, out var scriptCommand))
         {
-          AnsiConsole.MarkupLine($"[bold red]Error:[/] Script '[bold]{ScriptName}[/]' not found in package.toml.");
+          AnsiConsole.MarkupLine($"[bold red]Error:[/] Script '[bold]{ScriptName}[/]' not found in forge.lua.");
           return 1;
         }
 

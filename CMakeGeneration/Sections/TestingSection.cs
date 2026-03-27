@@ -11,7 +11,7 @@ public class TestingSection : CMakeSectionBase
   public override bool IsEnabled(ProjectConfig config)
       => Directory.Exists("test") && config.Dependencies.ContainsKey("googletest");
 
-    public override string Generate(ProjectConfig config)
+  public override string Generate(ProjectConfig config)
   {
     return @"
 # --- Testing ---

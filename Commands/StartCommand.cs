@@ -23,15 +23,15 @@ namespace forge.Commands
     /// Builds the project and executes the resulting binary.
     /// </summary>
     /// <returns>0 on success, non-zero on failure.</returns>
-    public int Run()
+    public async Task<int> Run()
     {
       var buildCommand = new BuildCommand();
-      if (buildCommand.Run() != 0)
+      if (await buildCommand.Run() != 0)
       {
         return 1;
       }
 
-      var projectName = ProjectConfigManager.GetProjectName();
+      var projectName = await ProjectConfigManager.GetProjectName();
       if (string.IsNullOrEmpty(projectName))
       {
         AnsiConsole.MarkupLine("[bold red]Error:[/] Could not find project name to run.");
@@ -55,12 +55,11 @@ namespace forge.Commands
           CreateNoWindow = true,
         };
 
-        using (var process = Process.Start(processStartInfo))
-        {
-          if (process == null) throw new Exception("Failed to start program process.");
-          process.WaitForExit();
-          return process.ExitCode;
-        }
+        using var process = Process.Start(processStartInfo) ??
+          throw new Exception("Failed to start program process.");
+
+        process.WaitForExit();
+        return process.ExitCode;
       }
       catch (Exception ex)
       {

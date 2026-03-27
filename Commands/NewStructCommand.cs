@@ -28,7 +28,7 @@ namespace forge.Commands
     /// <summary>
     /// Generates the struct header and source files.
     /// </summary>
-    public void Run()
+    public async Task Run()
     {
       var structName = Name;
       if (!Directory.Exists("src"))

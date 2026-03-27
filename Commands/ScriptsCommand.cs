@@ -22,10 +22,10 @@ namespace forge.Commands
     /// Lists all available scripts.
     /// </summary>
     /// <returns>Always returns 0.</returns>
-    public int Run()
+    public async Task<int> Run()
     {
-      var config = ProjectConfigManager.LoadConfig();
-      if (config?.Scripts == null || !config.Scripts.Any())
+      var config = await ProjectConfigManager.LoadConfigAsync();
+      if (config?.Scripts == null || config.Scripts.Count == 0)
       {
         AnsiConsole.MarkupLine("[yellow]No scripts defined in package.toml.[/]");
         return 0;

@@ -1,6 +1,5 @@
 using DotMake.CommandLine;
 using forge.Commands.Lua;
-using forge.Models;
 using Spectre.Console;
 
 namespace forge.Commands
@@ -57,7 +56,7 @@ namespace forge.Commands
     /// - package.toml with project configuration
     /// - .gitignore with appropriate patterns
     /// </remarks>
-    public void Run()
+    public async Task Run()
     {
       var projectName = Name;
       AnsiConsole.MarkupLine($"[bold cyan]--- Creating project: {projectName} --- [/]");
@@ -89,21 +88,17 @@ namespace forge.Commands
         }
 
         // Create package.toml
-        var projectConfig = new ProjectConfig
-        {
-          Project = new ProjectSection
-          {
-            Name = projectName,
-            Type = Type
-          },
-        };
+        var installHeaders = Type == "library" ? "install_headers = true," : ""; 
+        var forgeLuaContent = @$"return {{
+          project = {{
+            name = ""{projectName}"",
+            type = ""{Type}"",
+            standard = ""20"",
+            {installHeaders}
+          }}
+        }}";
 
-        if (Type == "library")
-        {
-          projectConfig.Project.InstallHeaders = true;
-        }
-
-        ProjectConfigManager.SaveConfig(projectConfig, projectName);
+        File.WriteAllText(Path.Combine(projectName, "forge.lua"), forgeLuaContent);
 
         // Create a placeholder .gitignore
         var gitignoreContent = "build/\nlib/\ncompile_commands.json\n.config/\nconanfile.txt\n";

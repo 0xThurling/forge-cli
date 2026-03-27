@@ -23,7 +23,7 @@ namespace forge.Commands
     /// <summary>
     /// Removes the build directory and all its contents.
     /// </summary>
-    public void Run()
+    public async Task Run()
     {
       var buildDir = "build";
       if (Directory.Exists(buildDir))

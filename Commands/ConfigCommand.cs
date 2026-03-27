@@ -19,9 +19,9 @@ public class ConfigCommand
   )]
   public class MigrateCommand
   {
-    public int Run()
+    public async Task<int> Run()
     {
-      var config = ProjectConfigManager.LoadConfig();
+      var config = ProjectConfigManager.TomlConfigLoader();
       if (config is null)
       {
         AnsiConsole.MarkupLine($"[red]No package.toml found to migrate[/]");
