@@ -5,10 +5,10 @@ using Tommy;
 namespace forge
 {
     /// <summary>
-    /// Manages the reading and writing of project configuration stored in package.toml.
+    /// Manages the reading and writing of project configuration stored in forge.lua
     /// </summary>
     /// <remarks>
-    /// This class provides static methods to load project configuration from the package.toml
+    /// This class provides static methods to load project configuration from the forge.lua
     /// file, save configuration changes, and locate the project root directory. It uses the
     /// Tommy library for TOML parsing and provides a clean interface for accessing project
     /// configuration throughout the application.
@@ -31,19 +31,18 @@ namespace forge
     /// <summary>
     /// The name of the package configuration file that identifies a Forge project.
     /// </summary>
-    private const string PackageConfigFileName = "package.toml";
+    private const string ConfigFileName = "forge.lua";
+    private const string LegacyConfigFileName = "package.toml";
 
     /// <summary>
-    /// Loads and parses the package.toml configuration file from the current project directory.
+    /// Loads and parses the forge.lua configuration file from the current project directory.
     /// </summary>
     /// <returns>
     /// A <see cref="ProjectConfig"/> object containing the parsed configuration, or null if
-    /// the package.toml file cannot be found or parsed.
+    /// the forge.lua file cannot be found or parsed.
     /// </returns>
     /// <remarks>
-    /// This method searches for package.toml by walking up the directory tree starting from
-    /// the current working directory. It parses all sections including [project], [dependencies],
-    /// [conan-dependencies], [resources], and [scripts].
+    /// This method searches for forge.lua by walking up the directory tree starting from
     /// </remarks>
     /// <example>
     /// <code>
@@ -61,7 +60,7 @@ namespace forge
         return null;
       }
 
-      var configPath = Path.Combine(projectRoot, PackageConfigFileName);
+      var configPath = Path.Combine(projectRoot, ConfigFileName);
 
       try
       {
@@ -123,7 +122,7 @@ namespace forge
       }
       catch (Exception ex)
       {
-        AnsiConsole.MarkupLine($"[bold red]Error reading {PackageConfigFileName}:[/] {ex.Message}");
+        AnsiConsole.MarkupLine($"[bold red]Error reading {ConfigFileName}:[/] {ex.Message}");
         return null;
       }
     }
@@ -153,7 +152,7 @@ namespace forge
       var currentDir = Directory.GetCurrentDirectory();
       while (currentDir != null)
       {
-        if (File.Exists(Path.Combine(currentDir, PackageConfigFileName)))
+        if (File.Exists(Path.Combine(currentDir, ConfigFileName)))
         {
           return currentDir;
         }
