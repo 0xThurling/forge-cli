@@ -1,6 +1,7 @@
 ﻿using forge.Models;
 using Lua;
 using Lua.Standard;
+using Spectre.Console;
 
 namespace forge.Commands.Lua;
 
@@ -18,19 +19,27 @@ public class LuaConfigLoader
     return null;
   }
 
-  private async Task<ProjectConfig> LoadFromLuaAsync(string filePath)
+  private async Task<ProjectConfig?> LoadFromLuaAsync(string filePath)
   {
     _state = LuaState.Create();
     _state.OpenStandardLibraries();
 
-    var result = await _state.DoFileAsync(filePath);
-
-    // Read the mapped Lua Table for processing
-    if (result != null &&
-        result?.Length > 0 &&
-        result[0].TryRead<LuaTable>(out var table))
+    try
     {
-      return ParseLuaTable(table);
+      var result = await _state.DoFileAsync(filePath);
+
+      // Read the mapped Lua Table for processing
+      if (result != null &&
+          result?.Length > 0 &&
+          result[0].TryRead<LuaTable>(out var table))
+      {
+        return ParseLuaTable(table);
+      }
+    }
+    catch (LuaCompileException compileException)
+    {
+      AnsiConsole.MarkupLine($"[red]Error loading [bold white]forge.lua[/] config file[/]: {compileException.MainMessage}");
+      return null;
     }
 
     throw new Exception("forge.lua must return a table");
