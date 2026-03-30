@@ -42,7 +42,8 @@ public class LuaConfigLoader
       return null;
     }
 
-    throw new Exception("forge.lua must return a table");
+    AnsiConsole.MarkupLine($"[red][bold white]forge.lua[/] must be a table.[/]");
+    return null;
   }
 
   private static ProjectConfig ParseLuaTable(LuaTable table)
