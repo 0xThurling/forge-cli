@@ -96,6 +96,17 @@ namespace forge.Commands
     type = ""{Type}"",
     standard = ""20"",
     {installHeaders}
+  }},
+  dependencies = {{
+   direct = {{}},
+   conan = {{}}
+  }},
+  resources = {{
+    files = {{}}
+  }},
+  scripts = {{}},
+  features = {{
+    testing = false
   }}
 }}";
 
