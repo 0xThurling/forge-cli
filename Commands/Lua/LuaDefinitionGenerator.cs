@@ -12,6 +12,7 @@ namespace forge.Commands.Lua
       InitializeDefinitions();
     }
 
+    // TODO: Increase support for more package managers and more distrobutions
     private static void InitializeDefinitions()
     {
       // Core forge object
@@ -96,7 +97,7 @@ namespace forge.Commands.Lua
           .AddConstantInformation("type", "string"));
 
       // Distrobution information
-      _categories.Add(new LuaDefinitionCategory("forge.disto",
+      _categories.Add(new LuaDefinitionCategory("forge.distro",
             "Linux distribution information")
           .AddConstantInformation("class", "forge.distro"));
 
