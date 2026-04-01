@@ -28,14 +28,18 @@ namespace forge.Commands.Lua
     /// <returns>A task representing the asynchronous operation.</returns>
     public static async Task RunBuilderScripts()
     {
-      var files = Directory.GetFiles(Path.Combine(Directory.GetCurrentDirectory(), ".config", "forge", "build"));
+      var buildDir = Path.Combine(Directory.GetCurrentDirectory(), ".config", "forge", "build");
 
+      // Check if directory exists
+      if (!Directory.Exists(buildDir))
+      {
+        return; // No scripts to run
+      }
+      var files = Directory.GetFiles(buildDir, "*.lua"); // Only get .lua files
       foreach (var file in files)
       {
         var results = await LuaEngine.GetLuaEngine().DoFileAsync(file);
-
         if (results == null || results?.Length == 0) continue;
-
         // Read the mapped Lua Table for processing
         if (results != null && results[0].TryRead<LuaTable>(out var table))
         {
