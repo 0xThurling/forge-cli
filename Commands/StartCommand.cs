@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using forge.Models;
 using Spectre.Console;
 
 namespace forge.Commands
@@ -31,22 +32,33 @@ namespace forge.Commands
         return 1;
       }
 
-      var projectName = await ProjectConfigManager.GetProjectName();
-      if (string.IsNullOrEmpty(projectName))
+      var config = await ProjectConfigManager.LoadConfigAsync();
+      if (config == null)
       {
-        AnsiConsole.MarkupLine("[bold red]Error:[/] Could not find project name to run.");
+        AnsiConsole.MarkupLine("[bold red]Error:[/] Could not load project config.");
         return 1;
       }
 
-      var executablePath = Path.Combine("build", projectName);
-      if (!File.Exists(executablePath))
+      if (config.Project.Type == "library")
       {
-        AnsiConsole.MarkupLine($"[bold red]Error:[/] Executable not found at '[bold]{executablePath}[/]'.");
+        return HandleLibraryBuild(config);
+      }
+
+      var executablePath = FindExecutable(config.Project.Name);
+
+      if (string.IsNullOrEmpty(executablePath))
+      {
+        AnsiConsole.MarkupLine($"[bold red]Error:[/] Executable not found.");
+        AnsiConsole.MarkupLine($"[dim]Searched in:[/]");
+        AnsiConsole.MarkupLine($"   [dim]- build/{config.Project.Name}[/]");
+        AnsiConsole.MarkupLine($"   [dim]- build/Release/{config.Project.Name}[/]");
+        AnsiConsole.MarkupLine($"   [dim]- build/Debug/{config.Project.Name}[/]");
         return 1;
       }
 
       try
       {
+        AnsiConsole.MarkupLine($"[cyan]Running:[/] {executablePath}");
         var processStartInfo = new ProcessStartInfo(executablePath)
         {
           UseShellExecute = false,
@@ -54,10 +66,8 @@ namespace forge.Commands
           RedirectStandardError = false,
           CreateNoWindow = true,
         };
-
         using var process = Process.Start(processStartInfo) ??
-          throw new Exception("Failed to start program process.");
-
+          throw new Exception("Failed to start process.");
         process.WaitForExit();
         return process.ExitCode;
       }
@@ -66,6 +76,66 @@ namespace forge.Commands
         AnsiConsole.MarkupLine($"[red]Error: {ex.Message}[/]");
         return 1;
       }
+    }
+
+    private static string? FindExecutable(string name)
+    {
+      var possiblePaths = new[]{
+        "build/" + name,
+        "build/Release" + name,
+        "build/Debug" + name,
+        "build/" + name + ".exe",
+        "build/Release" + name + ".exe",
+      };
+
+      foreach (var path in possiblePaths)
+      {
+        if (File.Exists(path))
+        {
+          return path;
+        }
+      }
+
+      return null;
+    }
+
+    private static int HandleLibraryBuild(ProjectConfig config)
+    {
+      var possiblePaths = new[]
+      {
+        "build/lib" + config.Project.Name + ".a",
+        "build/" + config.Project.Name + ".lib",
+        "build/lib" + config.Project.Name + ".so",
+        "build/" + config.Project.Name + ".dll"
+      };
+
+      string? foundPath = null;
+      foreach (var path in possiblePaths)
+      {
+        if (File.Exists(path))
+        {
+          foundPath = path;
+          break;
+        }
+      }
+
+      if (foundPath != null)
+      {
+        var fileInfo = new FileInfo(foundPath);
+        AnsiConsole.MarkupLine($"[green]Library built successfully![/]");
+        AnsiConsole.MarkupLine($"   Path: {foundPath}");
+        AnsiConsole.MarkupLine($"   Size: {fileInfo.Length / 1024.0:F2} KB");
+        AnsiConsole.WriteLine();
+        AnsiConsole.MarkupLine("[yellow]Note:[/] Libraries cannot be executed directly.");
+        AnsiConsole.MarkupLine($"[dim]To use this library, add it as a dependency in another project or include headers from src/[/]");
+      }
+      else
+      {
+        AnsiConsole.MarkupLine($"[bold red]Error:[/] Library output not found in build/ directory.");
+        AnsiConsole.MarkupLine($"[dim]Expected: {string.Join(", ", possiblePaths)}[/]");
+      }
+
+      return 0;
     }
   }
 }
