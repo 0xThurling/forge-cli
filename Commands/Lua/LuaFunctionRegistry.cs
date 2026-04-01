@@ -25,7 +25,6 @@ public class CoreFunctionModule : LuaFunctionModule
 
     var configTable = new LuaTable();
     configTable[new LuaValue("get")] = new LuaValue(CreateConfigGetFunction());
-    configTable[new LuaValue("set")] = new LuaValue(CreateConfigSetFunction());
     configTable[new LuaValue("has_feature")] = new LuaValue(CreateConfigHasFeatureFunction());
     configTable[new LuaValue("get_feature_option")] = new LuaValue(CreateGetFeatureFunction());
 

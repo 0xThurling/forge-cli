@@ -205,8 +205,7 @@ namespace forge
     {
       var sb = new StringBuilder();
       sb.AppendLine("return {");
-
-      // Project section
+      // Project section - always output
       sb.AppendLine("    project = {");
       sb.AppendLine($"        name = \"{config.Project.Name}\",");
       sb.AppendLine($"        type = \"{config.Project.Type}\",");
@@ -216,56 +215,60 @@ namespace forge
         sb.AppendLine("        install_headers = true,");
       }
       sb.AppendLine("    },");
+      // Dependencies section - always output structure
+      sb.AppendLine("    dependencies = {");
 
-      // Dependencies section (if any)
-      if (config.Dependencies.Count > 0 || config.ConanDependencies.Count > 0)
+      if (config.Dependencies.Count > 0)
       {
-        sb.AppendLine("    dependencies = {");
-
-        if (config.Dependencies.Count > 0)
+        sb.AppendLine("        direct = {");
+        foreach (var dep in config.Dependencies)
         {
-          sb.AppendLine("        direct = {");
-          foreach (var dep in config.Dependencies)
-          {
-            sb.AppendLine($"            {dep.Key} = {{");
-            if (!string.IsNullOrEmpty(dep.Value.Git))
-              sb.AppendLine($"                git = \"{dep.Value.Git}\",");
-            if (!string.IsNullOrEmpty(dep.Value.Tag))
-              sb.AppendLine($"                tag = \"{dep.Value.Tag}\",");
-            if (!string.IsNullOrEmpty(dep.Value.Target))
-              sb.AppendLine($"                target = \"{dep.Value.Target}\",");
-            sb.AppendLine("            },");
-          }
-          sb.AppendLine("        },");
+          sb.AppendLine($"            {dep.Key} = {{");
+          if (!string.IsNullOrEmpty(dep.Value.Git))
+            sb.AppendLine($"                git = \"{dep.Value.Git}\",");
+          if (!string.IsNullOrEmpty(dep.Value.Tag))
+            sb.AppendLine($"                tag = \"{dep.Value.Tag}\",");
+          if (!string.IsNullOrEmpty(dep.Value.Target))
+            sb.AppendLine($"                target = \"{dep.Value.Target}\",");
+          sb.AppendLine("            },");
         }
-
-        if (config.ConanDependencies.Count > 0)
-        {
-          sb.AppendLine("        conan = {");
-          foreach (var dep in config.ConanDependencies)
-          {
-            sb.AppendLine($"            {dep.Key} = \"{dep.Value}\",");
-          }
-          sb.AppendLine("        },");
-        }
-
-        sb.AppendLine("    },");
+        sb.AppendLine("        },");
       }
-
-      // Resources section (if any)
+      else
+      {
+        sb.AppendLine("        direct = {},");
+      }
+      if (config.ConanDependencies.Count > 0)
+      {
+        sb.AppendLine("        conan = {");
+        foreach (var dep in config.ConanDependencies)
+        {
+          sb.AppendLine($"            {dep.Key} = \"{dep.Value}\",");
+        }
+        sb.AppendLine("        },");
+      }
+      else
+      {
+        sb.AppendLine("        conan = {},");
+      }
+      sb.AppendLine("    },");
+      // Resources section - always output
+      sb.AppendLine("    resources = {");
       if (config.Resources.Files.Count > 0)
       {
-        sb.AppendLine("    resources = {");
         sb.AppendLine("        files = {");
         foreach (var file in config.Resources.Files)
         {
           sb.AppendLine($"            \"{file}\",");
         }
         sb.AppendLine("        },");
-        sb.AppendLine("    },");
       }
-
-      // Scripts section (if any)
+      else
+      {
+        sb.AppendLine("        files = {},");
+      }
+      sb.AppendLine("    },");
+      // Scripts section - always output
       if (config.Scripts.Count > 0)
       {
         sb.AppendLine("    scripts = {");
@@ -275,35 +278,49 @@ namespace forge
         }
         sb.AppendLine("    },");
       }
-
-      // Features section (if any)
+      else
+      {
+        sb.AppendLine("    scripts = {},");
+      }
+      // Features section - always output with proper table format
+      sb.AppendLine("    features = {");
       if (config.Features.Count > 0)
       {
-        sb.AppendLine("    features = {");
         foreach (var (name, feature) in config.Features)
         {
-          sb.AppendLine($"        {name} = {feature.Enabled.ToString().ToLower()},");
+          // If feature has options, output as table with "enabled" key
+          if (feature.Options.Count > 0)
+          {
+            sb.AppendLine($"        {name} = {{");
+            sb.AppendLine($"            enabled = {feature.Enabled.ToString().ToLower()},");
+            foreach (var (optKey, optVal) in feature.Options)
+            {
+              sb.AppendLine($"            {optKey} = \"{optVal}\",");
+            }
+            sb.AppendLine("        },");
+          }
+          else
+          {
+            // Simple boolean format
+            sb.AppendLine($"        {name} = {feature.Enabled.ToString().ToLower()},");
+          }
         }
-        sb.AppendLine("    },");
       }
-
-      // Custom section (if any)
+      sb.AppendLine("    },");
+      // Custom section - output if present
       if (config.Custom.Count > 0)
       {
         sb.AppendLine("    custom = {");
         foreach (var kvp in config.Custom)
         {
-          // Use bracket notation for keys with dots
           var key = kvp.Key.Contains('.') ? $"[\"{kvp.Key}\"]" : kvp.Key;
           sb.AppendLine($"        {key} = \"{kvp.Value}\",");
         }
         sb.AppendLine("    },");
       }
-
       sb.AppendLine("}");
       return sb.ToString();
     }
-
     /// <summary>
     /// Gets the name of the current project from the package.toml configuration.
     /// </summary>

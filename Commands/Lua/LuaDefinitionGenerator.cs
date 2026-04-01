@@ -61,11 +61,6 @@ namespace forge.Commands.Lua
             new LuaParameter("key", "string", "Dot-notation key (e.g., 'project.name')"))
           .AddReturn(new LuaParameterReturn("string", "The config value")));
 
-      _categories.Add(new LuaDefinitionCategory("forge.config.set",
-            "Sets a config value (runtime) only",
-            new LuaParameter("key", "string", "Dot-notation key"),
-            new LuaParameter("value", "string", "Valeu to set")));
-
       _categories.Add(new LuaDefinitionCategory("forge.config.has_feature",
             "Checks if a feature is enabled",
             new LuaParameter("feature", "string", "Feature name"))
