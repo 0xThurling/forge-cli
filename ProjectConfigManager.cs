@@ -224,7 +224,7 @@ namespace forge
 
         if (config.Dependencies.Count > 0)
         {
-          sb.AppendLine("        git = {");
+          sb.AppendLine("        direct = {");
           foreach (var dep in config.Dependencies)
           {
             sb.AppendLine($"            {dep.Key} = {{");
@@ -272,6 +272,30 @@ namespace forge
         foreach (var script in config.Scripts)
         {
           sb.AppendLine($"        [\"{script.Key}\"] = \"{script.Value}\",");
+        }
+        sb.AppendLine("    },");
+      }
+
+      // Features section (if any)
+      if (config.Features.Count > 0)
+      {
+        sb.AppendLine("    features = {");
+        foreach (var (name, feature) in config.Features)
+        {
+          sb.AppendLine($"        {name} = {feature.Enabled.ToString().ToLower()},");
+        }
+        sb.AppendLine("    },");
+      }
+
+      // Custom section (if any)
+      if (config.Custom.Count > 0)
+      {
+        sb.AppendLine("    custom = {");
+        foreach (var kvp in config.Custom)
+        {
+          // Use bracket notation for keys with dots
+          var key = kvp.Key.Contains('.') ? $"[\"{kvp.Key}\"]" : kvp.Key;
+          sb.AppendLine($"        {key} = \"{kvp.Value}\",");
         }
         sb.AppendLine("    },");
       }

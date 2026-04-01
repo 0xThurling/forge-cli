@@ -150,7 +150,7 @@ namespace forge.Commands.Lua
       var config = await ProjectConfigManager.LoadConfigAsync();
       if (config == null) return;
 
-      var parts = key.Split(' ');
+      var parts = key.Split('.');
 
       if (parts[0] == "project" && parts.Length > 1)
       {
@@ -204,6 +204,12 @@ namespace forge.Commands.Lua
       {
         config.ConanDependencies[parts[2]] = value;
       }
+      else
+      {
+        config.Custom[key] = value;
+      }
+
+      ProjectConfigManager.SaveConfig(config);
     }
 
     public static string? GetConfigValue(ProjectConfig config, string key)
@@ -248,6 +254,9 @@ namespace forge.Commands.Lua
           return conanVer;
         }
       }
+
+      // Checks for custome values
+      if (config.Custom.TryGetValue(key, out var customVal)) return customVal;
 
       return null;
     }

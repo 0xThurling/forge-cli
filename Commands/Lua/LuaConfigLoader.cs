@@ -80,6 +80,30 @@ public class LuaConfigLoader
       ParseFeatures(ref config, featuresTable);
     }
 
+    // Parse Custom section
+    if (table["custom"].TryRead<LuaTable>(out var customTable))
+    {
+      foreach (var kvp in customTable)
+      {
+        var key = kvp.Key.ToString();
+        var value = kvp.Value.ToString();
+        config.Custom[key] = value;
+      }
+    }
+
+    // Parse any remaining top-level keys
+    foreach (var kvp in table)
+    {
+      var key = kvp.Key.ToString();
+
+      // Skip known sections
+      if (key is "project" or "dependencies" or "resources" or "scripts" or "features" or "custom")
+        continue;
+
+      var value = kvp.Value.ToString();
+      config.Custom[key] = value;
+    }
+
     return config;
   }
 

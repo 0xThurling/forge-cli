@@ -57,6 +57,8 @@ namespace forge.Models
     public Dictionary<string, string> Scripts { get; set; } = [];
 
     public Dictionary<string, FeatureConfig> Features { get; set; } = [];
+
+    public Dictionary<string, string> Custom { get; set; } = [];
   }
 
   public class FeatureConfig
