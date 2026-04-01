@@ -70,24 +70,45 @@ public class CoreFunctionModule : LuaFunctionModule
   private static LuaFunction CreateInfoLogFunction() =>
       new("info", (context, _) =>
       {
-        var info = context.GetArgument<string>(0);
-        AnsiConsole.MarkupLine($"[bold blue]INFO[/]: {info}");
+        try
+        {
+          var info = context.GetArgument<string>(0);
+          AnsiConsole.MarkupLineInterpolated($"[bold blue]INFO[/]: {info}");
+        }
+        catch (Exception ex)
+        {
+          AnsiConsole.WriteLine($"DEBUG ERROR: {ex.Message}");
+        }
         return ValueTask.FromResult(0);
       });
 
   private static LuaFunction CreateWarnLogFunction() =>
       new("warn", (context, _) =>
       {
-        var info = context.GetArgument<string>(0);
-        AnsiConsole.MarkupLine($"[bold yellow]INFO[/]: {info}");
+        try
+        {
+          var info = context.GetArgument<string>(0);
+          AnsiConsole.MarkupLineInterpolated($"[bold blue]WARN[/]: {info}");
+        }
+        catch (Exception ex)
+        {
+          AnsiConsole.WriteLine($"DEBUG ERROR: {ex.Message}");
+        }
         return ValueTask.FromResult(0);
       });
 
   private static LuaFunction CreateErrorLogFunction() =>
       new("error", (context, _) =>
       {
-        var info = context.GetArgument<string>(0);
-        AnsiConsole.MarkupLine($"[bold red]INFO[/]: {info}");
+        try
+        {
+          var info = context.GetArgument<string>(0);
+          AnsiConsole.MarkupLineInterpolated($"[bold red]ERROR[/]: {info}");
+        }
+        catch (Exception ex)
+        {
+          AnsiConsole.WriteLine($"DEBUG ERROR: {ex.Message}");
+        }
         return ValueTask.FromResult(0);
       });
 
