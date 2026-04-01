@@ -111,19 +111,21 @@ namespace forge
         return null;
       }
 
-      var configPath = Path.Combine(projectRoot, ConfigFileName);
+      var configPath = Path.Combine(projectRoot, LegacyConfigFileName);
 
       try
       {
         using var reader = new StreamReader(File.OpenRead(configPath));
         var toml = TOML.Parse(reader);
+
         var config = new ProjectConfig
         {
           Project = new ProjectSection
           {
             Name = toml["project"]["name"],
             Type = toml["project"]["type"],
-            InstallHeaders = toml["project"]["install_headers"]
+            Standard = toml["project"].HasKey("standard") ? toml["project"]["standard"] : "",
+            InstallHeaders = toml["project"].HasKey("install_headers") ? toml["project"]["install_headers"] : false,
           },
           Dependencies = []
         };
@@ -171,7 +173,7 @@ namespace forge
       }
       catch (Exception ex)
       {
-        AnsiConsole.MarkupLine($"[bold red]Error reading {ConfigFileName}:[/] {ex.Message}");
+        AnsiConsole.MarkupLine($"[bold red]Error reading {LegacyConfigFileName}:[/] {ex.Message}");
         return null;
       }
     }

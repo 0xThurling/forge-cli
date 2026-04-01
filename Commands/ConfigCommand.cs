@@ -62,7 +62,7 @@ public class ConfigCommand
       {
         sb.AppendLine();
         sb.AppendLine("    dependencies = {");
-        sb.AppendLine("        git = {");
+        sb.AppendLine("        direct = {");
         foreach (var dep in config.Dependencies)
         {
           sb.AppendLine($"            {dep.Key} = {{");
@@ -72,10 +72,11 @@ public class ConfigCommand
             sb.AppendLine($"                tag = \"{dep.Value.Tag}\", ");
           if (!string.IsNullOrEmpty(dep.Value.Target))
             sb.AppendLine($"                target = \"{dep.Value.Target}\",");
+          else
+            sb.AppendLine($"                target = \"{dep.Key}::{dep.Key}\",");
           sb.AppendLine("            },");
         }
         sb.AppendLine("        },");
-        sb.AppendLine("    },");
       }
 
       // Conan dependencies
