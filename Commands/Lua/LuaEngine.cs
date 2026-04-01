@@ -44,6 +44,7 @@ namespace forge.Commands.Lua
 
       SetEnvironmentLibraries(ref _state);
       SetEnvironmentVariableInformation();
+      RegisterModules();
     }
 
     /// <summary>
