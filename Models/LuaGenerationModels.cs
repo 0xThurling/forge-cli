@@ -98,11 +98,10 @@ public class LuaDefinitionCategory
       var parts = _name.Split('.');
       var funcName = parts[^1];
       var prefix = string.Join(".", parts[..^1]);
-      sb.AppendLine($"function {prefix}.{funcName}({paramNames}) end");
-    }
-    else
-    {
-      sb.AppendLine($"function {_name}({paramNames}) end");
+      if (!sb.ToString().Contains("class"))
+      {
+        sb.AppendLine($"function {prefix}.{funcName}({paramNames}) end");
+      }
     }
 
     sb.AppendLine();

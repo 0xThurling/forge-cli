@@ -22,6 +22,10 @@ namespace forge.Commands.Lua
             "Forge logging utility")
           .AddConstantInformation("class", "forge.log"));
 
+      _categories.Add(new LuaDefinitionCategory("forge.config",
+            "Access Forge's config")
+          .AddConstantInformation("class", "forge.config"));
+
       // Functions - Generic
       _categories.Add(new LuaDefinitionCategory("forge.add_cmake",
             "Adds custom CMake commands to the generated CMakeLists.txt",
