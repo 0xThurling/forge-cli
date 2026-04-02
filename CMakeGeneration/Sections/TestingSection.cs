@@ -9,7 +9,7 @@ public class TestingSection : CMakeSectionBase
   public override int Priority => 50;
 
   public override bool IsEnabled(ProjectConfig config)
-      => Directory.Exists("test") && config.Dependencies.ContainsKey("googletest");
+      => config.Testing && config.Dependencies.ContainsKey("googletest");
 
   public override string Generate(ProjectConfig config)
   {

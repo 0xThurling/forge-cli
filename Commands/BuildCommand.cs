@@ -86,6 +86,41 @@ namespace forge.Commands
         return 1;
       }
 
+      if (projectConfig.Testing)
+      {
+        // Ensure test directory exists
+        Directory.CreateDirectory("test");
+
+        // Create basic test/main.cpp if it doesn't exist
+        var testMainPath = Path.Combine("test", "main.cpp");
+        if (!File.Exists(testMainPath))
+        {
+          var testMainContent = """
+            #include <gtest/gtest.h>
+            // Sample test - replace with your own tests
+            TEST(HelloTest, BasicAssertions) {
+              EXPECT_EQ(1, 1);
+              EXPECT_TRUE(true);
+            }
+            int main(int argc, char **argv) {
+              ::testing::InitGoogleTest(&argc, argv);
+              return RUN_ALL_TESTS();
+            }
+            """;
+          File.WriteAllText(testMainPath, testMainContent);
+        }
+
+        // Auto-add googletest if not present
+        if (!projectConfig.Dependencies.ContainsKey("googletest"))
+        {
+          projectConfig.ConanDependencies["gtest"] = "1.14";
+          AnsiConsole.MarkupLine("[bold green]Auto-added googletest dependency for testing.[/]");
+
+          // Save the updated config
+          ProjectConfigManager.SaveConfig(projectConfig);
+        }
+      }
+
       AnsiConsole.Status().AutoRefresh(!Verbose).Start("Building Project...", _ =>
       {
         var projectName = projectConfig.Project.Name;

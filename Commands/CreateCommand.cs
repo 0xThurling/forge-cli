@@ -97,6 +97,7 @@ namespace forge.Commands
     standard = ""20"",
     {installHeaders}
   }},
+  testing = false,
   dependencies = {{
    direct = {{}},
    conan = {{}}
@@ -105,9 +106,7 @@ namespace forge.Commands
     files = {{}}
   }},
   scripts = {{}},
-  features = {{
-    testing = false
-  }}
+  features = {{}}
 }}";
 
         File.WriteAllText(Path.Combine(projectName, "forge.lua"), forgeLuaContent);

@@ -216,6 +216,8 @@ namespace forge
       }
       sb.AppendLine("    },");
       // Dependencies section - always output structure
+      sb.AppendLine($"    testing = {config.Testing},");
+      // Dependencies section - always output structure
       sb.AppendLine("    dependencies = {");
 
       if (config.Dependencies.Count > 0)

@@ -59,6 +59,8 @@ namespace forge.Models
     public Dictionary<string, FeatureConfig> Features { get; set; } = [];
 
     public Dictionary<string, string> Custom { get; set; } = [];
+
+    public bool Testing { get; set; } = false;
   }
 
   public class FeatureConfig
