@@ -46,7 +46,8 @@ namespace forge.Commands.Lua
 
       _categories.Add(new LuaDefinitionCategory("forge.pull_repo",
             "Clones a Git repository to external/",
-            new LuaParameter("repo_url", "string", "The URL for the GitHub repository"))
+            new LuaParameter("repo_url", "string", "The URL for the GitHub repository"),
+            new LuaParameter("tag", "string", "The URL for the GitHub repository"))
           .AddReturn(new LuaParameterReturn("string", "The path location where it's saved'")));
 
       _categories.Add(new LuaDefinitionCategory("forge.get_packages",

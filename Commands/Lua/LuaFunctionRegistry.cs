@@ -46,10 +46,15 @@ public class CoreFunctionModule : LuaFunctionModule
     new("pull_repo", async (context, token) =>
     {
       var repoUrl = context.GetArgument<string>(0);
+      var tag = context.GetArgument<string?>(1);
 
       var repoName = repoUrl.Split('/')[^1].Split(".")[0];
 
-      var processStartInfo = new ProcessStartInfo("git", $"clone {repoUrl} external/{repoName}")
+      var gitCommand = string.IsNullOrEmpty(tag) ?
+      $"clone {repoUrl} external/{repoName}" :
+      $"clone --depth 1 --branch {tag} {repoUrl} external/{repoName}";
+
+      var processStartInfo = new ProcessStartInfo("git", gitCommand)
       {
         UseShellExecute = false,
         RedirectStandardOutput = true,
