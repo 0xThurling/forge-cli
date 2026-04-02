@@ -216,7 +216,7 @@ namespace forge
       }
       sb.AppendLine("    },");
       // Dependencies section - always output structure
-      sb.AppendLine($"    testing = {config.Testing},");
+      sb.AppendLine($"    testing = {config.Testing.ToString().ToLower()},");
       // Dependencies section - always output structure
       sb.AppendLine("    dependencies = {");
 

@@ -86,44 +86,22 @@ namespace forge.Commands
         return 1;
       }
 
+      // Auto-create tests if testing is enabled
       if (projectConfig.Testing)
       {
-        // Ensure test directory exists
-        Directory.CreateDirectory("test");
-
-        // Create basic test/main.cpp if it doesn't exist
-        var testMainPath = Path.Combine("test", "main.cpp");
-        if (!File.Exists(testMainPath))
+        // Ensure test directory and googletest exist
+        if (!Directory.Exists("test"))
         {
-          var testMainContent = """
-            #include <gtest/gtest.h>
-            // Sample test - replace with your own tests
-            TEST(HelloTest, BasicAssertions) {
-              EXPECT_EQ(1, 1);
-              EXPECT_TRUE(true);
-            }
-            int main(int argc, char **argv) {
-              ::testing::InitGoogleTest(&argc, argv);
-              return RUN_ALL_TESTS();
-            }
-            """;
-          File.WriteAllText(testMainPath, testMainContent);
+          await Utils.CreateTests();
         }
 
-        // Auto-add googletest if not present
-        if (!projectConfig.Dependencies.ContainsKey("googletest"))
-        {
-          projectConfig.ConanDependencies["gtest"] = "1.14";
-          AnsiConsole.MarkupLine("[bold green]Auto-added googletest dependency for testing.[/]");
-
-          // Save the updated config
-          ProjectConfigManager.SaveConfig(projectConfig);
-        }
+        // Refresh config to get the googletest dependency
+        projectConfig = await ProjectConfigManager.LoadConfigAsync();
       }
 
       AnsiConsole.Status().AutoRefresh(!Verbose).Start("Building Project...", _ =>
       {
-        var projectName = projectConfig.Project.Name;
+        var projectName = projectConfig?.Project.Name;
 
         try
         {
@@ -131,9 +109,9 @@ namespace forge.Commands
           Directory.CreateDirectory(Path.Combine(".config", "cmake"));
 
           // Generate resource files if any
-          if (projectConfig.Resources.Files.Count != 0)
+          if (projectConfig?.Resources.Files.Count != 0)
           {
-            Utils.GenerateResourceFiles(projectConfig.Resources.Files);
+            Utils.GenerateResourceFiles(projectConfig!.Resources.Files);
           }
 
           // Needs to run synchronously
@@ -251,7 +229,7 @@ namespace forge.Commands
         }
       });
 
-      if (projectConfig.Scripts.TryGetValue("post-build", out _))
+      if (projectConfig!.Scripts.TryGetValue("post-build", out _))
       {
         var runCommand = new RunCommand { ScriptName = "post-build" };
         if (await runCommand.RunAsync() != 0)

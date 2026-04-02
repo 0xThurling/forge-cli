@@ -80,10 +80,10 @@ public class LuaConfigLoader
       ParseFeatures(ref config, featuresTable);
     }
 
-    // Check testing
-    if (table["testing"].TryRead<LuaValue>(out var testing))
+    // Check if testing is enabled
+    if (table["testing"] != LuaValue.Nil)
     {
-      config.Testing = bool.TryParse(testing.ToString(), out var t) && t;
+      config.Testing = bool.TryParse(table["testing"].ToString(), out var t) && t;
     }
 
     // Parse Custom section
