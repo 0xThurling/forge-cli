@@ -55,7 +55,7 @@ namespace forge.Commands.Lua
             new LuaParameter("password", "string", "Password or 'nopass'"),
             new LuaParameter("package_manager", "string", "The package manager"),
             new LuaParameter("packages", "string[]", "List of packages"))
-          .AddReturn(new LuaParameterReturn("int", "0 on success")));
+          .AddReturn(new LuaParameterReturn("number", "0 on success")));
 
       // Config Functions
       _categories.Add(new LuaDefinitionCategory("forge.config.get",
@@ -172,13 +172,12 @@ namespace forge.Commands.Lua
             "Extracts an archive file",
             new LuaParameter("archive", "string", "Path to archive file"),
             new LuaParameter("output", "string", "Output directory"),
-            new LuaParameter("string_components", "int", "The number of path components to strip (default: 1)")));
+            new LuaParameter("string_components", "number", "The number of path components to strip (default: 1)")));
 
       _categories.Add(new LuaDefinitionCategory("forge.fetch",
             "Downloads and extracts an archive in one step",
-            new LuaParameter("url", "string", "The URL to fetch"),
-            new LuaParameter("output", "string", "Output directory"),
-            new LuaParameter("string_components", "int", "The number of path components to strip (default: 1)")));
+            new LuaParameter("url", "string", "The URL to fetch"))
+          .AddReturn(new LuaParameterReturn("string", "The path to the newly fetched directory")));
 
 
       // General Information

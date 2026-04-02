@@ -239,7 +239,7 @@ public class CoreFunctionModule : LuaFunctionModule
       {
         var archive = context.GetArgument<string>(0);
         var output = context.GetArgument<string>(1);
-        var stripComponents = context.GetArgument<string>(2);
+        var stripComponents = context.GetArgument<int>(2);
 
         try
         {
@@ -274,33 +274,93 @@ public class CoreFunctionModule : LuaFunctionModule
         return ValueTask.FromResult(0);
       });
 
-  // forge.fetch(url, output_dir) - download + extract in one step
+  // forge.fetch(url, output_dir?) - download and extract to external/<name>
+  // Returns the path to the extracted directory
   private static LuaFunction CreateFetchFunction() =>
       new("fetch", async (context, token) =>
       {
         var url = context.GetArgument<string>(0);
-        var output = context.GetArgument<string>(1);
-        var stripComponents = context.GetArgument<string>(2); // default 1 
+        string? outputOverride = null;
+
+        // Check if second argument is provided (could be output dir or nil)
+        try { outputOverride = context.GetArgument<string>(1); } catch { }
+
+        // Derive simple name from URL (like pull_repo does)
+        var urlParts = url.Split('/');
+        var lastPart = urlParts[^1];
+        var archiveName = lastPart.Split('.')[0]; // Remove extension
+
+        // Remove common prefixes like "archive/" or "refs/tags/"
+        if (archiveName.StartsWith("archive") || archiveName.StartsWith("refs"))
+        {
+          archiveName = urlParts.Length > 1 ? urlParts[^2] : archiveName;
+        }
+
+        // Default to external/<name> if no output specified
+        var output = outputOverride ?? Path.Combine("external", archiveName);
 
         var tempFile = Path.Combine(Path.GetTempPath(), $"forge_fetch_{Guid.NewGuid()}.zip");
-
         try
         {
           // Download
           using var client = new HttpClient();
           client.DefaultRequestHeaders.Add("User-Agent", "Forge/1.0");
-
           AnsiConsole.MarkupLine($"[cyan]Fetching:[/] {url}");
           var bytes = await client.GetByteArrayAsync(url, token);
           await File.WriteAllBytesAsync(tempFile, bytes, token);
+          // Extract to temp location first
+          var tempExtractDir = Path.Combine(Path.GetTempPath(), $"forge_fetch_extract_{Guid.NewGuid()}");
+          Directory.CreateDirectory(tempExtractDir);
+          ZipFile.ExtractToDirectory(tempFile, tempExtractDir, true);
+          // Find the single root directory and copy contents to final output
+          var entries = Directory.GetDirectories(tempExtractDir);
+          var rootDir = entries.Length == 1 ? entries[0] : null;
 
-          // Extract
           Directory.CreateDirectory(output);
-          ZipFile.ExtractToDirectory(tempFile, output, true);
 
-          File.Delete(tempFile);
+          if (rootDir != null && Directory.GetFiles(rootDir).Length == 0 && Directory.GetDirectories(rootDir).Length == 0)
+          {
+            // Root dir is empty folder, use its contents
+            rootDir = Directory.GetDirectories(tempExtractDir)[0];
+          }
 
+          // Helper to copy a directory's contents (handles cross-device moves)
+          void CopyDirectoryContents(string src, string dest)
+          {
+            Directory.CreateDirectory(dest);
+            foreach (var file in Directory.GetFiles(src))
+            {
+              var destFile = Path.Combine(dest, Path.GetFileName(file));
+              File.Copy(file, destFile, true);
+            }
+            foreach (var dir in Directory.GetDirectories(src))
+            {
+              var destDir = Path.Combine(dest, Path.GetFileName(dir));
+              CopyDirectoryContents(dir, destDir);
+            }
+          }
+          if (rootDir != null)
+          {
+            // Copy all contents from rootDir to output (copy handles cross-device)
+            CopyDirectoryContents(rootDir, output);
+          }
+          else
+          {
+            // No nested structure, files directly in tempExtractDir
+            foreach (var file in Directory.GetFiles(tempExtractDir))
+            {
+              var destFile = Path.Combine(output, Path.GetFileName(file));
+              File.Copy(file, destFile, true);
+            }
+          }
+          // Cleanup temp files
+          if (Directory.Exists(tempExtractDir)) Directory.Delete(tempExtractDir, true);
+          if (File.Exists(tempFile)) File.Delete(tempFile);
           AnsiConsole.MarkupLine($"[green]Fetch complete:[/] {output}");
+
+          // Return the output path for use in Lua
+          context.Return(output);
+          return 1;
         }
         catch (Exception ex)
         {
@@ -308,7 +368,5 @@ public class CoreFunctionModule : LuaFunctionModule
           AnsiConsole.MarkupLine($"[red]Fetch failed:[/] {ex.Message}");
           return 1;
         }
-
-        return 0;
       });
 }
