@@ -2,7 +2,6 @@
 using System.IO.Compression;
 using DotMake.CommandLine;
 using Spectre.Console;
-
 namespace forge.Commands;
 
 [CliCommand(
@@ -14,26 +13,85 @@ public class DownloadCommand
 {
   [CliArgument(Description = "URL to download")]
   public string URL { get; set; } = null!;
-
+  
   [CliOption(Description = "Output file path")]
   public string Output { get; set; } = null!;
-
+  
   [CliOption(Description = "Timeout in seconds (default: 300)")]
   public int Timeout { get; set; } = 300;
+  
+  [CliOption(Description = "Expected SHA256 hash for verification")]
+  public string? Sha256 { get; set; }
+ 
+  [CliOption(Description = "Show progress bar")]
+  public bool ShowProgress { get; set; }
 
   public async Task<int> RunAsync()
   {
     try
     {
-      AnsiConsole.MarkupLine($"[cyan]Downloading:[/] {URL}");
       using var client = new HttpClient();
       client.Timeout = TimeSpan.FromSeconds(Timeout);
       client.DefaultRequestHeaders.Add("User-Agent", "Forge/1.0");
-
-      var bytes = await client.GetByteArrayAsync(URL);
-      await File.WriteAllBytesAsync(Output, bytes);
-
-      AnsiConsole.MarkupLine($"[green]Downloaded:[/] {Output} ({bytes.Length} bytes)");
+ 
+      AnsiConsole.MarkupLine($"[cyan]Downloading:[/] {URL}");
+      
+      using var response = await client.GetAsync(URL, HttpCompletionOption.ResponseHeadersRead);
+      response.EnsureSuccessStatusCode();
+      
+      var totalBytes = response.Content.Headers.ContentLength ?? -1;
+      
+      await using var contentStream = await response.Content.ReadAsStreamAsync();
+      await using var fileStream = new FileStream(Output, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
+      
+      var buffer = new byte[8192];
+      long totalRead = 0;
+      int bytesRead;
+      
+      // Progress tracking
+      var downloadTask = Task.Run(async () =>
+      {
+        while ((bytesRead = await contentStream.ReadAsync(buffer)) > 0)
+        {
+          await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead));
+          totalRead += bytesRead;
+        }
+      });
+      
+      if (ShowProgress && totalBytes > 0)
+      {
+        AnsiConsole.Progress()
+            .Start(ctx =>
+            {
+              var task = ctx.AddTask("[cyan]Downloading", maxValue: totalBytes);
+              while (!downloadTask.IsCompleted)
+              {
+                task.Value = totalRead;
+                Thread.Sleep(100);
+              }
+              task.Value = totalRead;
+            });
+      }
+      else
+      {
+        await downloadTask;
+      }
+      // Verify SHA256 if provided
+      if (!string.IsNullOrEmpty(Sha256))
+      {
+        fileStream.Position = 0;
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        var hashBytes = await sha256.ComputeHashAsync(fileStream);
+        var hash = Convert.ToHexString(hashBytes).ToLowerInvariant();
+        if (!hash.Equals(Sha256, StringComparison.InvariantCultureIgnoreCase))
+        {
+          AnsiConsole.MarkupLine($"[red]SHA256 verification failed! Expected: {Sha256}, Got: {hash}[/]");
+          File.Delete(Output);
+          return 1;
+        }
+        AnsiConsole.MarkupLine($"[green]SHA256 verification passed[/]");
+      }
+      AnsiConsole.MarkupLine($"[green]Downloaded:[/] {Output} ({totalRead} bytes)");
       return 0;
     }
     catch (Exception ex)
@@ -53,25 +111,22 @@ public class ExtractCommand
 {
   [CliArgument(Description = "Archive file to extract")]
   public string Archive { get; set; } = null!;
-
+ 
   [CliArgument(Description = "Output directory")]
   public string Output { get; set; } = null!;
-
+  
   [CliOption(Description = "Strip components from path (default: 1)")]
   public int StripComponents { get; set; } = 1;
-
+  
   public async Task<int> RunAsync()
   {
     try
     {
       AnsiConsole.MarkupLine($"[cyan]Extracting:[/] {Archive}");
-
-      // Create output directory
       Directory.CreateDirectory(Output);
-
-      // Handle different archive types
+      
       var extension = Path.GetExtension(Archive).ToLower();
-
+      
       if (extension is ".zip")
       {
         ZipFile.ExtractToDirectory(Archive, Output, true);
@@ -84,10 +139,10 @@ public class ExtractCommand
           RedirectStandardOutput = true,
           RedirectStandardError = true
         };
-
+      
         using var p = Process.Start(process);
         p?.WaitForExit();
-
+        
         if (p?.ExitCode != 0)
         {
           AnsiConsole.MarkupLine($"[yellow]Warning:[/] tar extraction had issues");
@@ -111,45 +166,75 @@ public class ExtractCommand
 }
 
 [CliCommand(
-  Name = "fetch",
-  Description = "Fetch and extract a remote archive in one step.",
-  Parent = typeof(RootCommand)
+    Name = "fetch",
+    Description = "Fetch and extract a remote archive in one step.",
+    Parent = typeof(RootCommand)
 )]
 public class FetchCommand
 {
   [CliArgument(Description = "URL to fetch")]
   public string URL { get; set; } = null!;
-
+ 
   [CliArgument(Description = "Output directory")]
   public string OutputDir { get; set; } = null!;
-
+  
   [CliOption(Description = "Strip components from path")]
   public int StripComponents { get; set; } = 1;
-
+  
+  [CliOption(Description = "Expected SHA256 hash for verification")]
+  public string? Sha256 { get; set; }
+  
   public async Task<int> RunAsync()
   {
     var tempFile = Path.Combine(Path.GetTempPath(), $"forge_fetch_{Guid.NewGuid()}.zip");
-
     try
     {
-      // Download
       AnsiConsole.MarkupLine($"[cyan]Fetching:[/] {URL}");
-
       using var client = new HttpClient();
       client.Timeout = TimeSpan.FromSeconds(300);
       client.DefaultRequestHeaders.Add("User-Agent", "Forge/1.0");
+ 
+      using var response = await client.GetAsync(URL, HttpCompletionOption.ResponseHeadersRead);
+      response.EnsureSuccessStatusCode();
+      
+      var totalBytes = response.Content.Headers.ContentLength ?? -1;
+      
+      await using var contentStream = await response.Content.ReadAsStreamAsync();
+      await using var fileStream = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
+      
+      var buffer = new byte[8192];
+      long totalRead = 0;
+      int bytesRead;
 
-      var bytes = await client.GetByteArrayAsync(URL);
-      await File.WriteAllBytesAsync(tempFile, bytes);
+      while ((bytesRead = await contentStream.ReadAsync(buffer)) > 0)
+      {
+        await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead));
+        totalRead += bytesRead;
+      }
 
-      // Extract
+      // Verify SHA256 if provided
+      if (!string.IsNullOrEmpty(Sha256))
+      {
+        fileStream.Position = 0;
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        var hashBytes = await sha256.ComputeHashAsync(fileStream);
+        var hash = Convert.ToHexString(hashBytes).ToLowerInvariant();
+        if (!hash.Equals(Sha256, StringComparison.InvariantCultureIgnoreCase))
+        {
+          AnsiConsole.MarkupLine($"[red]SHA256 verification failed![/]");
+          File.Delete(tempFile);
+          return 1;
+        }
+        AnsiConsole.MarkupLine($"[green]SHA256 verification passed[/]");
+      }
       AnsiConsole.MarkupLine($"[cyan]Extracting...[/]");
+
       Directory.CreateDirectory(OutputDir);
 
       ZipFile.ExtractToDirectory(tempFile, OutputDir, true);
 
-      // Clean up temp
       File.Delete(tempFile);
+
       AnsiConsole.MarkupLine($"[green]Fetch complete:[/] {OutputDir}");
       return 0;
     }

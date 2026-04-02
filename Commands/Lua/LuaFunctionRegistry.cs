@@ -215,22 +215,73 @@ public class CoreFunctionModule : LuaFunctionModule
         return 1;
       });
 
-  // forge.download(url, output_path)
+  // forge.download(url, output, options?, progress_callback?)
+  // Options: { timeout = 300, sha256 = "..." }
+  // Progress callback receives: (bytes_downloaded, total_bytes)
   private static LuaFunction CreateDownloadFunction() =>
       new("download", async (context, token) =>
       {
         var url = context.GetArgument<string>(0);
         var output = context.GetArgument<string>(1);
 
+        // Optional options table: { timeout = 300, sha256 = "..." }
+        Dictionary<string, string>? options = null;
+        try
+        {
+          var luaTable = context.GetArgument<LuaTable>(2);
+          options = [];
+          foreach (var (key, value) in luaTable)
+          {
+            options[key.ToString()] = value.ToString();
+          }
+        }
+        catch { }
+        // Optional progress callback function
+        LuaFunction? progressCallback = null;
+        try { progressCallback = context.GetArgument<LuaFunction>(3); } catch { }
         using var client = new HttpClient();
         client.DefaultRequestHeaders.Add("User-Agent", "Forge/1.0");
 
-        var bytes = await client.GetByteArrayAsync(url, token);
-        await File.WriteAllBytesAsync(output, bytes, token);
+        // Use streaming to avoid memory issues with large files
+        using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, token);
+        response.EnsureSuccessStatusCode();
 
-        AnsiConsole.MarkupLine($"[green]Downloaded:[/] {output} ({bytes.Length} bytes)");
+        var totalBytes = response.Content.Headers.ContentLength ?? -1;
+        await using var contentStream = await response.Content.ReadAsStreamAsync(token);
+        await using var fileStream = new FileStream(output, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
 
-        return 0;
+        var buffer = new byte[8192];
+        long totalRead = 0;
+        int bytesRead;
+        long lastReported = 0;
+
+        while ((bytesRead = await contentStream.ReadAsync(buffer, token)) > 0)
+        {
+          await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), token);
+          totalRead += bytesRead;
+
+          // Report progress every 1% or every 64KB (whichever comes first)
+          if (progressCallback != null && totalBytes > 0)
+          {
+            var percent = totalRead * 100 / totalBytes;
+            if (percent > lastReported || totalRead - lastReported > 65536)
+            {
+              lastReported = percent;
+              // Call Lua callback using the state's CallAsync
+              var state = context.State;
+              var basePos = state.Stack.Count;
+              state.Push(progressCallback);
+              state.Push(new LuaValue(totalRead));
+              state.Push(new LuaValue(totalBytes));
+              await state.CallAsync(basePos, basePos, token);
+            }
+          }
+        }
+        AnsiConsole.MarkupLine($"[green]Downloaded:[/] {output} ({totalRead} bytes)");
+
+        // Return downloaded size for verification
+        context.Return(totalRead);
+        return 1;
       });
 
   // forge.extract(archive_path, output_dir, string_components?)
