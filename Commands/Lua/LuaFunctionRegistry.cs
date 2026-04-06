@@ -145,7 +145,7 @@ public class CoreFunctionModule : LuaFunctionModule
 
       ProjectBuildManager.CustomCmakeSnippets.Add(cmakeSnippet);
 
-      AnsiConsole.MarkupLine($"[green]Added custome CMake snippet[/]");
+      AnsiConsole.MarkupLine($"[green]Added custom CMake snippet[/]");
 
       return ValueTask.FromResult(0);
     });

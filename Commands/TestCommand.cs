@@ -33,7 +33,7 @@ namespace forge.Commands
     /// <value>
     /// The name of a Google Test suite. When provided, runs only tests in that suite.
     /// </value>
-    [CliArgument(Description = "Optional: Name of the test suite to run (e.g., MyTestSuite).")]
+    [CliArgument(Description = "Optional: Name of the test suite to run (e.g., MyTestSuite).", Required = false)]
     public string? TestSuiteName { get; set; }
 
     /// <summary>
@@ -42,7 +42,7 @@ namespace forge.Commands
     /// <value>
     /// A Google Test filter string (e.g., "TestSuite.TestName" or "TestSuite.*").
     /// </value>
-    [CliOption(Description = "Filter tests to run (e.g., MyTestSuite.TestName or MyTestSuite.*).")]
+    [CliOption(Description = "Filter tests to run (e.g., MyTestSuite.TestName or MyTestSuite.*).", Required = false)]
     public string? Filter { get; set; }
 
     /// <summary>
