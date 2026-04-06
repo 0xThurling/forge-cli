@@ -117,7 +117,7 @@ namespace forge.Commands
           // Needs to run synchronously
           Task.Run(() => LuaBuilder.RunBuilderScripts()).Wait();
 
-          var cmakeContent = CMakeRegistry.Instance.Generate(projectConfig, Standard);
+          var cmakeContent = CMakeRegistry.Instance.Generate(projectConfig);
 
           ProjectBuildManager.CustomCmakeSnippets.Clear();
 
