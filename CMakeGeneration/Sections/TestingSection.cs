@@ -32,7 +32,7 @@ file(GLOB_RECURSE TEST_SOURCES ""${{PROJECT_SOURCE_DIR}}/test/*.cpp"")
 
 # Build list of sources WITHOUT src/main.cpp (to avoid multiple main)
 file(GLOB_RECURSE APP_SOURCES ""${{PROJECT_SOURCE_DIR}}/src/*.cpp"")
-list(FILTER APP_SOURCES EXCLUDE REGEX "".* main\\.cpp$"")
+list(FILTER APP_SOURCES EXCLUDE REGEX "".*main\\.cpp$"")
 
 add_executable(run_tests ${{TEST_SOURCES}} ${{APP_SOURCES}})
 target_include_directories(run_tests PRIVATE 
