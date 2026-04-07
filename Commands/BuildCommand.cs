@@ -3,6 +3,7 @@ using System.Text;
 using DotMake.CommandLine;
 using forge.CMakeGeneration;
 using forge.Commands.Lua;
+using forge.ForgeEngine.CoreUtils;
 using forge.Models;
 using Spectre.Console;
 using InstallCommand = forge.Commands.Conan.InstallCommand;
@@ -98,6 +99,11 @@ namespace forge.Commands
 
         // Refresh config to get the googletest dependency
         projectConfig = await ProjectConfigManager.LoadConfigAsync();
+      }
+
+      if (projectConfig?.Project.Type == "library" && projectConfig.Project.InstallHeaders)
+      {
+        CoreUtils.GenerateLibraryHeaders();
       }
 
       AnsiConsole.Status().AutoRefresh(!Verbose).Start("Building Project...", _ =>

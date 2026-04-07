@@ -88,8 +88,8 @@ namespace forge.Commands
         }
 
         // Create package.toml
-        var installHeaders = Type == "library" ? "install_headers = true," : ""; 
-        var forgeLuaContent = 
+        var installHeaders = Type == "library" ? "install_headers = true," : "";
+        var forgeLuaContent =
 @$"return {{
   project = {{
     name = ""{projectName}"",
