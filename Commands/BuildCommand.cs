@@ -81,6 +81,9 @@ namespace forge.Commands
         }
       }
 
+      // Needs to run synchronously
+      Task.Run(() => LuaBuilder.RunBuilderScripts()).Wait();
+
       var installPackages = new InstallCommand();
       if (await installPackages.RunAsync() != 0)
       {
@@ -120,9 +123,6 @@ namespace forge.Commands
           {
             Utils.GenerateResourceFiles(projectConfig!.Resources.Files);
           }
-
-          // Needs to run synchronously
-          Task.Run(() => LuaBuilder.RunBuilderScripts()).Wait();
 
           var cmakeContent = CMakeRegistry.Instance.Generate(projectConfig);
 

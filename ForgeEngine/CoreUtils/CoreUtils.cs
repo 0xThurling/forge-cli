@@ -88,49 +88,85 @@ public static partial class CoreUtils
   /// <param name="pass">Optional sudo password.</param>
   public static void InstallPackages(bool hasPass, string packageManager, List<string> packages, string? pass = null)
   {
-    string command =
-      packageManager switch
-      {
-        "brew" or "winget" or "apt-get" or "choco" => " install ",
-        "pacman" => " -S ",
-        _ => " "
-      } +
-      $"{string.Join(" ", packages)}" +
-      packageManager switch
-      {
-        "pacman" => " --noconfirm ",
-        _ => string.Empty
-      };
-
-
-    var installationProcess = new ProcessStartInfo();
-    if (hasPass && packageManager switch { "brew" or "apt-get" or "pacman" => true, _ => false })
+    // Build the command based on package manager
+    string commandArgs = packageManager switch
     {
-      installationProcess = new ProcessStartInfo("sudo", $"-S {packageManager} {command}")
+      "brew" or "winget" or "apt-get" or "choco" => $"install {string.Join(" ", packages)}",
+      "pacman" => $"-S {string.Join(" ", packages)} --noconfirm",
+      _ => string.Join(" ", packages)
+    };
+    AnsiConsole.MarkupLineInterpolated($"[cyan]Package Manager:[/] {packageManager}");
+    AnsiConsole.MarkupLineInterpolated($"[cyan]Packages:[/] {string.Join(", ", packages)}");
+    AnsiConsole.MarkupLineInterpolated($"[cyan]Requires sudo:[/] {hasPass}");
+    var startInfo = new ProcessStartInfo
+    {
+      UseShellExecute = false,
+      RedirectStandardOutput = true,
+      RedirectStandardError = true,
+      CreateNoWindow = true,
+    };
+    // Determine if we need sudo
+    bool needsSudo = hasPass && packageManager switch { "brew" or "apt-get" or "pacman" => true, _ => false };
+
+    if (needsSudo)
+    {
+      startInfo.FileName = "sudo";
+      startInfo.Arguments = packageManager == "pacman"
+        ? $"-S {commandArgs}"
+        : $"-S {packageManager} {commandArgs}";
+
+      if (!string.IsNullOrEmpty(pass))
       {
-        UseShellExecute = false,
-        RedirectStandardOutput = true,
-        RedirectStandardError = true,
-        CreateNoWindow = true,
-      };
+        startInfo.RedirectStandardInput = true;
+      }
     }
     else
     {
-      installationProcess = new ProcessStartInfo($"{packageManager}", $"{command}")
-      {
-        UseShellExecute = false,
-        RedirectStandardOutput = true,
-        RedirectStandardError = true,
-        CreateNoWindow = true,
-      };
+      startInfo.FileName = packageManager;
+      startInfo.Arguments = commandArgs;
     }
-
-    using var process = Process.Start(installationProcess) ??
-      throw new Exception("Failed to start CMake process.");
-
-    AnsiConsole.WriteLine("Installing packages...");
-
+    AnsiConsole.MarkupLine("[yellow]Executing:[/] " + (needsSudo ? "sudo " : "") +
+      (packageManager == "pacman" ? $"pacman {commandArgs}" : $"{packageManager} {commandArgs}"));
+    using var process = Process.Start(startInfo) ??
+      throw new Exception("Failed to start package manager process.");
+    // Read output streams to prevent blocking
+    var outputTask = process.StandardOutput.ReadToEndAsync();
+    var errorTask = process.StandardError.ReadToEndAsync();
+    // If password required, send it
+    if (needsSudo && !string.IsNullOrEmpty(pass))
+    {
+      process.StandardInput.WriteLine(pass);
+      process.StandardInput.Close();
+    }
     process.WaitForExit();
+    string output = outputTask.Result;
+    string error = errorTask.Result;
+    // Log results
+    if (!string.IsNullOrWhiteSpace(output))
+    {
+      AnsiConsole.MarkupLine("[dim]STDOUT:[/]");
+      foreach (var line in output.Split('\n').Where(l => !string.IsNullOrWhiteSpace(l)))
+      {
+        AnsiConsole.MarkupLineInterpolated($"  [dim]{line}[/]");
+      }
+    }
+    if (!string.IsNullOrWhiteSpace(error))
+    {
+      AnsiConsole.MarkupLine("[red]STDERR:[/]");
+      foreach (var line in error.Split('\n').Where(l => !string.IsNullOrWhiteSpace(l)))
+      {
+        AnsiConsole.MarkupLineInterpolated($"  [red]{line}[/]");
+      }
+    }
+    if (process.ExitCode == 0)
+    {
+      AnsiConsole.MarkupLine("[green]✓ Packages installed successfully[/]");
+    }
+    else
+    {
+      AnsiConsole.MarkupLineInterpolated($"[bold red]✗ Package installation failed (exit code: {process.ExitCode})[/]");
+      throw new Exception($"Package installation failed: {error}");
+    }
   }
 
   public static void GenerateLibraryHeaders()
