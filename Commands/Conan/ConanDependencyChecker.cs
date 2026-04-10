@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
 using forge.Models;
 using Spectre.Console;
@@ -10,13 +11,13 @@ public class ConanDependencyChecker
   /// <summary>
   ///  Gets transitive dependencies for a conan package by running `conan graph info`
   /// </summary>
-  public async Task<List<string>> GetTransitiveDependenciesAsync(string package)
+  public async Task<List<string>> GetTransitiveDependenciesAsync(string package, string conanfilePath)
   {
     var deps = new List<string>();
 
     try
     {
-      var processInfo = new ProcessStartInfo("conan", $"graph info --requires={package} --format=json")
+      var processInfo = new ProcessStartInfo("conan", $"graph info {conanfilePath} --format=json")
       {
         UseShellExecute = false,
         RedirectStandardOutput = true,
@@ -36,17 +37,18 @@ public class ConanDependencyChecker
         using var doc = JsonDocument.Parse(output);
         var root = doc.RootElement;
 
-        // Navigate to the requires section
-        if (root.TryGetProperty("graph", out var graph) && graph.TryGetProperty("requires", out var requires))
+        // Navigate to the nodes section (Conan 2.x format)
+        if (root.TryGetProperty("graph", out var graph) && graph.TryGetProperty("nodes", out var nodes))
         {
-          foreach (var req in requires.EnumerateArray())
+          foreach (var node in nodes.EnumerateObject())
           {
-            if (req.TryGetProperty("ref", out var refProp))
+            if (node.Value.TryGetProperty("ref", out var refProp))
             {
               var refValue = refProp.GetString();
-              if (!string.IsNullOrEmpty(refValue))
+              if (!string.IsNullOrEmpty(refValue) && refValue.Contains('/'))
               {
-                var packageName = refValue.Split('/').First();
+                // Extract package name (before the /)
+                var packageName = refValue.Split('/')[0];
                 deps.Add(packageName);
               }
             }
@@ -70,16 +72,40 @@ public class ConanDependencyChecker
     var gitDeps = config.Dependencies.Keys.ToHashSet();
     var warnings = new List<string>();
 
-    foreach (var conanDep in config.ConanDependencies.Keys)
+    try
     {
-      var transitiveDeps = await GetTransitiveDependenciesAsync(conanDep);
-
-      foreach (var transDep in transitiveDeps)
+      // Check each conan dependency separately
+      foreach (var conanDep in config.ConanDependencies.Keys)
       {
-        if (gitDeps.Contains(transDep))
+        var version = config.ConanDependencies[conanDep];
+        
+        // Generate a conanfile.txt with just this one dependency
+        var conanfile = new StringBuilder();
+        conanfile.AppendLine("[requires]");
+        conanfile.AppendLine($"{conanDep}/{version}");
+        conanfile.AppendLine("\n[generators]\nCMakeDeps\nCMakeToolchain\n\n[layout]\ncmake_layout");
+
+        var conanfilePath = Path.Combine(Path.GetTempPath(), "forge_doctor_conanfile.txt");
+        await File.WriteAllTextAsync(conanfilePath, conanfile.ToString());
+
+        var transitiveDeps = await GetTransitiveDependenciesAsync($"{conanDep}/{version}", conanfilePath);
+
+        foreach (var transDep in transitiveDeps)
         {
-          warnings.Add($"'{conanDep}' (Conan) pulls in '{transDep}' transitively, but you also have it as a git dependency.");
+          if (gitDeps.Contains(transDep))
+          {
+            warnings.Add($"'{conanDep}' (Conan) pulls in '{transDep}' transitively, but you also have it as a git dependency.");
+          }
         }
+      }
+    }
+    finally
+    {
+      // Clean up temp file
+      var conanfilePath = Path.Combine(Path.GetTempPath(), "forge_doctor_conanfile.txt");
+      if (File.Exists(conanfilePath))
+      {
+        File.Delete(conanfilePath);
       }
     }
 

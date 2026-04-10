@@ -20,7 +20,7 @@ public class DownloadCommand
   [CliOption(Description = "Timeout in seconds (default: 300)")]
   public int Timeout { get; set; } = 300;
   
-  [CliOption(Description = "Expected SHA256 hash for verification")]
+  [CliOption(Description = "Expected SHA256 hash for verification", Required = false)]
   public string? Sha256 { get; set; }
  
   [CliOption(Description = "Show progress bar")]
