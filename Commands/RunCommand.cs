@@ -64,14 +64,12 @@ namespace forge.Commands
           var processStartInfo = new ProcessStartInfo("bash", $"-c \"{scriptCommand}\"")
           {
             UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
+            RedirectStandardOutput = false,
+            RedirectStandardError = false,
             CreateNoWindow = true,
           };
 
           using var process = Process.Start(processStartInfo) ?? throw new Exception("Failed to start script process.");
-          process.StandardOutput.ReadToEnd();
-          process.StandardError.ReadToEnd();
           process.WaitForExit();
           return process.ExitCode;
         }

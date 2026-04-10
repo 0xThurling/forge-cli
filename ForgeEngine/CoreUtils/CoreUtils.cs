@@ -1,16 +1,32 @@
 ﻿using System.Diagnostics;
 using System.Text;
+using System.Text.RegularExpressions;
 using Spectre.Console;
 
 namespace forge.ForgeEngine.CoreUtils;
 
 public static partial class CoreUtils
 {
-  [System.Text.RegularExpressions.GeneratedRegex(@"\b_\w+\s*\(")]
-  private static partial System.Text.RegularExpressions.Regex HiddenFunctions();
+  [GeneratedRegex(@"namespace\s+(\w+)\s*\{")]
+  private static partial Regex NamespacePattern();
 
-  [System.Text.RegularExpressions.GeneratedRegex(@"namespace\s+(\w+)\s*\{")]
-  private static partial System.Text.RegularExpressions.Regex NamespaceGlobal();
+  [GeneratedRegex(@"/\*[\s\S]*?\*/")]
+  private static partial Regex BlockCommentsPatterns();
+
+  [GeneratedRegex(@"//.*$", RegexOptions.Multiline)]
+  private static partial Regex LineCommentsPattern();
+
+  [GeneratedRegex(@"\b_impl\b")]
+  private static partial Regex ImplFunctionPattern();
+
+  [GeneratedRegex(@"^namespace\s+detail\b")]
+  private static partial Regex DetailNamespacePattern();
+
+  [GeneratedRegex(@"#include\s+""([^""]+)""")]
+  private static partial Regex LocalIncludesPattern();
+
+  [GeneratedRegex(@"#include\s+<([^>]+)>")]
+  private static partial Regex SystemIncludesPattern();
 
   /// <summary>
   /// Detects the current Linux distribution from /etc/os-release.
@@ -173,73 +189,61 @@ public static partial class CoreUtils
   {
     var srcDir = "src";
     var includeDir = "include";
-
     if (!Directory.Exists(srcDir))
     {
-      AnsiConsole.MarkupLineInterpolated($"[bold yellow]Warning:[/] src/ directory not found. Skipping header generation.");
+      AnsiConsole.MarkupLine($"[bold yellow]Warning:[/] src/ directory not found. Skipping header generation.");
       return;
     }
-
     Directory.CreateDirectory(includeDir);
-
     var cppFiles = Directory.GetFiles(srcDir, "*.cpp");
 
     if (cppFiles.Length == 0)
     {
-      AnsiConsole.MarkupLineInterpolated($"[bold yellow]Warning:[/] No .cpp files found in src/. Skipping header generation.");
+      AnsiConsole.MarkupLine($"[bold yellow]Warning:[/] No .cpp files found in src/. Skipping header generation.");
       return;
     }
-
-    AnsiConsole.MarkupLine("[cyan] Generating library headers [/]");
-
+    AnsiConsole.MarkupLine("[cyan]--- Generating library headers ---[/]");
     foreach (var cppFile in cppFiles)
     {
       var fileName = Path.GetFileNameWithoutExtension(cppFile);
       var headerFileName = $"{fileName}.hpp";
       var headerPath = Path.Combine(includeDir, headerFileName);
-
       var content = File.ReadAllText(cppFile);
-      var declarations = ExtractDeclarations(content);
 
+      // Skip if manual header exists
+      if (File.Exists(headerPath))
+      {
+        AnsiConsole.MarkupLine($"[dim]Skipping {headerPath} - manual header exists[/]");
+        continue;
+      }
+      var declarations = ExtractDeclarations(content);
+      var includes = ExtractIncludes(content);
+      var namespaceInfo = ExtractNamespace(content);
       if (declarations.Count > 0)
       {
         var headerContent = new StringBuilder();
-        headerContent.AppendLine($"#pragma once");
+        headerContent.AppendLine("#pragma once");
         headerContent.AppendLine();
-        headerContent.AppendLine("// Auto Generated from src/{fileName}.cpp");
-        headerContent.AppendLine("// Warning: Manual edits may be overwritten");
+        headerContent.AppendLine($"// Auto-generated from src/{fileName}.cpp");
+        headerContent.AppendLine("// WARNING: Manual edits may be overwritten");
         headerContent.AppendLine();
-
-        var includes = ExtractIncludes(content);
-        foreach (var inc in includes)
-        {
+        foreach (var inc in includes.Distinct().OrderBy(i => i))
           headerContent.AppendLine(inc);
-        }
 
         if (includes.Count > 0)
+          headerContent.AppendLine();
+        if (!string.IsNullOrEmpty(namespaceInfo))
         {
+          headerContent.AppendLine($"namespace {namespaceInfo} {{");
           headerContent.AppendLine();
         }
-
-        var namespaceMatch = NamespaceGlobal().Match(content);
-        if (namespaceMatch.Success)
-        {
-          var ns = namespaceMatch.Groups[1].Value;
-          headerContent.AppendLine($"namespace {ns} {{");
-          headerContent.AppendLine();
-        }
-
         foreach (var decl in declarations)
-        {
           headerContent.AppendLine(decl);
-        }
-
-        if (namespaceMatch.Success)
+        if (!string.IsNullOrEmpty(namespaceInfo))
         {
           headerContent.AppendLine();
           headerContent.AppendLine("}");
         }
-
         File.WriteAllText(headerPath, headerContent.ToString());
         AnsiConsole.MarkupLine($"[green]Generated:[/] {headerPath}");
       }
@@ -248,68 +252,412 @@ public static partial class CoreUtils
         AnsiConsole.MarkupLine($"[yellow]Warning:[/] No declarations found in {fileName}.cpp. Skipping.");
       }
     }
-
     AnsiConsole.MarkupLine($"[bold green]Header generation complete. Found {cppFiles.Length} source file(s).[/]");
+  }
+
+  private static string ExtractNamespace(string source)
+  {
+    source = BlockCommentsPatterns().Replace(source, "");
+    source = LineCommentsPattern().Replace(source, "");
+    var match = NamespacePattern().Match(source);
+    return match.Success ? match.Groups[1].Value : "";
   }
 
   private static List<string> ExtractIncludes(string source)
   {
     var includes = new List<string>();
-    var pattern = @"#include\s+[<""]([^>""]+)[>""]";
 
-    var matches = System.Text.RegularExpressions.Regex.Matches(source, pattern);
-    foreach (System.Text.RegularExpressions.Match match in matches)
+    foreach (Match match in SystemIncludesPattern().Matches(source))
     {
-      includes.Add(match.Value);
+      var header = match.Groups[1].Value;
+      if (IsStandardHeader(header))
+        includes.Add(match.Value);
+    }
+
+    foreach (Match match in LocalIncludesPattern().Matches(source))
+    {
+      var header = match.Groups[1].Value;
+      if (!header.EndsWith(".cpp") && !header.Contains("_impl"))
+        includes.Add(match.Value);
     }
 
     return includes;
+  }
+
+  private static bool IsStandardHeader(string header)
+  {
+    var standardHeaders = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+      "string", "vector", "map", "set", "unordered_map", "unordered_set",
+      "list", "deque", "array", "tuple", "optional", "variant", "any",
+      "memory", "memory_resource", "functional", "algorithm", "chrono",
+      "cstdint", "cstddef", "cstring", "cstdlib", "cmath", "complex",
+      "iostream", "fstream", "sstream", "regex", "thread", "mutex",
+      "atomic", "future", "promise", "condition_variable",
+      "type_traits", "typeindex", "typeinfo",
+      "initializer_list", "compare", "concepts",
+      "coroutine", "stop_token", "semaphore", "latch", "barrier",
+      "new", "typeinfo", "exception", "stdexcept", "system_error",
+      "cassert", "cstdio", "ctime", "climits", "cfloat",
+      "filesystem", "codecvt", "locale", "wchar.h", "uchar.h",
+      "fmt/core.h", "fmt/format.h", "fmt/ostream.h", "fmt/ranges.h",
+      "spdlog/spdlog.h", "spdlog/common.h", "spdlog/sinks/stdout_color_sinks.h",
+      "gtest/gtest.h", "gmock/gmock.h",
+      "nlohmann/json.hpp", "json/json.hpp",
+      "boost/any.hpp", "boost/variant.hpp",
+      "sqlite3.h", "yaml-cpp/yaml.h",
+      "openssl/sha.h", "openssl/rsa.h",
+      "windows.h", "winsock2.h", "ws2tcpip.h",
+    };
+    
+    return standardHeaders.Contains(header) || header.StartsWith("std::") || header.Contains('/');
   }
 
   private static List<string> ExtractDeclarations(string source)
   {
     var declarations = new List<string>();
 
-    var funcPattern = @"^\s*(\w+[\s\*&]+)+(\w+)\s*\(([^)]*)\)\s*;";
+    // Remove comments
+    source = BlockCommentsPatterns().Replace(source, "");
+    source = LineCommentsPattern().Replace(source, "");
 
+    // Extract various complex declarations
+    ExtractTemplateFunctions(source, declarations);
+    ExtractFunctionPointers(source, declarations);
+    ExtractTrailingReturnTypes(source, declarations);
+    ExtractMemberPointers(source, declarations);
+    ExtractSimpleFunctions(source, declarations);
+    ExtractConcepts(source, declarations);
+    ExtractOperators(source, declarations);
+    ExtractUsingDeclarations(source, declarations);
+    ExtractTypeAliases(source, declarations);
+
+    // Remove duplicates and filter
+    declarations = [.. declarations.Distinct()];
+    declarations = [.. declarations.Where(d =>
+      !ImplFunctionPattern().IsMatch(d) &&
+      !DetailNamespacePattern().IsMatch(d)
+    )];
+
+    // Sort by: Templates, then by complexity
+    return [.. declarations.OrderByDescending(d => d.Contains("template"))
+      .ThenBy(d => d.Contains("auto"))
+      .ThenBy(d => d.Length)];
+  }
+
+  private static void ExtractTypeAliases(string source, List<string> declarations)
+  {
+    var patterns = new[]
+    {
+      @"template\s*<\s*typename\s+(\w+)\s*>\s*using\s+(\w+)\s*=\s*([^;]+);",
+      @"using\s+(\w+)\s*=\s*(?:typename\s+)?([^{;]+);",
+      @"using\s+(\w+)\s*=\s*([\w:]+[\s\*&]+);",
+    };
+    foreach (var pattern in patterns)
+    {
+      foreach (Match match in Regex.Matches(source, pattern, RegexOptions.Multiline))
+      {
+        var decl = match.Value.Trim();
+        if (!decl.Contains("_impl") && !decl.Contains("detail::"))
+          if (!declarations.Contains(decl))
+            declarations.Add(decl);
+      }
+    }
+  }
+
+  private static void ExtractUsingDeclarations(string source, List<string> declarations)
+  {
+    var patterns = new[]
+    {
+      @"using\s+(\w+)\s*=\s*([^;]+);",
+      @"using\s+enum\s+(\w+)\s*;",
+      @"using\s+(\w+)::(\w+)\s*;",
+    };
+    foreach (var pattern in patterns)
+    {
+      foreach (Match match in Regex.Matches(source, pattern, RegexOptions.Multiline))
+      {
+        var decl = match.Value.Trim();
+        if (!declarations.Contains(decl))
+          declarations.Add(decl);
+      }
+    }
+  }
+
+  private static void ExtractOperators(string source, List<string> declarations)
+  {
+    var patterns = new[]
+    {
+      @"operator\s*([+\-*/%^&|<<>>]=?|&&|\|\||==|!=|<=|>=|<=>|<\s*|>\s*)\s*\(([^)]*)\)\s*(?:const)?\s*;",
+      @"operator\s*(?:++|--|\+|!|~|&\s*|\*\s*)\s*\(\s*\)\s*(?:const)?\s*;",
+      @"operator\s*\[\s*\]\s*\(([^)]*)\)\s*(?:const)?\s*;",
+      @"operator\s*\(\s*\)\s*\(([^)]*)\)\s*(?:const)?\s*;",
+      @"operator\s+(?:[\w:]+[\s\*&<>]*)\s*\(\s*\)\s*(?:const)?\s*(?:noexcept)?\s*;",
+      @"operator\s*=\s*\(([^)]*)\)\s*(?:const)?\s*;",
+      @"operator\s*<=>\s*\(([^)]*)\)\s*(?:const)?\s*;",
+    };
+
+    foreach (var pattern in patterns)
+    {
+      foreach (Match match in Regex.Matches(source, pattern, RegexOptions.Multiline))
+      {
+        var decl = match.Value.Trim();
+        if (!declarations.Contains(decl))
+          declarations.Add(decl);
+      }
+    }
+  }
+
+  private static void ExtractConcepts(string source, List<string> declarations)
+  {
+    var patterns = new[]
+    {
+      @"template\s*<\s*typename\s+(\w+)\s*>\s*concept\s+(\w+)\s*=\s*([^;]+);",
+      @"template\s*<\s*typename\s+(\w+)\s*>\s*concept\s+(\w+)\s*requires\s+([^;]+);",
+      @"template\s*<\s*typename\s+(\w+)\s*,\s*typename\s+(\w+)\s*>\s*concept\s+(\w+)\s*=\s*([^;]+);",
+    };
+    foreach (var pattern in patterns)
+    {
+      foreach (Match match in Regex.Matches(source, pattern, RegexOptions.Multiline))
+      {
+        var decl = FormatConcept(match);
+        if (!string.IsNullOrEmpty(decl) && !declarations.Contains(decl))
+          declarations.Add(decl);
+      }
+    }
+  }
+
+  private static void ExtractSimpleFunctions(string source, List<string> declarations)
+  {
     var lines = source.Split('\n');
 
     foreach (var line in lines)
     {
-      if (line.Contains('{')) continue;
+      var trimmed = line.Trim();
 
-      var match = System.Text.RegularExpressions.Regex.Match(line, funcPattern);
-      if (match.Success)
+      if (trimmed.Contains('{') && !trimmed.EndsWith(';')) continue;
+      if (!trimmed.EndsWith(';')) continue;
+
+      var patterns = new[]
       {
-        var declaration = line.Trim();
+        @"(?:\[\[[^\]]+\]\]\s*)*(?:\w+\s+)*(\w+[\s\*&<>]+)(\w+)\s*\(([^)]*)\)\s*(?:const)?\s*(?:noexcept)?\s*(?:constexpr)?\s*(?:final)?\s*(?:override)?\s*;",
+        @"virtual\s+(?:[\w:]+[\s\*&<>]*)(\w+)\s*\(([^)]*)\)\s*(?:const)?\s*(?:noexcept)?\s*(?:override)?\s*;",
+        @"virtual\s+(?:[\w:]+[\s\*&<>]*)(\w+)\s*\(([^)]*)\)\s*=\s*0\s*;",
+        @"static\s+(?:[\w:]+[\s\*&<>]*)(\w+)\s*\(([^)]*)\)\s*(?:const)?\s*(?:noexcept)?\s*;",
+        @"explicit\s+(\w+)\s*\(([^)]*)\)\s*(?:noexcept)?\s*;",
+        @"virtual?\s*~(\w+)\s*\(\s*\)\s*(?:noexcept)?\s*(?:override)?\s*;",
+        @"(\w+)\s*\((?:\w+[\s\*&<>]*\s+)?(?:const\s+)?(\w+)[\s&]*\)\s*(?:noexcept)?\s*;",
+        @"(\w+)\s*\((?:\w+[\s\*&<>]*\s+)?(\w+&&)\)\s*(?:noexcept)?\s*;",
+        @"operator\s+(?:[\w:]+[\s\*&<>]*)\s*\(([^)]*)\)\s*(?:const)?\s*(?:noexcept)?\s*(?:override)?\s*;",
+        @"operator\s+(?:[\w:]+[\s\*&<>]*)\s*\(\s*\)\s*(?:const)?\s*(?:noexcept)?\s*;",
+      };
 
-        if (HiddenFunctions().IsMatch(declaration))
+      foreach (var pattern in patterns)
+      {
+        var match = Regex.Match(trimmed, pattern);
+        if (match.Success)
         {
-          declarations.Add(declaration);
+          var decl = FormatSimpleDeclaration(match, pattern);
+          if (!string.IsNullOrEmpty(decl) && !declarations.Contains(decl))
+          {
+            declarations.Add(decl);
+            break;
+          }
         }
       }
     }
+  }
 
-    var defPattern = @"^\s*(\w+[\s\*&]+)+(\w+)\s*\(([^)]*)\)\s*\{";
-    foreach (var line in lines)
+  private static void ExtractMemberPointers(string source, List<string> declarations)
+  {
+    var patterns = new[]
     {
-      var match = System.Text.RegularExpressions.Regex.Match(line, defPattern);
-      if (match.Success)
+      @"([\w:]+[\s\*&<>]*)\s*\((\w+)::\*\s*(\w+)\s*\)\s*\(([^)]*)\)",
+      @"([\w:]+[\s\*&<>]*)\s*\((\w+)::\*\s*(\w+)\s*\)\s*const\s*\(([^)]*)\)",
+      @"([\w:]+[\s\*&<>]*)\s*(\w+)::\*\s*(\w+)",
+      @"template\s*<([^>]+)>\s*([\w:]+[\s\*&<>]*)\s*\((\w+)::\*\s*(\w+)\s*\)\s*\(([^)]*)\)",
+    };
+    foreach (var pattern in patterns)
+    {
+      foreach (Match match in Regex.Matches(source, pattern, RegexOptions.Multiline))
       {
-        // Extract function signature and convert to declaration
-        var returnType = match.Groups[1].Value.Trim();
-        var funcName = match.Groups[2].Value;
-        var args = match.Groups[3].Value;
-
-        var declaration = $"{returnType} {funcName}({args});";
-
-        // Check if we already have this declaration
-        if (!declarations.Contains(declaration) && !declaration.Contains("::"))
-        {
-          declarations.Add(declaration);
-        }
+        var decl = FormatMemberPointer(match);
+        if (!string.IsNullOrEmpty(decl) && !declarations.Contains(decl))
+          declarations.Add(decl);
       }
     }
-    return declarations;
+  }
+
+  private static void ExtractTrailingReturnTypes(string source, List<string> declarations)
+  {
+    var patterns = new[]
+    {
+      @"(?:constexpr|inline|static)?\s*auto\s+(\w+)\s*\(([^)]*)\)\s*->\s*([^{]+)",
+      @"decltype\s*\(\s*auto\s*\)\s+(\w+)\s*\(([^)]*)\)",
+      @"auto\s*\*\s*(\w+)\s*\(([^)]*)\)\s*->\s*([\w:]+[\s\*&<>]*)",
+      @"auto\s*&\s*(\w+)\s*\(([^)]*)\)\s*->\s*([\w:]+[\s\*&<>]*)",
+      @"auto\s*&&\s*(\w+)\s*\(([^)]*)\)\s*->\s*([\w:]+[\s\*&<>]*)",
+      @"(\w+)\s*\(([^)]*)\)\s*->\s*auto(?:\s*const)?(?:\s*noexcept)?",
+    };
+
+    foreach (var pattern in patterns)
+    {
+      foreach (Match match in Regex.Matches(source, pattern, RegexOptions.Multiline))
+      {
+        var decl = FormatTrailingReturn(match);
+        if (!string.IsNullOrEmpty(decl) && !declarations.Contains(decl))
+          declarations.Add(decl);
+      }
+    }
+  }
+
+  private static void ExtractFunctionPointers(string source, List<string> declarations)
+  {
+    var patterns = new[]
+    {
+      @"([\w:]+[\s\*&<>]*)\s*\(?\*\s*(\w+)\s*\)\s*\(([^)]*)\)",
+      @"auto\s*\(?\*\s*(\w+)\s*\)\s*\(([^)]*)\)\s*->\s*([\w:]+[\s\*&<>]*)",
+      @"std::function\s*<\s*([\w:]+[\s\*&<>]*)\s*\(([^)]*)\)\s*>",
+      @"using\s+(\w+)\s*=\s*(?:std::)?(?:function|decltype)\s*<\s*([\w:]+[\s\*&<>]*)\s*\(([^)]*)\)\s*>",
+    };
+    foreach (var pattern in patterns)
+    {
+      foreach (Match match in Regex.Matches(source, pattern, RegexOptions.Multiline))
+      {
+        var decl = FormatFunctionPointer(match, pattern);
+        if (!string.IsNullOrEmpty(decl) && !declarations.Contains(decl))
+          declarations.Add(decl);
+      }
+    }
+  }
+
+  private static void ExtractTemplateFunctions(string source, List<string> declarations)
+  {
+    var patterns = new[]
+    {
+      @"template\s*<([^>]+)>\s*(constexpr|consteval|inline|static)?\s*([\w:]+[\s\*&<>]*)\s+(\w+)\s*\(([^)]*)\)(?:\s*const)?(?:\s*noexcept)?(?:\s*->\s*[^{]+)?(?:\s*override)?(?:\s*final)?",
+      @"template\s*<\s*(?:requires\s+)?([^{]+)\s*>\s*(constexpr|inline)?\s*([\w:]+[\s\*&<>]*)\s+(\w+)\s*\(([^)]*)\)",
+      @"template\s*<([^>]+)>\s*([\w:]+[\s\*&<>]*)\s+(\w+)\s*::\s*(\w+)\s*\(([^)]*)\)",
+      @"template\s*<typename\s+(\w+)\s*,\s*\.\.\.(\s*\w+)?>\s*([\w:]+[\s\*&<>]*)\s+(\w+)\s*\(([^)]*)\)",
+      @"template\s*<([^>]+)>\s*requires\s+([^{]+)\s*([\w:]+[\s\*&<>]*)\s+(\w+)\s*\(([^)]*)\)",
+    };
+
+    foreach (var pattern in patterns)
+    {
+      foreach (Match match in Regex.Matches(source, pattern, RegexOptions.Multiline))
+      {
+        var decl = FormatTemplateDeclaration(match);
+        if (!string.IsNullOrEmpty(decl) && !declarations.Contains(decl))
+          declarations.Add(decl);
+      }
+    }
+  }
+
+  private static string? FormatTemplateDeclaration(Match match)
+  {
+    try
+    {
+      if (match.Groups.Count < 4) return null;
+
+      var templateParams = match.Groups[1].Value.Trim();
+      var returnType = match.Groups[^3].Value.Trim();
+      var funcName = match.Groups[^2].Value.Trim();
+      var args = match.Groups[^1].Value.Trim();
+
+      if (string.IsNullOrEmpty(funcName) || funcName.Contains("::")) return null;
+
+      return $"template <{templateParams}> {returnType} {funcName}({args});";
+    }
+    catch { return null; }
+  }
+
+  private static string? FormatFunctionPointer(Match match, string pattern)
+  {
+    try
+    {
+      if (match.Groups.Count < 2) return null;
+      if (pattern.Contains("std::function") || pattern.Contains("using"))
+      {
+        var alias = match.Groups[1].Value.Trim();
+        var ret = match.Groups[2].Value.Trim();
+        var args = match.Groups[3].Value.Trim();
+        return $"using {alias} = std::function<{ret}({args})>;";
+      }
+      else
+      {
+        var returnType = match.Groups[1].Value.Trim();
+        var funcName = match.Groups[2].Value.Trim();
+        var args = match.Groups.Count > 3 ? match.Groups[3].Value.Trim() : "";
+        return $"{returnType} (*{funcName})({args});";
+      }
+    }
+    catch { return null; }
+  }
+
+  private static string? FormatTrailingReturn(Match match)
+  {
+    try
+    {
+      if (match.Groups.Count < 2) return null;
+      var funcName = match.Groups[1].Value.Trim();
+      var args = match.Groups[2].Value.Trim();
+      var returnType = match.Groups.Count > 3 ? match.Groups[3].Value.Trim() : "auto";
+      return $"auto {funcName}({args}) -> {returnType};";
+    }
+    catch { return null; }
+  }
+
+  private static string? FormatMemberPointer(Match match)
+  {
+    try
+    {
+      if (match.Groups.Count < 3) return null;
+      var returnType = match.Groups[1].Value.Trim();
+      var className = match.Groups[2].Value.Trim();
+      var funcName = match.Groups[3].Value.Trim();
+      var args = match.Groups.Count > 4 ? match.Groups[4].Value.Trim() : "";
+      return $"{returnType} ({className}::{funcName})({args});";
+    }
+    catch { return null; }
+  }
+
+  private static string? FormatSimpleDeclaration(Match match, string pattern)
+  {
+    try
+    {
+      if (match.Groups.Count < 2) return null;
+      if (pattern.Contains('=') && pattern.Contains('0'))
+        return $"virtual {match.Groups[1].Value.Trim()} {match.Groups[2].Value.Trim()}({match.Groups[3].Value.Trim()}) = 0;";
+      else if (pattern.Contains("virtual"))
+        return $"virtual {match.Groups[1].Value.Trim()}({match.Groups[2].Value.Trim()});";
+      else if (pattern.Contains("static"))
+        return $"static {match.Groups[1].Value.Trim()}({match.Groups[2].Value.Trim()});";
+      else if (pattern.Contains("operator"))
+        return match.Value.Trim();
+      else if (pattern.Contains('~'))
+        return $"~{match.Groups[1].Value.Trim()}();";
+      else
+      {
+        var ret = match.Groups[1].Value.Trim();
+        var name = match.Groups[2].Value.Trim();
+        var args = match.Groups[3].Value.Trim();
+        if (string.IsNullOrEmpty(ret) || string.IsNullOrEmpty(name)) return null;
+        return $"{ret} {name}({args});";
+      }
+    }
+    catch { return null; }
+  }
+
+  private static string? FormatConcept(Match match)
+  {
+    try
+    {
+      if (match.Groups.Count < 3) return null;
+      var templateParam = match.Groups[1].Value.Trim();
+      var conceptName = match.Groups[2].Value.Trim();
+      var constraint = match.Groups[^1].Value.Trim();
+      return $"template <typename {templateParam}> concept {conceptName} = {constraint};";
+    }
+    catch { return null; }
   }
 }
