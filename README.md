@@ -1,4 +1,4 @@
-# Forge: C++ Project Manager
+# Forge: C++ Project Manager 
 
 `Forge` (C++ Project Manager) is a command-line tool designed to simplify the creation, building, and management of C++ projects using CMake. It provides a streamlined workflow for common development tasks, including project scaffolding, dependency management, and automated code generation.
 
