@@ -26,6 +26,9 @@ namespace forge.Models
     /// </value>
     public string Type { get; set; } = "executable"; // Default to executable
 
+    // Sets the library linking method (static | shared)
+    public string Linkage { get; set; } = "static";
+
     ///
     public string Standard { get; set; } = string.Empty;
 

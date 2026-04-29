@@ -228,15 +228,19 @@ public class LuaConfigLoader
   {
     if (table["name"] != LuaValue.Nil)
     {
-      config.Project.Name = table["name"].ToString();
+      config.Project.Name = table["name"].ToString().ToLower();
     }
     if (table["type"] != LuaValue.Nil)
     {
-      config.Project.Type = table["type"].ToString();
+      config.Project.Type = table["type"].ToString().ToLower();
     }
     if (table["standard"] != LuaValue.Nil)
     {
-      config.Project.Standard = table["standard"].ToString();
+      config.Project.Standard = table["standard"].ToString().ToLower();
+    }
+    if (table["linkage"] != LuaValue.Nil)
+    {
+      config.Project.Linkage = table["linkage"].ToString().ToLower();
     }
     if (table["install_headers"] != LuaValue.Nil)
     {

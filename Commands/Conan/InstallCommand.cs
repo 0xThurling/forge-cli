@@ -27,6 +27,9 @@ namespace forge.Commands.Conan
   [CliCommand(Name = "install", Description = "Generate conanfile and install dependencies", Parent = typeof(RootCommand))]
   public partial class InstallCommand
   {
+    [CliOption(Description = "The Directory to install the project to")]
+    public string? Prefix { get; set; } = null;
+
     /// <summary>
     /// Generates conanfile.txt and runs Conan to install dependencies.
     /// </summary>
@@ -36,6 +39,7 @@ namespace forge.Commands.Conan
       var config = await ProjectConfigManager.LoadConfigAsync();
       if (config == null) return 1;
 
+      if (config.ConanDependencies.Count == 0 && !string.IsNullOrEmpty(Prefix)) return InstallLib();
       if (config.ConanDependencies.Count == 0) return 0;
 
       Directory.CreateDirectory(".config");
@@ -99,6 +103,11 @@ namespace forge.Commands.Conan
           return 1;
         }
 
+        if (!string.IsNullOrEmpty(Prefix))
+        {
+            return InstallLib();
+        }
+
         return process.ExitCode;
       }
       catch (Exception ex)
@@ -134,6 +143,35 @@ namespace forge.Commands.Conan
           }
         }
       }
+    }
+
+    private int InstallLib() {
+        if (!string.IsNullOrEmpty(Prefix))
+        {
+          AnsiConsole.MarkupLine($"[green]Installing Project to: {Prefix}[/]");
+          
+          var installationProcessInfo = new ProcessStartInfo("cmake", $"--install build --prefix {Prefix}")
+          {
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            CreateNoWindow = true
+          };
+
+          using var installationProcess = Process.Start(installationProcessInfo); 
+          installationProcess?.WaitForExit();
+
+          if (installationProcess?.ExitCode != 0)
+          {
+              AnsiConsole.MarkupLine("[bold red]Installation failed.[/]");
+              AnsiConsole.WriteLine(installationProcess?.StandardError.ReadToEnd() ?? "Unknown Error");
+              return 1;
+          }
+
+          AnsiConsole.MarkupLine("[bold green]Installation Successful![/]");
+        }
+
+        return 0;
     }
 
     /// <summary>

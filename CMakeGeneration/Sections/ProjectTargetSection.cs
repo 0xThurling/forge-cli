@@ -22,7 +22,8 @@ public class ProjectTargetSection : CMakeSectionBase
     }
     else if (config.Project.Type == "library")
     {
-      sb.AppendLine($"add_library({config.Project.Name} STATIC ${{SOURCES}})");
+      var linkage = config.Project.Linkage.ToUpper();
+      sb.AppendLine($"add_library({config.Project.Name} {linkage} ${{SOURCES}})");
 
       if (config.Project.InstallHeaders)
       {
