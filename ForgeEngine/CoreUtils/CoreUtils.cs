@@ -195,7 +195,7 @@ public static partial class CoreUtils
       return;
     }
     Directory.CreateDirectory(includeDir);
-    var cppFiles = Directory.GetFiles(srcDir, "*.cpp");
+    var cppFiles = Directory.GetFiles(srcDir, "*.cpp", SearchOption.AllDirectories);
 
     if (cppFiles.Length == 0)
     {
@@ -309,7 +309,7 @@ public static partial class CoreUtils
       "openssl/sha.h", "openssl/rsa.h",
       "windows.h", "winsock2.h", "ws2tcpip.h",
     };
-    
+
     return standardHeaders.Contains(header) || header.StartsWith("std::") || header.Contains('/');
   }
 
@@ -322,15 +322,15 @@ public static partial class CoreUtils
     source = LineCommentsPattern().Replace(source, "");
 
     // Extract various complex declarations
-    ExtractTemplateFunctions(source, declarations);
-    ExtractFunctionPointers(source, declarations);
-    ExtractTrailingReturnTypes(source, declarations);
-    ExtractMemberPointers(source, declarations);
-    ExtractSimpleFunctions(source, declarations);
-    ExtractConcepts(source, declarations);
-    ExtractOperators(source, declarations);
-    ExtractUsingDeclarations(source, declarations);
-    ExtractTypeAliases(source, declarations);
+    ExtractTemplateFunctions(source, ref declarations);
+    ExtractFunctionPointers(source, ref declarations);
+    ExtractTrailingReturnTypes(source, ref declarations);
+    ExtractMemberPointers(source, ref declarations);
+    ExtractSimpleFunctions(source, ref declarations);
+    ExtractConcepts(source, ref declarations);
+    ExtractOperators(source, ref declarations);
+    ExtractUsingDeclarations(source, ref declarations);
+    ExtractTypeAliases(source, ref declarations);
 
     // Remove duplicates and filter
     declarations = [.. declarations.Distinct()];
@@ -345,7 +345,7 @@ public static partial class CoreUtils
       .ThenBy(d => d.Length)];
   }
 
-  private static void ExtractTypeAliases(string source, List<string> declarations)
+  private static void ExtractTypeAliases(string source, ref List<string> declarations)
   {
     var patterns = new[]
     {
@@ -365,7 +365,7 @@ public static partial class CoreUtils
     }
   }
 
-  private static void ExtractUsingDeclarations(string source, List<string> declarations)
+  private static void ExtractUsingDeclarations(string source, ref List<string> declarations)
   {
     var patterns = new[]
     {
@@ -384,12 +384,12 @@ public static partial class CoreUtils
     }
   }
 
-  private static void ExtractOperators(string source, List<string> declarations)
+  private static void ExtractOperators(string source, ref List<string> declarations)
   {
     var patterns = new[]
     {
       @"operator\s*([+\-*/%^&|<<>>]=?|&&|\|\||==|!=|<=|>=|<=>|<\s*|>\s*)\s*\(([^)]*)\)\s*(?:const)?\s*;",
-      @"operator\s*(?:++|--|\+|!|~|&\s*|\*\s*)\s*\(\s*\)\s*(?:const)?\s*;",
+      @"operator\s*(?:\+\+|--|\+|!|~|&\s*|\*\s*)\s*\(\s*\)\s*(?:const)?\s*;",
       @"operator\s*\[\s*\]\s*\(([^)]*)\)\s*(?:const)?\s*;",
       @"operator\s*\(\s*\)\s*\(([^)]*)\)\s*(?:const)?\s*;",
       @"operator\s+(?:[\w:]+[\s\*&<>]*)\s*\(\s*\)\s*(?:const)?\s*(?:noexcept)?\s*;",
@@ -408,7 +408,7 @@ public static partial class CoreUtils
     }
   }
 
-  private static void ExtractConcepts(string source, List<string> declarations)
+  private static void ExtractConcepts(string source, ref List<string> declarations)
   {
     var patterns = new[]
     {
@@ -427,16 +427,31 @@ public static partial class CoreUtils
     }
   }
 
-  private static void ExtractSimpleFunctions(string source, List<string> declarations)
+  private static void ExtractSimpleFunctions(string source, ref List<string> declarations)
   {
     var lines = source.Split('\n');
 
     foreach (var line in lines)
     {
       var trimmed = line.Trim();
-
-      if (trimmed.Contains('{') && !trimmed.EndsWith(';')) continue;
-      if (!trimmed.EndsWith(';')) continue;
+      string? candidate = null;
+      if (trimmed.EndsWith(';'))
+      {
+        candidate = trimmed; // declaration ending with semi-colon
+      }
+      else if (trimmed.Contains('{') && trimmed.Contains('('))
+      {
+        int braceIndex = trimmed.IndexOf('{');
+        candidate = trimmed[..braceIndex].Trim();
+        if (!candidate.EndsWith(';'))
+        {
+          candidate += ";";
+        }
+      }
+      else
+      {
+        continue;
+      }
 
       var patterns = new[]
       {
@@ -454,7 +469,7 @@ public static partial class CoreUtils
 
       foreach (var pattern in patterns)
       {
-        var match = Regex.Match(trimmed, pattern);
+        var match = Regex.Match(candidate, pattern);
         if (match.Success)
         {
           var decl = FormatSimpleDeclaration(match, pattern);
@@ -468,7 +483,7 @@ public static partial class CoreUtils
     }
   }
 
-  private static void ExtractMemberPointers(string source, List<string> declarations)
+  private static void ExtractMemberPointers(string source, ref List<string> declarations)
   {
     var patterns = new[]
     {
@@ -488,7 +503,7 @@ public static partial class CoreUtils
     }
   }
 
-  private static void ExtractTrailingReturnTypes(string source, List<string> declarations)
+  private static void ExtractTrailingReturnTypes(string source, ref List<string> declarations)
   {
     var patterns = new[]
     {
@@ -511,7 +526,7 @@ public static partial class CoreUtils
     }
   }
 
-  private static void ExtractFunctionPointers(string source, List<string> declarations)
+  private static void ExtractFunctionPointers(string source, ref List<string> declarations)
   {
     var patterns = new[]
     {
@@ -531,7 +546,7 @@ public static partial class CoreUtils
     }
   }
 
-  private static void ExtractTemplateFunctions(string source, List<string> declarations)
+  private static void ExtractTemplateFunctions(string source, ref List<string> declarations)
   {
     var patterns = new[]
     {
