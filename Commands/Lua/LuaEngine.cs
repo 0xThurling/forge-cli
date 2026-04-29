@@ -155,7 +155,15 @@ namespace forge.Commands.Lua
       if (parts[0] == "project" && parts.Length > 1)
       {
         if (parts[1] == "name") config.Project.Name = value;
-        if (parts[1] == "type") config.Project.Type = value;
+        if (parts[1] == "type")
+        {
+          config.Project.Type = value;
+          // Default to true for libraries if type is set
+          if (value == "library")
+          {
+            config.Project.InstallHeaders = true;
+          }
+        }
         if (parts[1] == "standard") config.Project.Standard = value;
 
         if (parts[1] == "install_headers")

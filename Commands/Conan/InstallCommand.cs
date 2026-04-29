@@ -105,7 +105,7 @@ namespace forge.Commands.Conan
 
         if (!string.IsNullOrEmpty(Prefix))
         {
-            return InstallLib();
+          return InstallLib();
         }
 
         return process.ExitCode;
@@ -145,33 +145,40 @@ namespace forge.Commands.Conan
       }
     }
 
-    private int InstallLib() {
-        if (!string.IsNullOrEmpty(Prefix))
+    private int InstallLib()
+    {
+      if (!string.IsNullOrEmpty(Prefix))
+      {
+        if (!Directory.Exists("build"))
         {
-          AnsiConsole.MarkupLine($"[green]Installing Project to: {Prefix}[/]");
-          
-          var installationProcessInfo = new ProcessStartInfo("cmake", $"--install build --prefix {Prefix}")
-          {
-            UseShellExecute = false,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true,
-            CreateNoWindow = true
-          };
-
-          using var installationProcess = Process.Start(installationProcessInfo); 
-          installationProcess?.WaitForExit();
-
-          if (installationProcess?.ExitCode != 0)
-          {
-              AnsiConsole.MarkupLine("[bold red]Installation failed.[/]");
-              AnsiConsole.WriteLine(installationProcess?.StandardError.ReadToEnd() ?? "Unknown Error");
-              return 1;
-          }
-
-          AnsiConsole.MarkupLine("[bold green]Installation Successful![/]");
+          AnsiConsole.MarkupLine($"[bold yellow]Warning:[/] No build directory found. Did you run `forge build` first?");
+          return 1;
         }
 
-        return 0;
+        AnsiConsole.MarkupLine($"[green]Installing Project to: {Prefix}[/]");
+
+        var installationProcessInfo = new ProcessStartInfo("cmake", $"--install build --prefix {Prefix}")
+        {
+          UseShellExecute = false,
+          RedirectStandardError = true,
+          RedirectStandardOutput = true,
+          CreateNoWindow = true
+        };
+
+        using var installationProcess = Process.Start(installationProcessInfo);
+        installationProcess?.WaitForExit();
+
+        if (installationProcess?.ExitCode != 0)
+        {
+          AnsiConsole.MarkupLine("[bold red]Installation failed.[/]");
+          AnsiConsole.WriteLine(installationProcess?.StandardError.ReadToEnd() ?? "Unknown Error");
+          return 1;
+        }
+
+        AnsiConsole.MarkupLine("[bold green]Installation Successful![/]");
+      }
+
+      return 0;
     }
 
     /// <summary>

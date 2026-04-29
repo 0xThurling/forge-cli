@@ -242,9 +242,15 @@ public class LuaConfigLoader
     {
       config.Project.Linkage = table["linkage"].ToString().ToLower();
     }
+
+    // Default install_headers to true for libraries, otherwise follow the lua value if provided
     if (table["install_headers"] != LuaValue.Nil)
     {
       config.Project.InstallHeaders = bool.TryParse(table["install_headers"].ToString(), out var v) && v;
+    }
+    else if (config.Project.Type == "library")
+    {
+      config.Project.InstallHeaders = true;
     }
   }
 }

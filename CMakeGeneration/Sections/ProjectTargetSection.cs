@@ -12,6 +12,7 @@ public class ProjectTargetSection : CMakeSectionBase
   public override string Generate(ProjectConfig config)
   {
     var sb = new StringBuilder();
+    var linkage = config.Project.Linkage.ToUpper() ?? "STATIC";
 
     sb.AppendLine("# --- Project Target ---");
     sb.AppendLine($"file(GLOB_RECURSE SOURCES RELATIVE ${{PROJECT_SOURCE_DIR}} ${{PROJECT_SOURCE_DIR}}/src/*.cpp)");
@@ -22,13 +23,13 @@ public class ProjectTargetSection : CMakeSectionBase
     }
     else if (config.Project.Type == "library")
     {
-      var linkage = config.Project.Linkage.ToUpper();
       sb.AppendLine($"add_library({config.Project.Name} {linkage} ${{SOURCES}})");
+
+      sb.AppendLine($"install(TARGETS {config.Project.Name} EXPORT {config.Project.Name}Config DESTINATION lib)");
 
       if (config.Project.InstallHeaders)
       {
         sb.AppendLine($"target_include_directories({config.Project.Name} PUBLIC ${{PROJECT_SOURCE_DIR}}/src)");
-        sb.AppendLine($"install(TARGETS {config.Project.Name} EXPORT {config.Project.Name}Config DESTINATION lib)");
         sb.AppendLine($"install(DIRECTORY ${{PROJECT_SOURCE_DIR}}/src/ DESTINATION include/{config.Project.Name})");
       }
     }
