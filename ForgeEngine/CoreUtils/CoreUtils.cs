@@ -433,6 +433,9 @@ public static partial class CoreUtils
 
     foreach (var line in lines)
     {
+      // Skip template functions - handled separately 
+      if (line.TrimStart().StartsWith("template")) continue;
+
       var trimmed = line.Trim();
       string? candidate = null;
       if (trimmed.EndsWith(';'))
@@ -472,8 +475,10 @@ public static partial class CoreUtils
         var match = Regex.Match(candidate, pattern);
         if (match.Success)
         {
-          var decl = FormatSimpleDeclaration(match, pattern);
-          if (!string.IsNullOrEmpty(decl) && !declarations.Contains(decl))
+          var decl = FormatSimpleDeclaration(match, pattern)?.Trim();
+
+          // If the declaration hasn't been added as part of another extraction method, add it
+          if (!string.IsNullOrEmpty(decl) && !declarations.Contains(decl) && !declarations.Any(d => d.Trim().Contains(decl)))
           {
             declarations.Add(decl);
             break;
@@ -551,9 +556,7 @@ public static partial class CoreUtils
     var patterns = new[]
     {
       @"template\s*<([^>]+)>\s*(constexpr|consteval|inline|static)?\s*([\w:]+[\s\*&<>]*)\s+(\w+)\s*\(([^)]*)\)(?:\s*const)?(?:\s*noexcept)?(?:\s*->\s*[^{]+)?(?:\s*override)?(?:\s*final)?",
-      @"template\s*<\s*(?:requires\s+)?([^{]+)\s*>\s*(constexpr|inline)?\s*([\w:]+[\s\*&<>]*)\s+(\w+)\s*\(([^)]*)\)",
       @"template\s*<([^>]+)>\s*([\w:]+[\s\*&<>]*)\s+(\w+)\s*::\s*(\w+)\s*\(([^)]*)\)",
-      @"template\s*<typename\s+(\w+)\s*,\s*\.\.\.(\s*\w+)?>\s*([\w:]+[\s\*&<>]*)\s+(\w+)\s*\(([^)]*)\)",
       @"template\s*<([^>]+)>\s*requires\s+([^{]+)\s*([\w:]+[\s\*&<>]*)\s+(\w+)\s*\(([^)]*)\)",
     };
 
