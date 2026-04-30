@@ -28,6 +28,9 @@ public static partial class CoreUtils
   [GeneratedRegex(@"#include\s+<([^>]+)>")]
   private static partial Regex SystemIncludesPattern();
 
+  [GeneratedRegex(@"^[\w:]+[\s\*&<>]+\w+\s*\([^;]+\)\s*;$")]
+  private static partial Regex FunctionPointerPattern();
+
   /// <summary>
   /// Detects the current Linux distribution from /etc/os-release.
   /// </summary>
@@ -324,6 +327,7 @@ public static partial class CoreUtils
     // Extract various complex declarations
     ExtractTemplateFunctions(source, ref declarations);
     ExtractFunctionPointers(source, ref declarations);
+    ExtractFunctionsWithPointerParams(source, ref declarations);
     ExtractTrailingReturnTypes(source, ref declarations);
     ExtractMemberPointers(source, ref declarations);
     ExtractSimpleFunctions(source, ref declarations);
@@ -343,6 +347,30 @@ public static partial class CoreUtils
     return [.. declarations.OrderByDescending(d => d.Contains("template"))
       .ThenBy(d => d.Contains("auto"))
       .ThenBy(d => d.Length)];
+  }
+
+  private static void ExtractFunctionsWithPointerParams(string source, ref List<string> declarations)
+  {
+    source = BlockCommentsPatterns().Replace(source, "");
+    source = LineCommentsPattern().Replace(source, "");
+
+    foreach (var line in source.Split('\n'))
+    {
+      var trimmed = line.Trim();
+
+      // Only process lines that end in ; and contain a function pointer param
+      if (!trimmed.EndsWith(';') || !trimmed.Contains("(*")) continue;
+
+      // Skip using aliases = handles by ExtractTypeAliases
+      if (trimmed.StartsWith("using")) continue;
+
+      if (trimmed.Contains("->")) continue;
+
+      bool isDecl = FunctionPointerPattern().IsMatch(trimmed);
+
+      if (isDecl && !declarations.Contains(trimmed))
+        declarations.Add(trimmed);
+    }
   }
 
   private static void ExtractTypeAliases(string source, ref List<string> declarations)
@@ -535,9 +563,7 @@ public static partial class CoreUtils
   {
     var patterns = new[]
     {
-      @"([\w:]+[\s\*&<>]*)\s*\(?\*\s*(\w+)\s*\)\s*\(([^)]*)\)",
       @"auto\s*\(?\*\s*(\w+)\s*\)\s*\(([^)]*)\)\s*->\s*([\w:]+[\s\*&<>]*)",
-      @"std::function\s*<\s*([\w:]+[\s\*&<>]*)\s*\(([^)]*)\)\s*>",
       @"using\s+(\w+)\s*=\s*(?:std::)?(?:function|decltype)\s*<\s*([\w:]+[\s\*&<>]*)\s*\(([^)]*)\)\s*>",
     };
     foreach (var pattern in patterns)
@@ -594,7 +620,8 @@ public static partial class CoreUtils
     try
     {
       if (match.Groups.Count < 2) return null;
-      if (pattern.Contains("std::function") || pattern.Contains("using"))
+
+      if (pattern.Contains("using"))
       {
         var alias = match.Groups[1].Value.Trim();
         var ret = match.Groups[2].Value.Trim();
@@ -619,7 +646,11 @@ public static partial class CoreUtils
       if (match.Groups.Count < 2) return null;
       var funcName = match.Groups[1].Value.Trim();
       var args = match.Groups[2].Value.Trim();
-      var returnType = match.Groups.Count > 3 ? match.Groups[3].Value.Trim() : "auto";
+      var returnType = (match.Groups.Count > 3 ? match.Groups[3].Value : "auto")
+        .Trim()
+        .TrimEnd(';')
+        .Trim();
+
       return $"auto {funcName}({args}) -> {returnType};";
     }
     catch { return null; }
@@ -678,4 +709,6 @@ public static partial class CoreUtils
     }
     catch { return null; }
   }
+
+
 }
