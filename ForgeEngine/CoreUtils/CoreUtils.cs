@@ -31,6 +31,12 @@ public static partial class CoreUtils
   [GeneratedRegex(@"^[\w:]+[\s\*&<>]+\w+\s*\([^;]+\)\s*;$")]
   private static partial Regex FunctionPointerPattern();
 
+  [GeneratedRegex(@"(class|struct)\s+\w+[\w\s:,<>]*\{[\s\S]*?\};", RegexOptions.Multiline)]
+  private static partial Regex ClassStructBodiesPattern();
+
+  [GeneratedRegex(@"^(class|struct)\s+\w+[\w\s:,<>]*\{")]
+  private static partial Regex ClassOrStructPattern();
+
   /// <summary>
   /// Detects the current Linux distribution from /etc/os-release.
   /// </summary>
@@ -324,17 +330,20 @@ public static partial class CoreUtils
     source = BlockCommentsPatterns().Replace(source, "");
     source = LineCommentsPattern().Replace(source, "");
 
+    ExtractClassBodies(source, ref declarations);
+    var sourceWithoutClasses = ClassStructBodiesPattern().Replace(source, "");
+
     // Extract various complex declarations
-    ExtractTemplateFunctions(source, ref declarations);
-    ExtractFunctionPointers(source, ref declarations);
-    ExtractFunctionsWithPointerParams(source, ref declarations);
-    ExtractTrailingReturnTypes(source, ref declarations);
-    ExtractMemberPointers(source, ref declarations);
-    ExtractSimpleFunctions(source, ref declarations);
-    ExtractConcepts(source, ref declarations);
-    ExtractOperators(source, ref declarations);
-    ExtractUsingDeclarations(source, ref declarations);
-    ExtractTypeAliases(source, ref declarations);
+    ExtractTemplateFunctions(sourceWithoutClasses, ref declarations);
+    ExtractFunctionPointers(sourceWithoutClasses, ref declarations);
+    ExtractFunctionsWithPointerParams(sourceWithoutClasses, ref declarations);
+    ExtractTrailingReturnTypes(sourceWithoutClasses, ref declarations);
+    ExtractMemberPointers(sourceWithoutClasses, ref declarations);
+    ExtractSimpleFunctions(sourceWithoutClasses, ref declarations);
+    ExtractConcepts(sourceWithoutClasses, ref declarations);
+    ExtractOperators(sourceWithoutClasses, ref declarations);
+    ExtractUsingDeclarations(sourceWithoutClasses, ref declarations);
+    ExtractTypeAliases(sourceWithoutClasses, ref declarations);
 
     // Remove duplicates and filter
     declarations = [.. declarations.Distinct()];
@@ -347,6 +356,51 @@ public static partial class CoreUtils
     return [.. declarations.OrderByDescending(d => d.Contains("template"))
       .ThenBy(d => d.Contains("auto"))
       .ThenBy(d => d.Length)];
+  }
+
+  private static void ExtractClassBodies(string source, ref List<string> declarations)
+  {
+    var lines = source.Split('\n');
+    int i = 0;
+
+    while (i < lines.Length)
+    {
+      var trimmed = lines[i].Trim();
+
+      // Match: class Foo { or struct Foo { or class Foo : public Bar {
+      bool isClassOrStruct = ClassOrStructPattern().IsMatch(trimmed);
+
+      if (isClassOrStruct)
+      {
+        var block = new StringBuilder();
+        int depth = 0;
+
+        // Collect lines until braces balance and block ends with };
+        while (i < lines.Length)
+        {
+          var line = lines[i];
+          block.AppendLine(line);
+
+          foreach (var c in line)
+          {
+            if (c == '{') depth++;
+            else if (c == '}') depth--;
+          }
+
+          i++;
+
+          // Block is complete when all braces are closed
+          if (depth == 0 && block.ToString().TrimEnd().EndsWith("};")) break;
+        }
+
+        var classDecl = block.ToString().TrimEnd();
+        if (!declarations.Contains(classDecl)) declarations.Add(classDecl);
+      }
+      else
+      {
+        i++;
+      }
+    }
   }
 
   private static void ExtractFunctionsWithPointerParams(string source, ref List<string> declarations)
@@ -487,9 +541,9 @@ public static partial class CoreUtils
       var patterns = new[]
       {
         @"(?:\[\[[^\]]+\]\]\s*)*(?:\w+\s+)*(\w+[\s\*&<>]+)(\w+)\s*\(([^)]*)\)\s*(?:const)?\s*(?:noexcept)?\s*(?:constexpr)?\s*(?:final)?\s*(?:override)?\s*;",
-        @"virtual\s+(?:[\w:]+[\s\*&<>]*)(\w+)\s*\(([^)]*)\)\s*(?:const)?\s*(?:noexcept)?\s*(?:override)?\s*;",
-        @"virtual\s+(?:[\w:]+[\s\*&<>]*)(\w+)\s*\(([^)]*)\)\s*=\s*0\s*;",
-        @"static\s+(?:[\w:]+[\s\*&<>]*)(\w+)\s*\(([^)]*)\)\s*(?:const)?\s*(?:noexcept)?\s*;",
+        @"virtual\s+([\w:]+[\s\*&<>]*)(\w+)\s*\(([^)]*)\)\s*(const)?\s*(?:noexcept)?\s*(?:override)?\s*;",
+        @"virtual\s+([\w:]+[\s\*&<>]*)(\w+)\s*\(([^)]*)\)\s*(const)?\s*(?:noexcept)?\s*=\s*0\s*;",
+        @"static\s+([\w:]+[\s\*&<>]*)(\w+)\s*\(([^)]*)\)\s*(?:const)?\s*(?:noexcept)?\s*;",
         @"explicit\s+(\w+)\s*\(([^)]*)\)\s*(?:noexcept)?\s*;",
         @"virtual?\s*~(\w+)\s*\(\s*\)\s*(?:noexcept)?\s*(?:override)?\s*;",
         @"(\w+)\s*\((?:\w+[\s\*&<>]*\s+)?(?:const\s+)?(\w+)[\s&]*\)\s*(?:noexcept)?\s*;",
@@ -675,12 +729,35 @@ public static partial class CoreUtils
     try
     {
       if (match.Groups.Count < 2) return null;
-      if (pattern.Contains('=') && pattern.Contains('0'))
-        return $"virtual {match.Groups[1].Value.Trim()} {match.Groups[2].Value.Trim()}({match.Groups[3].Value.Trim()}) = 0;";
+
+      if (pattern.Contains("virtual") && pattern.Contains('0'))
+      {
+        var ret = match.Groups[1].Value.Trim();
+        var name = match.Groups[2].Value.Trim();
+        var args = match.Groups[3].Value.Trim();
+        var constQual = match.Groups[4].Value.Trim();
+        var suffix = string.IsNullOrEmpty(constQual) ? "" : " const";
+
+        return $"virtual {ret} {name}({args}){suffix} = 0;";
+      }
       else if (pattern.Contains("virtual"))
-        return $"virtual {match.Groups[1].Value.Trim()}({match.Groups[2].Value.Trim()});";
+      {
+        var ret = match.Groups[1].Value.Trim();
+        var name = match.Groups[2].Value.Trim();
+        var args = match.Groups[3].Value.Trim();
+        var constQual = match.Groups[4].Value.Trim();
+        var suffix = string.IsNullOrEmpty(constQual) ? "" : " const";
+
+        return $"virtual {ret} {name}({args}){suffix};";
+      }
       else if (pattern.Contains("static"))
-        return $"static {match.Groups[1].Value.Trim()}({match.Groups[2].Value.Trim()});";
+      {
+        var ret = match.Groups[1].Value.Trim();
+        var name = match.Groups[2].Value.Trim();
+        var args = match.Groups[3].Value.Trim();
+
+        return $"static {ret} {name}({args});";
+      }
       else if (pattern.Contains("operator"))
         return match.Value.Trim();
       else if (pattern.Contains('~'))
@@ -709,6 +786,4 @@ public static partial class CoreUtils
     }
     catch { return null; }
   }
-
-
 }
