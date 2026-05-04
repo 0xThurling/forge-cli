@@ -417,6 +417,8 @@ public static partial class CoreUtils
       // Skip using aliases = handles by ExtractTypeAliases
       if (trimmed.StartsWith("using")) continue;
 
+      if (trimmed.StartsWith("requires")) continue;
+
       if (trimmed.Contains("->")) continue;
 
       bool isDecl = FunctionPointerPattern().IsMatch(trimmed);
@@ -487,33 +489,43 @@ public static partial class CoreUtils
 
   private static void ExtractConcepts(string source, ref List<string> declarations)
   {
-    // Collect all concept blocks by scanning line by line
     var lines = source.Split('\n');
     var i = 0;
     while (i < lines.Length)
     {
       var trimmed = lines[i].Trim();
-      if (trimmed.StartsWith("template") && i + 1 < lines.Length)
+
+      bool startsTemplate = trimmed.StartsWith("template");
+      bool nextIsConcept = startsTemplate && i + 1 < lines.Length && lines[i + 1].Trim().StartsWith("concept");
+      bool inlineConcept = startsTemplate && trimmed.Contains("concept");
+
+      if (nextIsConcept || inlineConcept)
       {
-        var nextLine = lines[i + 1].Trim();
-        if (nextLine.StartsWith("concept") || trimmed.Contains("concept"))
+        var block = new StringBuilder();
+        int depth = 0;
+
+        while (i < lines.Length)
         {
-          // Collect lines until we hit one ending with };
-          var block = new StringBuilder();
-          while (i < lines.Length)
+          var line = lines[i].Trim();
+          if (block.Length > 0) block.Append(' ');
+          block.Append(line);
+          i++;
+
+          foreach (var c in line)
           {
-            var line = lines[i].Trim();
-            if (block.Length > 0) block.Append(' ');
-            block.Append(line);
-            i++;
-            if (line.EndsWith("};") || line.EndsWith(';'))
-              break;
+            if (c == '{') depth++;
+            else if (c == '}') depth--;
           }
-          var decl = block.ToString().Trim();
-          if (decl.Contains("concept") && !declarations.Contains(decl))
-            declarations.Add(decl);
-          continue;
+
+          // Stop when all braces are balanced and line ends with ;
+          if (depth == 0 && block.ToString().Trim().EndsWith(';'))
+            break;
         }
+
+        var decl = block.ToString().Trim();
+        if (decl.Contains("concept") && !declarations.Contains(decl))
+          declarations.Add(decl);
+        continue;
       }
       i++;
     }
@@ -527,6 +539,8 @@ public static partial class CoreUtils
     {
       // Skip template functions - handled separately 
       if (line.TrimStart().StartsWith("template")) continue;
+      if (line.TrimStart().StartsWith("requires")) continue;
+      if (line.TrimStart().StartsWith("concept")) continue;
 
       var trimmed = line.Trim();
       string? candidate = null;
@@ -616,6 +630,12 @@ public static partial class CoreUtils
     {
       foreach (Match match in Regex.Matches(source, pattern, RegexOptions.Multiline))
       {
+        var matchLine = source.Substring(source.LastIndexOf('\n', match.Index) + 1,
+                        match.Index - source.LastIndexOf('\n', match.Index) - 1 + match.Length)
+          .TrimStart();
+
+        if (matchLine.StartsWith("requires") || matchLine.StartsWith("concept")) continue;
+
         var decl = FormatTrailingReturn(match);
         if (!string.IsNullOrEmpty(decl) && !declarations.Contains(decl))
           declarations.Add(decl);
