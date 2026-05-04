@@ -342,7 +342,6 @@ public static partial class CoreUtils
     ExtractSimpleFunctions(sourceWithoutClasses, ref declarations);
     ExtractConcepts(sourceWithoutClasses, ref declarations);
     ExtractOperators(sourceWithoutClasses, ref declarations);
-    ExtractUsingDeclarations(sourceWithoutClasses, ref declarations);
     ExtractTypeAliases(sourceWithoutClasses, ref declarations);
 
     // Remove duplicates and filter
@@ -431,36 +430,32 @@ public static partial class CoreUtils
   {
     var patterns = new[]
     {
-      @"template\s*<\s*typename\s+(\w+)\s*>\s*using\s+(\w+)\s*=\s*([^;]+);",
-      @"using\s+(\w+)\s*=\s*(?:typename\s+)?([^{;]+);",
-      @"using\s+(\w+)\s*=\s*([\w:]+[\s\*&]+);",
+        @"template\s*<\s*(?:typename\s+\w+\s*,\s*)+typename\s+\w+\s*>\s*using\s+\w+\s*=\s*[^;]+;",
+        @"template\s*<\s*typename\s+\w+\s*>\s*using\s+\w+\s*=\s*[^;]+;",
+        @"using\s+(\w+)\s*=\s*(?:typename\s+)?([^{;]+);",
+        @"using\s+enum\s+(\w+)\s*;",
+        @"using\s+(\w+)::(\w+)\s*;",
     };
-    foreach (var pattern in patterns)
-    {
-      foreach (Match match in Regex.Matches(source, pattern, RegexOptions.Multiline))
-      {
-        var decl = match.Value.Trim();
-        if (!decl.Contains("_impl") && !decl.Contains("detail::"))
-          if (!declarations.Contains(decl))
-            declarations.Add(decl);
-      }
-    }
-  }
 
-  private static void ExtractUsingDeclarations(string source, ref List<string> declarations)
-  {
-    var patterns = new[]
-    {
-      @"using\s+(\w+)\s*=\s*([^;]+);",
-      @"using\s+enum\s+(\w+)\s*;",
-      @"using\s+(\w+)::(\w+)\s*;",
-    };
     foreach (var pattern in patterns)
     {
       foreach (Match match in Regex.Matches(source, pattern, RegexOptions.Multiline))
       {
         var decl = match.Value.Trim();
-        if (!declarations.Contains(decl))
+
+        // Skip if already captured as a template alias
+        if (declarations.Contains(decl)) continue;
+
+        // For the simple alias pattern, skip lines that are part of a template
+        if (!pattern.Contains("template") && !pattern.Contains("enum") && !pattern.Contains("::"))
+        {
+          var lineStart = source.LastIndexOf('\n', match.Index) + 1;
+          var lineEnd = source.IndexOf('\n', match.Index);
+          var fullLine = source[lineStart..(lineEnd < 0 ? source.Length : lineEnd)].TrimStart();
+          if (fullLine.StartsWith("template")) continue;
+        }
+
+        if (!decl.Contains("_impl") && !decl.Contains("detail::"))
           declarations.Add(decl);
       }
     }
@@ -492,20 +487,35 @@ public static partial class CoreUtils
 
   private static void ExtractConcepts(string source, ref List<string> declarations)
   {
-    var patterns = new[]
+    // Collect all concept blocks by scanning line by line
+    var lines = source.Split('\n');
+    var i = 0;
+    while (i < lines.Length)
     {
-      @"template\s*<\s*typename\s+(\w+)\s*>\s*concept\s+(\w+)\s*=\s*([^;]+);",
-      @"template\s*<\s*typename\s+(\w+)\s*>\s*concept\s+(\w+)\s*requires\s+([^;]+);",
-      @"template\s*<\s*typename\s+(\w+)\s*,\s*typename\s+(\w+)\s*>\s*concept\s+(\w+)\s*=\s*([^;]+);",
-    };
-    foreach (var pattern in patterns)
-    {
-      foreach (Match match in Regex.Matches(source, pattern, RegexOptions.Multiline))
+      var trimmed = lines[i].Trim();
+      if (trimmed.StartsWith("template") && i + 1 < lines.Length)
       {
-        var decl = FormatConcept(match);
-        if (!string.IsNullOrEmpty(decl) && !declarations.Contains(decl))
-          declarations.Add(decl);
+        var nextLine = lines[i + 1].Trim();
+        if (nextLine.StartsWith("concept") || trimmed.Contains("concept"))
+        {
+          // Collect lines until we hit one ending with };
+          var block = new StringBuilder();
+          while (i < lines.Length)
+          {
+            var line = lines[i].Trim();
+            if (block.Length > 0) block.Append(' ');
+            block.Append(line);
+            i++;
+            if (line.EndsWith("};") || line.EndsWith(';'))
+              break;
+          }
+          var decl = block.ToString().Trim();
+          if (decl.Contains("concept") && !declarations.Contains(decl))
+            declarations.Add(decl);
+          continue;
+        }
       }
+      i++;
     }
   }
 
@@ -770,19 +780,6 @@ public static partial class CoreUtils
         if (string.IsNullOrEmpty(ret) || string.IsNullOrEmpty(name)) return null;
         return $"{ret} {name}({args});";
       }
-    }
-    catch { return null; }
-  }
-
-  private static string? FormatConcept(Match match)
-  {
-    try
-    {
-      if (match.Groups.Count < 3) return null;
-      var templateParam = match.Groups[1].Value.Trim();
-      var conceptName = match.Groups[2].Value.Trim();
-      var constraint = match.Groups[^1].Value.Trim();
-      return $"template <typename {templateParam}> concept {conceptName} = {constraint};";
     }
     catch { return null; }
   }
