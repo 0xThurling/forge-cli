@@ -37,6 +37,11 @@ public static partial class CoreUtils
   [GeneratedRegex(@"^(class|struct)\s+\w+[\w\s:,<>]*\{")]
   private static partial Regex ClassOrStructPattern();
 
+  [GeneratedRegex(@"^((?:\[\[[^\]]*\]\]\s*)+)")]
+  private static partial Regex AttributePattern();
+
+  [GeneratedRegex(@"^\s*(constexpr|consteval|inline|static)\s+")]
+  private static partial Regex QualifierPattern();
   /// <summary>
   /// Detects the current Linux distribution from /etc/os-release.
   /// </summary>
@@ -543,6 +548,16 @@ public static partial class CoreUtils
       if (line.TrimStart().StartsWith("concept")) continue;
 
       var trimmed = line.Trim();
+
+      var attributePrefix = "";
+      var attributeMatch = AttributePattern().Match(trimmed);
+
+      if (attributeMatch.Success)
+      {
+        attributePrefix = attributeMatch.Value;
+        trimmed = trimmed[attributePrefix.Length..].TrimStart();
+      }
+
       string? candidate = null;
       if (trimmed.EndsWith(';'))
       {
@@ -586,6 +601,8 @@ public static partial class CoreUtils
           // If the declaration hasn't been added as part of another extraction method, add it
           if (!string.IsNullOrEmpty(decl) && !declarations.Contains(decl) && !declarations.Any(d => d.Trim().Contains(decl)))
           {
+            decl = attributePrefix + decl;
+
             declarations.Add(decl);
             break;
           }
@@ -630,15 +647,26 @@ public static partial class CoreUtils
     {
       foreach (Match match in Regex.Matches(source, pattern, RegexOptions.Multiline))
       {
-        var matchLine = source.Substring(source.LastIndexOf('\n', match.Index) + 1,
-                        match.Index - source.LastIndexOf('\n', match.Index) - 1 + match.Length)
-          .TrimStart();
+        var lineStart = source.LastIndexOf('\n', match.Index) + 1;
+        var lineEnd = source.IndexOf('\n', match.Index);
+        var fullLine = source[lineStart..(lineEnd < 0 ? source.Length : lineEnd)].TrimStart();
 
-        if (matchLine.StartsWith("requires") || matchLine.StartsWith("concept")) continue;
+        if (fullLine.StartsWith("requires") || fullLine.StartsWith("concept")) continue;
+        if (pattern.Contains("->\\s*auto") && !fullLine.Contains("->")) continue;
 
-        var decl = FormatTrailingReturn(match);
-        if (!string.IsNullOrEmpty(decl) && !declarations.Contains(decl))
-          declarations.Add(decl);
+        // Extract attribute prefix from the full line
+        var attributePrefix = "";
+        var attrMatch = AttributePattern().Match(fullLine);
+        if (attrMatch.Success)
+          attributePrefix = attrMatch.Value;
+
+        var decl = FormatTrailingReturn(match)?.Trim();
+        if (!string.IsNullOrEmpty(decl))
+        {
+          decl = attributePrefix + decl;
+          if (!declarations.Contains(decl))
+            declarations.Add(decl);
+        }
       }
     }
   }
@@ -663,16 +691,32 @@ public static partial class CoreUtils
 
   private static void ExtractTemplateFunctions(string source, ref List<string> declarations)
   {
+    // Collapse multi-line template+requires+declaration into single lines
+    var normalised = Regex.Replace(
+        source,
+        @"(template\s*<[^>]+>)\s*\n\s*(requires\s+[^\n]+)\s*\n\s*([^\n;{]+;)",
+        "$1 $2 $3",
+        RegexOptions.Multiline
+    );
+
+    // Collapse template + declaration split across two lines (no requires)
+    normalised = Regex.Replace(
+        normalised,
+        @"(template\s*<[^>]+>)\s*\n\s*([^\n;{]+;)",
+        "$1 $2",
+        RegexOptions.Multiline
+    );
+
     var patterns = new[]
     {
-      @"template\s*<([^>]+)>\s*(constexpr|consteval|inline|static)?\s*([\w:]+[\s\*&<>]*)\s+(\w+)\s*\(([^)]*)\)(?:\s*const)?(?:\s*noexcept)?(?:\s*->\s*[^{]+)?(?:\s*override)?(?:\s*final)?",
-      @"template\s*<([^>]+)>\s*([\w:]+[\s\*&<>]*)\s+(\w+)\s*::\s*(\w+)\s*\(([^)]*)\)",
-      @"template\s*<([^>]+)>\s*requires\s+([^{]+)\s*([\w:]+[\s\*&<>]*)\s+(\w+)\s*\(([^)]*)\)",
+        @"template\s*<([^>]+)>\s*(?:requires\s+[\w:]+(?:<[^>]*>)?\s+)?(?:constexpr|consteval|inline|static)?\s*([\w:]+[\s\*&<>]*)\s+(\w+)\s*\(([^)]*)\)(?:\s*const)?(?:\s*noexcept)?(?:\s*->\s*[^{;]+)?(?:\s*override)?(?:\s*final)?",
+        @"template\s*<([^>]+)>\s*([\w:]+[\s\*&<>]*)\s+(\w+)\s*::\s*(\w+)\s*\(([^)]*)\)",
+        @"template\s*<([^>]+)>\s*requires\s+([^{]+)\s*([\w:]+[\s\*&<>]*)\s+(\w+)\s*\(([^)]*)\)",
     };
 
     foreach (var pattern in patterns)
     {
-      foreach (Match match in Regex.Matches(source, pattern, RegexOptions.Multiline))
+      foreach (Match match in Regex.Matches(normalised, pattern, RegexOptions.Multiline))
       {
         var decl = FormatTemplateDeclaration(match);
         if (!string.IsNullOrEmpty(decl) && !declarations.Contains(decl))
@@ -693,6 +737,13 @@ public static partial class CoreUtils
       var args = match.Groups[^1].Value.Trim();
 
       if (string.IsNullOrEmpty(funcName) || funcName.Contains("::")) return null;
+
+      // Strip any trailing `requires ...` leaked into templateParams
+      var reqIdx = templateParams.IndexOf("requires", StringComparison.Ordinal);
+      if (reqIdx >= 0) templateParams = templateParams[..reqIdx].Trim().TrimEnd(',').Trim();
+
+      // Strip qualifier keywords that may bleed into returnType
+      returnType = QualifierPattern().Replace(returnType, "").Trim();
 
       return $"template <{templateParams}> {returnType} {funcName}({args});";
     }
