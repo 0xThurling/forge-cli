@@ -215,6 +215,7 @@ namespace forge
 
       if (!config.Dependencies.ContainsKey("googletest"))
       {
+        config.Testing = true;
         config.Dependencies.Add("googletest", new Dependency
         {
           Git = "https://github.com/google/googletest.git",

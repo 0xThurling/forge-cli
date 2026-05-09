@@ -42,6 +42,7 @@ public static partial class CoreUtils
 
   [GeneratedRegex(@"^\s*(constexpr|consteval|inline|static)\s+")]
   private static partial Regex QualifierPattern();
+
   /// <summary>
   /// Detects the current Linux distribution from /etc/os-release.
   /// </summary>
