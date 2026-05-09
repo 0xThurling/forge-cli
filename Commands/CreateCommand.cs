@@ -112,7 +112,7 @@ namespace forge.Commands
         File.WriteAllText(Path.Combine(projectName, "forge.lua"), forgeLuaContent);
 
         // Create a placeholder .gitignore
-        var gitignoreContent = "build/\nlib/\ncompile_commands.json\n.config/\nconanfile.txt\n";
+        var gitignoreContent = "build/\nlib/\ncompile_commands.json\nconanfile.txt\n";
         File.WriteAllText(Path.Combine(projectName, ".gitignore"), gitignoreContent);
 
         AnsiConsole.MarkupLine($"[bold green]Successfully created project `[bold yellow]{projectName}[/]`.[/]");
