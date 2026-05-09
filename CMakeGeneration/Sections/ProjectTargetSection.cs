@@ -29,8 +29,9 @@ public class ProjectTargetSection : CMakeSectionBase
 
       if (config.Project.InstallHeaders)
       {
-        sb.AppendLine($"target_include_directories({config.Project.Name} PUBLIC ${{PROJECT_SOURCE_DIR}}/src)");
-        sb.AppendLine($"install(DIRECTORY ${{PROJECT_SOURCE_DIR}}/src/ DESTINATION include/{config.Project.Name})");
+        sb.AppendLine($"target_include_directories({config.Project.Name} PUBLIC ${{PROJECT_SOURCE_DIR}}/include)");
+        sb.AppendLine($"target_include_directories({config.Project.Name} PRIVATE ${{PROJECT_SOURCE_DIR}}/src)");
+        sb.AppendLine($"install(DIRECTORY ${{PROJECT_SOURCE_DIR}}/include/ DESTINATION include)");
       }
     }
 

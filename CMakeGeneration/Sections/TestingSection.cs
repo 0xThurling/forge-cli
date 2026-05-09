@@ -35,10 +35,11 @@ file(GLOB_RECURSE APP_SOURCES ""${{PROJECT_SOURCE_DIR}}/src/*.cpp"")
 list(FILTER APP_SOURCES EXCLUDE REGEX "".*main\\.cpp$"")
 
 add_executable(run_tests ${{TEST_SOURCES}} ${{APP_SOURCES}})
-target_include_directories(run_tests PRIVATE 
+target_include_directories(run_tests PRIVATE
   ${{CMAKE_CURRENT_SOURCE_DIR}}/src
-  ${{CMAKE_CURRENT_BINARY_DIR}}/googletest-src/googletest/include
-  ${{CMAKE_CURRENT_BINARY_DIR}}/googletest-src/googletest
+  ${{CMAKE_CURRENT_SOURCE_DIR}}/include
+  ${{CMAKE_CURRENT_SOURCE_DIR}}/build/googletest-src/googletest/include
+  ${{CMAKE_CURRENT_SOURCE_DIR}}/build/googletest-src/googletest
 )
 target_link_libraries(run_tests PUBLIC {string.Join(" ", testDeps)})
 include(GoogleTest)

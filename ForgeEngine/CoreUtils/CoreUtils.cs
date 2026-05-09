@@ -199,10 +199,10 @@ public static partial class CoreUtils
     }
   }
 
-  public static void GenerateLibraryHeaders()
+  public static void GenerateLibraryHeaders(string projectName)
   {
     var srcDir = "src";
-    var includeDir = "include";
+    var includeDir = Path.Combine("include", projectName);
     if (!Directory.Exists(srcDir))
     {
       AnsiConsole.MarkupLine($"[bold yellow]Warning:[/] src/ directory not found. Skipping header generation.");
@@ -548,6 +548,7 @@ public static partial class CoreUtils
       if (line.TrimStart().StartsWith("concept")) continue;
 
       var trimmed = line.Trim();
+      if (string.IsNullOrEmpty(trimmed)) continue;
 
       var attributePrefix = "";
       var attributeMatch = AttributePattern().Match(trimmed);
@@ -561,12 +562,21 @@ public static partial class CoreUtils
       string? candidate = null;
       if (trimmed.EndsWith(';'))
       {
-        candidate = trimmed; // declaration ending with semi-colon
+        candidate = trimmed;
       }
-      else if (trimmed.Contains('{') && trimmed.Contains('('))
+      else if (trimmed.Contains('(') && (trimmed.Contains('{') || trimmed.EndsWith(')')))
       {
+        // Try to capture the signature part before the body or newline
         int braceIndex = trimmed.IndexOf('{');
-        candidate = trimmed[..braceIndex].Trim();
+        if (braceIndex >= 0)
+        {
+          candidate = trimmed[..braceIndex].Trim();
+        }
+        else
+        {
+          candidate = trimmed;
+        }
+
         if (!candidate.EndsWith(';'))
         {
           candidate += ";";
@@ -579,16 +589,9 @@ public static partial class CoreUtils
 
       var patterns = new[]
       {
-        @"(?:\[\[[^\]]+\]\]\s*)*(?:\w+\s+)*(\w+[\s\*&<>]+)(\w+)\s*\(([^)]*)\)\s*(?:const)?\s*(?:noexcept)?\s*(?:constexpr)?\s*(?:final)?\s*(?:override)?\s*;",
-        @"virtual\s+([\w:]+[\s\*&<>]*)(\w+)\s*\(([^)]*)\)\s*(const)?\s*(?:noexcept)?\s*(?:override)?\s*;",
-        @"virtual\s+([\w:]+[\s\*&<>]*)(\w+)\s*\(([^)]*)\)\s*(const)?\s*(?:noexcept)?\s*=\s*0\s*;",
-        @"static\s+([\w:]+[\s\*&<>]*)(\w+)\s*\(([^)]*)\)\s*(?:const)?\s*(?:noexcept)?\s*;",
-        @"explicit\s+(\w+)\s*\(([^)]*)\)\s*(?:noexcept)?\s*;",
-        @"virtual?\s*~(\w+)\s*\(\s*\)\s*(?:noexcept)?\s*(?:override)?\s*;",
-        @"(\w+)\s*\((?:\w+[\s\*&<>]*\s+)?(?:const\s+)?(\w+)[\s&]*\)\s*(?:noexcept)?\s*;",
-        @"(\w+)\s*\((?:\w+[\s\*&<>]*\s+)?(\w+&&)\)\s*(?:noexcept)?\s*;",
-        @"operator\s+(?:[\w:]+[\s\*&<>]*)\s*\(([^)]*)\)\s*(?:const)?\s*(?:noexcept)?\s*(?:override)?\s*;",
-        @"operator\s+(?:[\w:]+[\s\*&<>]*)\s*\(\s*\)\s*(?:const)?\s*(?:noexcept)?\s*;",
+        @"(?<virt>virtual\s+)?(?<stat>static|explicit|inline|constexpr|consteval)?\s*(?<ret>[\w:*&<>\[\]]+[\s*&]*)\s+(?<name>\w+)\s*\((?<args>[^)]*)\)(?<cq>\s*const)?(?:\s*noexcept)?(?:\s*(?<pure>=\s*0))?",
+        // pure-virtual shorthand
+        @"(?<virt>virtual)\s+(?<ret>[\w:*&<>]+[\s*&]*)\s+(?<name>\w+)\s*\((?<args>[^)]*)\)(?<cq>\s*const)?(?:\s*noexcept)?(?:\s*(?<pure>=\s*0))?",
       };
 
       foreach (var pattern in patterns)
@@ -598,11 +601,9 @@ public static partial class CoreUtils
         {
           var decl = FormatSimpleDeclaration(match, pattern)?.Trim();
 
-          // If the declaration hasn't been added as part of another extraction method, add it
-          if (!string.IsNullOrEmpty(decl) && !declarations.Contains(decl) && !declarations.Any(d => d.Trim().Contains(decl)))
+          if (!string.IsNullOrEmpty(decl) && !declarations.Contains(decl))
           {
             decl = attributePrefix + decl;
-
             declarations.Add(decl);
             break;
           }
@@ -811,46 +812,26 @@ public static partial class CoreUtils
     {
       if (match.Groups.Count < 2) return null;
 
-      if (pattern.Contains("virtual") && pattern.Contains('0'))
-      {
-        var ret = match.Groups[1].Value.Trim();
-        var name = match.Groups[2].Value.Trim();
-        var args = match.Groups[3].Value.Trim();
-        var constQual = match.Groups[4].Value.Trim();
-        var suffix = string.IsNullOrEmpty(constQual) ? "" : " const";
+      // Group layout for the main pattern:
+      // G1 = virtual (optional), G2 = static/explicit/inline/constexpr (optional),
+      // G3 = return type, G4 = function name, G5 = args, G6 = const (optional)
+      // But since patterns vary, use named groups instead:
 
-        return $"virtual {ret} {name}({args}){suffix} = 0;";
-      }
-      else if (pattern.Contains("virtual"))
-      {
-        var ret = match.Groups[1].Value.Trim();
-        var name = match.Groups[2].Value.Trim();
-        var args = match.Groups[3].Value.Trim();
-        var constQual = match.Groups[4].Value.Trim();
-        var suffix = string.IsNullOrEmpty(constQual) ? "" : " const";
+      var isVirtual = match.Groups["virt"].Success && !string.IsNullOrWhiteSpace(match.Groups["virt"].Value);
+      var isStatic = match.Groups["stat"].Success && !string.IsNullOrWhiteSpace(match.Groups["stat"].Value);
+      var isPureVirt = match.Groups["pure"].Success && !string.IsNullOrWhiteSpace(match.Groups["pure"].Value);
+      var ret = match.Groups["ret"].Value.Trim();
+      var name = match.Groups["name"].Value.Trim();
+      var args = match.Groups["args"].Value.Trim();
+      var constQual = match.Groups["cq"].Success ? match.Groups["cq"].Value.Trim() : "";
+      var suffix = string.IsNullOrEmpty(constQual) ? "" : " const";
 
-        return $"virtual {ret} {name}({args}){suffix};";
-      }
-      else if (pattern.Contains("static"))
-      {
-        var ret = match.Groups[1].Value.Trim();
-        var name = match.Groups[2].Value.Trim();
-        var args = match.Groups[3].Value.Trim();
+      if (string.IsNullOrEmpty(ret) || string.IsNullOrEmpty(name)) return null;
 
-        return $"static {ret} {name}({args});";
-      }
-      else if (pattern.Contains("operator"))
-        return match.Value.Trim();
-      else if (pattern.Contains('~'))
-        return $"~{match.Groups[1].Value.Trim()}();";
-      else
-      {
-        var ret = match.Groups[1].Value.Trim();
-        var name = match.Groups[2].Value.Trim();
-        var args = match.Groups[3].Value.Trim();
-        if (string.IsNullOrEmpty(ret) || string.IsNullOrEmpty(name)) return null;
-        return $"{ret} {name}({args});";
-      }
+      string prefix = isVirtual ? "virtual " : isStatic ? "static " : "";
+      string pure = isPureVirt ? " = 0" : "";
+
+      return $"{prefix}{ret} {name}({args}){suffix}{pure};";
     }
     catch { return null; }
   }

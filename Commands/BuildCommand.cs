@@ -106,7 +106,7 @@ namespace forge.Commands
 
       if (projectConfig?.Project.Type == "library" && projectConfig.Project.InstallHeaders)
       {
-        CoreUtils.GenerateLibraryHeaders();
+        CoreUtils.GenerateLibraryHeaders(projectConfig.Project.Name);
       }
 
       AnsiConsole.Status().AutoRefresh(!Verbose).Start("Building Project...", _ =>
