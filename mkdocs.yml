@@ -1,4 +1,4 @@
-site_name: Basic MkDocs Example Project
+site_name: Forge CLI (C++ Meta-Build System)
 theme:
   name: readthedocs
   highlightjs: true
