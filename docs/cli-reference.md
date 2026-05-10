@@ -65,16 +65,42 @@ Cleans the build directory.
 ---
 
 ### `config`
-Manages or displays project configuration.
+Manages project configuration.
 
-**Usage:** `forge config [options]`
+#### `config migrate`
+Migrates an old `package.toml` configuration file to the new `forge.lua` format.
+
+**Usage:** `forge config migrate`
 
 ---
 
-### `dependencies`
-Lists or manages project dependencies.
+### `project`
+Parent command for project information and management.
 
-**Usage:** `forge dependencies`
+#### `project info`
+Displays a summary of the current project's configuration.
+
+**Usage:** `forge project info`
+
+#### `project tree`
+Displays the project directory structure.
+
+**Usage:** `forge project tree`
+
+#### `project dependencies`
+Lists all project dependencies defined in `forge.lua`.
+
+**Usage:** `forge project dependencies`
+
+#### `project scripts`
+Lists all custom scripts defined in `forge.lua`.
+
+**Usage:** `forge project scripts`
+
+#### `project stats`
+Displays statistics about the project, including file counts and total lines of code.
+
+**Usage:** `forge project stats`
 
 ---
 
@@ -117,20 +143,6 @@ Generates a new C++ source file.
 Runs project tests (if enabled).
 
 **Usage:** `forge test`
-
----
-
-### `tree`
-Displays the project directory structure.
-
-**Usage:** `forge tree`
-
----
-
-### `info`
-Displays information about the current Forge project.
-
-**Usage:** `forge info`
 
 ---
 
