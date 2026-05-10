@@ -1,3 +1,5 @@
+![Forge Logo](https://raw.githubusercontent.com/0xThurling/forge_documentation/refs/heads/main/Gemini_Generated_Image_pizq48pizq48pizq%20(1).png?token=GHSAT0AAAAAAD3XCNEBCF6EMA4VDSFYBAJO2QAO67A)
+
 # Forge: C++ Project Manager 
 
 `Forge` (C++ Project Manager) is a command-line tool designed to simplify the creation, building, and management of C++ projects using CMake. It provides a streamlined workflow for common development tasks, including project scaffolding, dependency management, and automated code generation.
@@ -146,6 +148,21 @@ fmt = "10.2.1"
 ```
 
 After adding your dependencies, you can run `forge install`, `forge build`, or `forge run`. These commands will automatically detect the changes in `package.toml`, fetch the specified Conan packages, and configure your CMake project to use them.
+
+## ❤️ Support Forge
+
+Forge is a free, open-source tool built and maintained in my spare time. If it saves you setup headaches
+and keeps your C++ workflow clean, consider sponsoring its development.
+
+Your support directly funds:
+- New features (Windows support, more code-gen templates, LSP improvements)
+- Maintenance and bug fixes across macOS and Linux
+- Better documentation and examples
+- The long-term goal of making Forge the go-to project manager for C++ developers
+
+[![Sponsor on GitHub](https://img.shields.io/badge/Sponsor-%E2%9D%A4-red?logo=github)](https://github.com/sponsors/0xThurling)
+
+Even a small monthly contribution makes a real difference. Thank you 🙏
 
 ## Contributing
 
