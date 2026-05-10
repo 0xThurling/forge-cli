@@ -1,4 +1,4 @@
-![Forge Logo](https://raw.githubusercontent.com/0xThurling/forge_documentation/refs/heads/main/Gemini_Generated_Image_pizq48pizq48pizq%20(1).png?token=GHSAT0AAAAAAD3XCNEBCF6EMA4VDSFYBAJO2QAO67A)
+![Forge Logo](https://raw.githubusercontent.com/0xThurling/forge-cli/refs/heads/dev/.branding/Gemini_Generated_Image_pizq48pizq48pizq%20(1).png)
 
 # Forge: C++ Project Manager 
 
