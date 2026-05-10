@@ -1,26 +1,70 @@
+using System.Diagnostics;
 using DotMake.CommandLine;
 using Spectre.Console;
-using System.Diagnostics;
 
-namespace cpm.Commands
+namespace forge.Commands
 {
+  /// <summary>
+  /// Builds and runs Google Test-based unit tests for the project.
+  /// </summary>
+  /// <remarks>
+  /// This command sets up Google Test if not already configured, builds the project
+  /// including tests, and executes the test suite. Tests are expected to be in the
+  /// test/ directory and the project must have googletest as a dependency.
+  /// </remarks>
+  /// <example>
+  /// <code>
+  /// // Run all tests
+  /// forge test
+  /// 
+  /// // Run a specific test suite
+  /// forge test MyTestSuite
+  /// 
+  /// // Run tests with filter
+  /// forge test --filter="MathTest.*"
+  /// </code>
+  /// </example>
   [CliCommand(Name = "test", Description = "Build and run tests.", Parent = typeof(RootCommand))]
   public class TestCommand
   {
-    [CliArgument(Description = "Optional: Name of the test suite to run (e.g., MyTestSuite).")]
-    public string? TestSuiteName { get; set; } = null;
+    /// <summary>
+    /// Gets or sets the name of the test suite to run.
+    /// </summary>
+    /// <value>
+    /// The name of a Google Test suite. When provided, runs only tests in that suite.
+    /// </value>
+    [CliArgument(Description = "Optional: Name of the test suite to run (e.g., MyTestSuite).", Required = false)]
+    public string? TestSuiteName { get; set; }
 
-    [CliOption(Description = "Filter tests to run (e.g., MyTestSuite.TestName or MyTestSuite.*).")]
-    public string? Filter { get; set; } = null;
+    /// <summary>
+    /// Gets or sets a Google Test filter to select which tests to run.
+    /// </summary>
+    /// <value>
+    /// A Google Test filter string (e.g., "TestSuite.TestName" or "TestSuite.*").
+    /// </value>
+    [CliOption(Description = "Filter tests to run (e.g., MyTestSuite.TestName or MyTestSuite.*).", Required = false)]
+    public string? Filter { get; set; }
 
+    /// <summary>
+    /// Gets or sets the C++ standard version to use for building tests.
+    /// </summary>
+    /// <value>
+    /// Valid values: "11", "14", "17", "20". Defaults to "20".
+    /// </value>
     [CliOption(Description = "C++ standard to use (e.g., 11, 14, 17, 20). Defaults to 20.")]
     public string Standard { get; set; } = "20";
 
-    public int Run()
+    /// <summary>
+    /// Executes the test build and run pipeline.
+    /// </summary>
+    /// <returns>
+    /// 0 if all tests pass, non-zero if tests fail or build fails.
+    /// </returns>
+    public async Task<int> RunAsync()
     {
       if (!Directory.Exists("test"))
       {
-        Utils.CreateTests();
+        await Utils.CreateTests();
       }
 
       // Build the project (which includes tests if googletest is present)
@@ -30,12 +74,12 @@ namespace cpm.Commands
         Standard = Standard
       };
 
-      if (buildCommand.Run() != 0)
+      if (await buildCommand.RunAsync() != 0)
       {
         return 1; // Build failed
       }
 
-      AnsiConsole.Status().Start("Running Tests...", ctx =>
+      AnsiConsole.Status().Start("Running Tests...", _ =>
       {
         var testExecutable = Path.Combine("build", "run_tests");
         if (!File.Exists(testExecutable))

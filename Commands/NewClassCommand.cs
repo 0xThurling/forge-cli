@@ -1,15 +1,41 @@
 using DotMake.CommandLine;
 using Spectre.Console;
 
-namespace cpm.Commands
+namespace forge.Commands
 {
+  /// <summary>
+  /// Generates a new C++ class with header and source files.
+  /// </summary>
+  /// <remarks>
+  /// Creates a new class with constructor and destructor declarations in the header
+  /// and implementations in the source file. Both files are placed in the src/ directory.
+  /// </remarks>
+  /// <example>
+  /// <code>
+  /// // Generate a Player class
+  /// forge new class Player
+  /// 
+  /// // Results in:
+  /// // src/Player.h - Header with class declaration
+  /// // src/Player.cpp - Source with constructor/destructor implementations
+  /// </code>
+  /// </example>
   [CliCommand(Name = "class", Parent = typeof(NewCommand))]
   public class NewClassCommand
   {
+    /// <summary>
+    /// Gets or sets the name of the class to generate.
+    /// </summary>
+    /// <value>
+    /// The class name used for both the header and source file names.
+    /// </value>
     [CliArgument(Description = "The name of the class.")]
     public string Name { get; set; } = string.Empty;
 
-    public void Run()
+    /// <summary>
+    /// Generates the class header and source files.
+    /// </summary>
+    public async Task RunAsync()
     {
       var className = Name;
       if (!Directory.Exists("src"))
