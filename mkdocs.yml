@@ -3,13 +3,13 @@ theme:
   name: readthedocs
   highlightjs: true
 nav:
-  - home: index.md
-  - prerequisites: prerequisites.md
-  - build_system: build-system.md
-  - project_scaffolding: project-scaffolding.md
-  - dependency_management: dependency-management.md
-  - cli_reference: cli-reference.md
-  - lua_reference: lua-reference.md
+  - Home: index.md
+  - Prerequisites: prerequisites.md
+  - Build System: build-system.md
+  - Project Scaffolding: project-scaffolding.md
+  - Dependency Management: dependency-management.md
+  - CLI Reference: cli-reference.md
+  - Lua Reference: lua-reference.md
 plugins:
   - search
   - mkdocstrings:
