@@ -2,6 +2,14 @@ site_name: Forge CLI (C++ Meta-Build System)
 theme:
   name: readthedocs
   highlightjs: true
+nav:
+  - home: index.md
+  - prerequisites: prerequisites.md
+  - build_system: build-system.md
+  - project_scaffolding: project-scaffolding.md
+  - dependency_management: dependency-management.md
+  - cli_reference: cli-reference.md
+  - lua_reference: lua-reference.md
 plugins:
   - search
   - mkdocstrings:
