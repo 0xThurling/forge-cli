@@ -44,7 +44,7 @@ return {
 
 ## Documentation
 
-Comprehensive documentation on commands, architecture, and the Lua engine is available in our **[Project Wiki](https://github.com/0xThurling/forge/wiki)**.
+Comprehensive documentation on commands, architecture, and the Lua engine is available in our **[Project Wiki](https://tinyurl.com/forge-cli)**.
 
 ## ❤️ Support Forge
 
