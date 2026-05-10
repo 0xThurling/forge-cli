@@ -5,6 +5,7 @@ theme:
 nav:
   - Home: index.md
   - Prerequisites: prerequisites.md
+  - Project Configuration: project-configuration.md
   - Build System: build-system.md
   - Project Scaffolding: project-scaffolding.md
   - Dependency Management: dependency-management.md

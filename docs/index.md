@@ -26,7 +26,7 @@ Forge is distributed as a C# CLI tool. You can build it from source or use the p
 To start a new C++ project:
 
 ```bash
-forge new my-awesome-app --type executable
+forge create my-awesome-app --type executable
 cd my-awesome-app
 ```
 
