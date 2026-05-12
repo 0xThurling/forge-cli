@@ -15,10 +15,10 @@
 
 ### Installation
 
-Forge is distributed as a C# CLI tool. You can build it from source or use the provided installation scripts.
+The easiest way to install Forge is using our installation script:
 
 ```bash
-./install.sh
+curl -sSL https://raw.githubusercontent.com/0xThurling/forge-cli/refs/heads/main/install.sh | bash
 ```
 
 ### Creating a New Project
