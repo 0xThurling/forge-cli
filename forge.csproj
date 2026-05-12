@@ -8,7 +8,7 @@
     <PublishAot>true</PublishAot>
     <PackageId>forge</PackageId>
     <RootNamespace>forge</RootNamespace>
-    <RuntimeIdentifiers>win-x64;linux-x64;osx-x64</RuntimeIdentifiers>
+    <RuntimeIdentifiers>win-x64;linux-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
     <PublishAotUsingRuntimePack>true</PublishAotUsingRuntimePack>
   </PropertyGroup>
 
