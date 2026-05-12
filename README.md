@@ -16,7 +16,7 @@
 ## Installation
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/0xThurling/forge/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/0xThurling/forge-cli/refs/heads/main/install.sh | bash
 ```
 
 ## Quick Start
@@ -54,7 +54,7 @@ Forge is a free, open-source tool. If it saves you setup headaches and keeps you
 
 ## Contributing
 
-Contributions are welcome! Please feel free to open issues or submit pull requests on [GitHub](https://github.com/0xThurling/forge).
+Contributions are welcome! Please feel free to open issues or submit pull requests on [GitHub](https://github.com/0xThurling/forge-cli).
 
 ## License
 

@@ -152,7 +152,7 @@ private static void SetMyFunction()
         // Implementation
         return ValueTask.FromResult(0);
     });
-    _cpm[new LuaValue("my_func")] = new LuaValue(myFunc);
+    _forge[new LuaValue("my_func")] = new LuaValue(myFunc);
 }
 ```
 Then call in `SetDefinitionTables()`.
