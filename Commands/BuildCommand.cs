@@ -113,6 +113,19 @@ namespace forge.Commands
       {
         var projectName = projectConfig?.Project.Name;
 
+        // Auto-detect CMake version and apply policy if needed
+        var cmakeVersion = GetCmakeVersion();
+        string? policyVersion = null;
+
+        if (!string.IsNullOrEmpty(projectConfig?.Project.CmakePolicyVersion))
+        {
+          policyVersion = projectConfig.Project.CmakePolicyVersion;
+        }
+        else if (cmakeVersion.Major >= 4)
+        {
+          policyVersion = "3.5";
+        }
+
         try
         {
 
@@ -134,6 +147,12 @@ namespace forge.Commands
           var rootCmakeContent = new StringBuilder();
 
           rootCmakeContent.AppendLine($"cmake_minimum_required(VERSION 3.23)");
+
+          if (!string.IsNullOrEmpty(policyVersion))
+          {
+            rootCmakeContent.AppendLine($"set(CMAKE_POLICY_VERSION_MINIMUM {policyVersion})");
+          }
+
           rootCmakeContent.AppendLine();
           rootCmakeContent.AppendLine($"project({projectName} LANGUAGES CXX C)");
           rootCmakeContent.AppendLine();
@@ -142,7 +161,12 @@ namespace forge.Commands
           File.WriteAllText("CMakeLists.txt", rootCmakeContent.ToString());
 
           // Configure step
-          var cmakeArgs = new StringBuilder("-B build -DCMAKE_BUILD_TYPE=Release -S . -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=.");
+          var cmakeArgs = new StringBuilder($"-B build -DCMAKE_BUILD_TYPE=Release -S . -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=.");
+
+          if (!string.IsNullOrEmpty(policyVersion))
+          {
+            cmakeArgs.Append($" -DCMAKE_POLICY_VERSION_MINIMUM={policyVersion}");
+          }
           var toolchain = Path.Combine("build", "build", "Release", "generators", "conan_toolchain.cmake");
 
           if (File.Exists(toolchain))
@@ -291,6 +315,33 @@ namespace forge.Commands
       }
 
       return 0;
+    }
+
+    private static Version GetCmakeVersion()
+    {
+      try
+      {
+        var psi = new ProcessStartInfo("cmake", "--version")
+        {
+          RedirectStandardOutput = true,
+          UseShellExecute = false,
+          CreateNoWindow = true
+        };
+        using var process = Process.Start(psi);
+        if (process == null) return new Version(0, 0);
+        var output = process.StandardOutput.ReadToEnd();
+        process.WaitForExit();
+
+        // Output format: "cmake version 3.23.1"
+        var line = output.Split('\n')[0];
+        var versionStr = line.Split(' ')[^1];
+        if (Version.TryParse(versionStr, out var version))
+        {
+          return version;
+        }
+      }
+      catch { }
+      return new Version(0, 0);
     }
   }
 }

@@ -40,6 +40,14 @@ forge.add_cmake([[
 ]])
 ```
 
+## Automatic CMake Compatibility
+
+To ensure compatibility with older dependencies (like `raylib`) when using modern CMake versions, Forge includes an automatic compatibility layer:
+
+- **Detection**: Forge automatically detects your installed CMake version.
+- **Auto-Policy**: If CMake 4.0 or newer is detected, Forge automatically applies `CMAKE_POLICY_VERSION_MINIMUM=3.5`. This prevents errors caused by the removal of support for older CMake versions in newer releases.
+- **Manual Override**: You can override this behavior by setting `cmake_policy_version` in the `project` section of your `forge.lua`.
+
 ## LSP Support
 
 Forge automatically generates a `compile_commands.json` file and creates a symbolic link in your project root. This ensures that Language Servers (like `clangd` or the C++ extension in VS Code) have all the information they need for features like autocomplete, go-to-definition, and error highlighting, even with complex dependencies.

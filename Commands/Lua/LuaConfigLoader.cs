@@ -238,6 +238,10 @@ public class LuaConfigLoader
     {
       config.Project.Standard = table["standard"].ToString().ToLower();
     }
+    if (table["cmake_policy_version"] != LuaValue.Nil)
+    {
+      config.Project.CmakePolicyVersion = table["cmake_policy_version"].ToString();
+    }
     if (table["linkage"] != LuaValue.Nil)
     {
       config.Project.Linkage = table["linkage"].ToString().ToLower();
