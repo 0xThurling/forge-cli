@@ -33,6 +33,16 @@ namespace forge.Models
     public string Standard { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets the minimum CMake policy version to use.
+    /// </summary>
+    /// <value>
+    /// A version string (e.g., "3.5") to use for CMAKE_POLICY_VERSION_MINIMUM.
+    /// This is useful for compatibility with newer CMake versions (4.0+) that have 
+    /// removed support for older CMake versions used by some dependencies.
+    /// </value>
+    public string CmakePolicyVersion { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets whether to install headers when building a library.
     /// </summary>
     /// <value>

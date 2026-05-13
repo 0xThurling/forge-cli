@@ -125,6 +125,7 @@ namespace forge
             Name = toml["project"]["name"],
             Type = toml["project"]["type"],
             Standard = toml["project"].HasKey("standard") ? toml["project"]["standard"] : "",
+            CmakePolicyVersion = toml["project"].HasKey("cmake_policy_version") ? toml["project"]["cmake_policy_version"] : "",
             InstallHeaders = toml["project"].HasKey("install_headers") ? toml["project"]["install_headers"] : false,
           },
           Dependencies = []
@@ -210,6 +211,10 @@ namespace forge
       sb.AppendLine($"        name = \"{config.Project.Name}\",");
       sb.AppendLine($"        type = \"{config.Project.Type}\",");
       sb.AppendLine($"        standard = \"{config.Project.Standard}\",");
+      if (!string.IsNullOrEmpty(config.Project.CmakePolicyVersion))
+      {
+        sb.AppendLine($"        cmake_policy_version = \"{config.Project.CmakePolicyVersion}\",");
+      }
       if (config.Project.InstallHeaders)
       {
         sb.AppendLine("        install_headers = true,");

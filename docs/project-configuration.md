@@ -40,6 +40,7 @@ Contains metadata about your project.
 - `name` (string): The name of your project. Used for the executable/library name.
 - `type` (string): Either `"executable"` or `"library"`.
 - `standard` (string): The C++ standard to use (e.g., `"17"`, `"20"`). Defaults to `"20"`.
+- `cmake_policy_version` (string): (Optional) The minimum CMake policy version to use (e.g., `"3.5"`). Forge automatically detects your CMake version and applies a compatibility policy (defaulting to `"3.5"`) if you are using CMake 4.0 or newer. Use this field to override the default.
 - `linkage` (string): (Optional) For libraries, specifies linkage.
 - `install_headers` (boolean): For libraries, if true, generates installation rules for headers in `src/`. Defaults to `true` for libraries.
 
