@@ -2,6 +2,8 @@
 
 Forge supports two primary ways to manage your project's dependencies: **Direct Git Dependencies** (via CMake FetchContent) and **Conan Packages**.
 
+![Raylib Workflow Example](https://raw.githubusercontent.com/0xThurling/forge-cli/refs/heads/main/.branding/workflow.PNG)
+
 ## Direct Git Dependencies
 
 Direct dependencies are managed by Forge using CMake's `FetchContent` module. This is ideal for libraries that are available on GitHub and can be built alongside your project.
