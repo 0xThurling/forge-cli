@@ -1,6 +1,8 @@
-#include <iostream>
+#define SOL_ALL_SAFETIES_ON 1
+#include <sol/sol.hpp>
 
-int main() {
-    std::cout << "Hello, C++ World!" << std::endl;
-    return 0;
+int main(int argc, char** argv) {
+  std::cout << "Let's start!" << std::endl;
+
+  return 0;
 }

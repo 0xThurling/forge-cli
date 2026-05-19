@@ -6,17 +6,30 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
       
 
+# --- Depedencies (Conan) ---
+find_package(sol2 REQUIRED)
+
+
 include(FetchContent)
 
 # --- Dependencies ---
 FetchContent_Declare(googletest GIT_REPOSITORY "https://github.com/google/googletest.git" GIT_TAG "v1.14.0")
 FetchContent_MakeAvailable(googletest)
+FetchContent_Declare(ftxui GIT_REPOSITORY "https://github.com/ArthurSonzogni/FTXUI" GIT_TAG "v5.0.0")
+FetchContent_MakeAvailable(ftxui)
+FetchContent_Declare(cli11 GIT_REPOSITORY "https://github.com/CLIUtils/CLI11" GIT_TAG "v2.4.2")
+FetchContent_MakeAvailable(cli11)
 
 
 # --- Project Target ---
 file(GLOB_RECURSE SOURCES RELATIVE ${PROJECT_SOURCE_DIR} ${PROJECT_SOURCE_DIR}/src/*.cpp)
 add_executable(forge ${SOURCES})
 
+
+
+# --- Linking ---
+target_link_libraries(forge PRIVATE ftxui::screen ftxui::dom ftxui::component CLI11::CLI11 sol2::sol2)
+      
 
 
 # --- Testing ---
@@ -34,7 +47,7 @@ target_include_directories(run_tests PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/build/googletest-src/googletest/include
   ${CMAKE_CURRENT_SOURCE_DIR}/build/googletest-src/googletest
 )
-target_link_libraries(run_tests PUBLIC GTest::gtest_main)
+target_link_libraries(run_tests PUBLIC GTest::gtest_main ftxui::screen ftxui::dom ftxui::component CLI11::CLI11)
 include(GoogleTest)
 gtest_discover_tests(run_tests)
        
