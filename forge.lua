@@ -30,7 +30,10 @@ return {
   resources = {
     files = {},
   },
-  scripts = {},
+  scripts = {
+    ["pre-build"] = "clang-tidy -p build src/*.cpp --checks='bugprone-*,modernize-*,readability-*,performance-*'",
+    ["check-mem"] = "valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ./build/forge"
+  },
   features = {
   },
   custom = {
