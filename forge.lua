@@ -23,6 +23,7 @@ return {
       }
     },
     conan = {
+      -- This is added since it handles the Lua integration as well
       sol2 = "3.5.0"
     },
   },
