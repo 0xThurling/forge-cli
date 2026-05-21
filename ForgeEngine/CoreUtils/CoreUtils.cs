@@ -31,10 +31,10 @@ public static partial class CoreUtils
   [GeneratedRegex(@"^[\w:]+[\s\*&<>]+\w+\s*\([^;]+\)\s*;$")]
   private static partial Regex FunctionPointerPattern();
 
-  [GeneratedRegex(@"(class|struct)\s+\w+[\w\s:,<>]*\{[\s\S]*?\};", RegexOptions.Multiline)]
+  [GeneratedRegex(@"(?:template\s*<[^>]+>\s*)?(class|struct)\s+\w+[\w\s:,<>]*\{[\s\S]*?\};", RegexOptions.Multiline)]
   private static partial Regex ClassStructBodiesPattern();
 
-  [GeneratedRegex(@"^(class|struct)\s+\w+[\w\s:,<>]*\{")]
+  [GeneratedRegex(@"^\s*(?:template\s*<[^>]+>\s*)?(class|struct)\s+\w+[\w\s:,<>]*\{")]
   private static partial Regex ClassOrStructPattern();
 
   [GeneratedRegex(@"^((?:\[\[[^\]]*\]\]\s*)+)")]
@@ -374,6 +374,23 @@ public static partial class CoreUtils
 
       // Match: class Foo { or struct Foo { or class Foo : public Bar {
       bool isClassOrStruct = ClassOrStructPattern().IsMatch(trimmed);
+
+      // Handle template classes/structs where template <...> is on a separate line
+      if (!isClassOrStruct && trimmed.StartsWith("template"))
+      {
+        int j = i + 1;
+        while (j < lines.Length && j < i + 10) // Template headers can be long
+        {
+          var peekTrimmed = lines[j].Trim();
+          if (ClassOrStructPattern().IsMatch(peekTrimmed))
+          {
+            isClassOrStruct = true;
+            break;
+          }
+          if (peekTrimmed.Contains(';') || (peekTrimmed.Contains('(') && !peekTrimmed.Contains('<'))) break;
+          j++;
+        }
+      }
 
       if (isClassOrStruct)
       {
