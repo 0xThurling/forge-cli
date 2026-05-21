@@ -20,6 +20,11 @@ return {
         git = "https://github.com/CLIUtils/CLI11",
         tag = "v2.4.2",
         target = "CLI11::CLI11"
+      },
+      forge_utils = {
+        git = "https://github.com/0xThurling/forge-utils",
+        tag = "main",
+        target = "forge-utils"
       }
     },
     conan = {
@@ -31,7 +36,7 @@ return {
     files = {},
   },
   scripts = {
-    ["pre-build"] = "clang-tidy -p build src/*.cpp --checks='bugprone-*,modernize-*,readability-*,performance-*'",
+    ["check-proj"] = "clang-tidy -p build src/*.cpp --checks='bugprone-*,modernize-*,readability-*,performance-*'",
     ["check-mem"] = "valgrind --leak-check=full --show-leak-kinds=all --error-exitcode=1 ./build/forge"
   },
   features = {

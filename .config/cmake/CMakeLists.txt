@@ -19,6 +19,8 @@ FetchContent_Declare(ftxui GIT_REPOSITORY "https://github.com/ArthurSonzogni/FTX
 FetchContent_MakeAvailable(ftxui)
 FetchContent_Declare(cli11 GIT_REPOSITORY "https://github.com/CLIUtils/CLI11" GIT_TAG "v2.4.2")
 FetchContent_MakeAvailable(cli11)
+FetchContent_Declare(forge_utils GIT_REPOSITORY "https://github.com/0xThurling/forge-utils" GIT_TAG "main")
+FetchContent_MakeAvailable(forge_utils)
 
 
 # --- Project Target ---
@@ -28,7 +30,7 @@ add_executable(forge ${SOURCES})
 
 
 # --- Linking ---
-target_link_libraries(forge PRIVATE ftxui::screen ftxui::dom ftxui::component CLI11::CLI11 sol2::sol2)
+target_link_libraries(forge PRIVATE ftxui::screen ftxui::dom ftxui::component CLI11::CLI11 forge-utils sol2::sol2)
       
 
 
@@ -40,15 +42,15 @@ file(GLOB_RECURSE TEST_SOURCES "${PROJECT_SOURCE_DIR}/test/*.cpp")
 file(GLOB_RECURSE APP_SOURCES "${PROJECT_SOURCE_DIR}/src/*.cpp")
 list(FILTER APP_SOURCES EXCLUDE REGEX ".*main\\.cpp$")
 
-add_executable(run_tests ${TEST_SOURCES} ${APP_SOURCES})
-target_include_directories(run_tests PRIVATE
+add_executable(${PROJECT_NAME}_tests ${TEST_SOURCES} ${APP_SOURCES})
+target_include_directories(${PROJECT_NAME}_tests PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/build/googletest-src/googletest/include
   ${CMAKE_CURRENT_SOURCE_DIR}/build/googletest-src/googletest
 )
-target_link_libraries(run_tests PUBLIC GTest::gtest_main ftxui::screen ftxui::dom ftxui::component CLI11::CLI11)
+target_link_libraries(${PROJECT_NAME}_tests PUBLIC GTest::gtest_main ftxui::screen ftxui::dom ftxui::component CLI11::CLI11 forge-utils)
 include(GoogleTest)
-gtest_discover_tests(run_tests)
+gtest_discover_tests(${PROJECT_NAME}_tests)
        
 
