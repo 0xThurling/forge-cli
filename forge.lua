@@ -28,7 +28,7 @@ return {
       }
     },
     conan = {
-      -- This is added since it handles the Lua integration as well
+      -- This is added since it handles the Lua integration as well (less hassle for me to setup)
       sol2 = "3.5.0"
     },
   },
