@@ -55,7 +55,7 @@ void create_project(std::string &name, std::string &type) {
     return;
   }
 
-
+  file << R"(#include <iostream>\n\nint main() {\n    std::cout << \"Hello, C++ World!\" << std::endl;\n    return 0;\n})" << '\n';
 }
 
 void create_command(CLI::App &app, CreateCommandArgs& args) {
