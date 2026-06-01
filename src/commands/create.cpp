@@ -51,19 +51,59 @@ void create_project(std::string &name, std::string &type) {
     return;
   }
 
-  std::ofstream file(path / "src" / "main.cpp", std::ios::out | std::ios::trunc);
+  std::ofstream main_cpp_file(path / "src" / "main.cpp", std::ios::out | std::ios::trunc);
 
-  if (!file) {
+  if (!main_cpp_file) {
     std::cerr << "Failed to open file: " << path << '\n';
     return;
   }
 
-  file << "#include <iostream>\n"
+  main_cpp_file << "#include <iostream>\n"
           "\n"
           "int main(int argc, char** argv) {\n"
           " std::cout << \"Hello, C++ World!\" << \"\\n\";\n"
           " return 0;\n"
           "}\n";
+
+  std::ofstream forge_config_lua_file(path / "forge.lua", std::ios::out | std::ios::trunc);
+
+  if (!forge_config_lua_file) {
+    std::cerr << "Failed to open file: " << path << '\n';
+    return;
+  }
+
+  std::string install_headers = type == "library" ? "install_headers = true" : ""; 
+  std::string project_type = type == "library" ? "library" : "executable"; 
+
+  forge_config_lua_file << 
+    "return {\n"
+    " project = {\n"
+    "   name = \"" << name << "\",\n"
+    "   type = \"" << project_type << "\",\n"
+    "   standard = \"20\",\n"
+    << install_headers <<
+    " },\n"
+    " testing = false,"
+    " dependencies = {\n"
+    "   direct = {},\n"
+    "   conan = {},\n"
+    " },\n"
+    " scripts = {}\n"
+    "}\n";
+
+  std::ofstream git_ignore_file(path / ".gitignore", std::ios::out | std::ios::trunc);
+
+  if (!git_ignore_file) {
+    std::cerr << "Failed to open file: " << path << '\n';
+    return;
+  }
+
+  git_ignore_file <<
+    "build/\n"
+    "lib/\n"
+    "compile_commands.json\n"
+    "conanfile.txt\n"
+    "external/";
 }
 
 void create_command(CLI::App &app, CreateCommandArgs& args) {
