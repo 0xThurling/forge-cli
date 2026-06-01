@@ -1,3 +1,4 @@
+#pragma once
 #include "project.hpp"
 #include "dependency.hpp"
 #include "resources.hpp"
@@ -21,6 +22,6 @@ struct Config {
   Resources resources;
 
   std::unordered_map<std::string, std::string> scripts;
-  std::unordered_map<std::string, Feature> Features;
+  std::unordered_map<std::string, Feature> features;
   std::unordered_map<std::string, std::string> custom;
 };

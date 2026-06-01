@@ -1,4 +1,6 @@
 #include "create.hpp"
+#include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <forge-utils/defer.hpp>
 #include <fstream>
@@ -10,7 +12,7 @@
 #include <iostream>
 #include <string>
 
-void create_project(std::string &name, std::string &type) {
+void create_project(const std::string &name, const std::string &type) {
   // Initial
   ftxui::Element document =
     ftxui::text("Creating project: " + name) |
@@ -32,18 +34,18 @@ void create_project(std::string &name, std::string &type) {
   std::error_code ec;
 
   // Create project stuctured documents
-  std::filesystem::create_directory(path);
-  std::filesystem::create_directories(path / "src", ec);
-  std::filesystem::create_directories(path / "external", ec);
-  std::filesystem::create_directories(path / "assets", ec);
-  std::filesystem::create_directories(path / ".config", ec);
+  std::filesystem::create_directories(path, ec);
+  if (!ec) std::filesystem::create_directories(path / "src", ec);
+  if (!ec) std::filesystem::create_directories(path / "external", ec);
+  if (!ec) std::filesystem::create_directories(path / "assets", ec);
+  if (!ec) std::filesystem::create_directories(path / ".config", ec);
 
   // Create Lua directories
-  std::filesystem::create_directories(path / ".config" / "forge", ec);
-  std::filesystem::create_directories(path / ".config" / "forge" / "commands", ec);
-  std::filesystem::create_directories(path / ".config" / "forge" / "build", ec);
-  std::filesystem::create_directories(path / ".config" / "forge" / "templates", ec);
-  std::filesystem::create_directories(path / ".config" / "forge" / "definitions", ec);
+  if (!ec) std::filesystem::create_directories(path / ".config" / "forge", ec);
+  if (!ec) std::filesystem::create_directories(path / ".config" / "forge" / "commands", ec);
+  if (!ec) std::filesystem::create_directories(path / ".config" / "forge" / "build", ec);
+  if (!ec) std::filesystem::create_directories(path / ".config" / "forge" / "templates", ec);
+  if (!ec) std::filesystem::create_directories(path / ".config" / "forge" / "definitions", ec);
 
   // Check if all directories for the project has been created
   if (ec) {
@@ -72,18 +74,21 @@ void create_project(std::string &name, std::string &type) {
     return;
   }
 
-  std::string install_headers = type == "library" ? "install_headers = true" : ""; 
-  std::string project_type = type == "library" ? "library" : "executable"; 
+  // Make sure we handle case insensitivity
+  std::string type_lower = type;
+  std::transform(type_lower.begin(), type_lower.end(), type_lower.begin(), [](unsigned char c){
+    return std::tolower(c);
+  });
+  std::string project_type = type_lower == "library" ? "library" : "executable"; 
 
   forge_config_lua_file << 
     "return {\n"
     " project = {\n"
     "   name = \"" << name << "\",\n"
     "   type = \"" << project_type << "\",\n"
-    "   standard = \"20\",\n"
-    << install_headers <<
+    "   standard = \"20\"" << (type_lower == "library" ? ",\n   install_headers = true" : "") << "\n"
     " },\n"
-    " testing = false,"
+    " testing = false,\n"
     " dependencies = {\n"
     "   direct = {},\n"
     "   conan = {},\n"
@@ -104,6 +109,8 @@ void create_project(std::string &name, std::string &type) {
     "compile_commands.json\n"
     "conanfile.txt\n"
     "external/";
+
+  std::cout << "Successfully created " << name << '\n';
 }
 
 void create_command(CLI::App &app, CreateCommandArgs& args) {
