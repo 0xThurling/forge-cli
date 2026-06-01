@@ -1,7 +1,4 @@
-bin/
-obj/
-
-bin
-obj
-
-appsettings.json
+build/
+lib/
+compile_commands.json
+conanfile.txt

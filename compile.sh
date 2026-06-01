@@ -1,52 +1,39 @@
 #!/bin/bash
 
+# Exit on error
+set -e
+
+# Determine the directory where compile.sh is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 # Default values
-TARGET_OS=""
-OUTPUT_DIR="$HOME/.local/bin" # Changed to ./.local/bin
-RID=""
+OUTPUT_DIR="$HOME/.local/bin"
+LINK_NAME="forge-dev"
 
-# Parse command-line arguments
+# Parse command-line arguments (optional custom output directory or link name)
 if [ -n "$1" ]; then
-    TARGET_OS="$1"
+    OUTPUT_DIR="$1"
 fi
-
-case "$TARGET_OS" in
-    "windows")
-        RID="win-x64"
-        OUTPUT_DIR="$HOME/.local/bin/"
-        ;;
-    "macos")
-        RID="osx-x64"
-        OUTPUT_DIR="$HOME/.local/bin/"
-        ;;
-    "linux")
-        RID="linux-x64"
-        OUTPUT_DIR="$HOME/.local/bin/"
-        ;;
-    "")
-        echo "Usage: $0 <windows|macos|linux>"
-        echo "No target OS specified. Attempting to compile for current OS."
-        # Attempt to determine current OS if no argument is provided
-        case "$(uname -s)" in
-            Linux*)     RID="linux-x64"; OUTPUT_DIR="$HOME/.local/bin";;
-            Darwin*)    RID="osx-x64"; OUTPUT_DIR="$HOME/.local/bin";;
-            CYGWIN*|MINGW32*|MSYS*|MINGW*) RID="win-x64"; OUTPUT_DIR="$HOME/.local/bin";;
-            *)          echo "Unknown OS. Please specify target OS or add support for your OS."; exit 1;;
-        esac
-        ;;
-    *)
-        echo "Invalid target OS: $TARGET_OS"
-        echo "Usage: $0 <windows|macos|linux>"
-        exit 1
-        ;;
-esac
+if [ -n "$2" ]; then
+    LINK_NAME="$2"
+fi
 
 # Create the output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
 
-echo "Compiling for $TARGET_OS ($RID) into $OUTPUT_DIR"
+echo "Compiling project using Forge build system..."
+# Run the forge build system
+forge build
 
-# Publish the project for a single file executable
-dotnet publish -c Release -r "$RID" -o "$OUTPUT_DIR" --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+# Check if build/forge was successfully created
+if [ ! -f "build/forge" ]; then
+    echo "Error: Build output build/forge not found!"
+    exit 1
+fi
 
-echo "Compilation complete. Executable is in $OUTPUT_DIR"
+# Create the symlink in the output directory
+echo "Linking executable to $OUTPUT_DIR/$LINK_NAME..."
+ln -sf "$SCRIPT_DIR/build/forge" "$OUTPUT_DIR/$LINK_NAME"
+
+echo "Compilation and linking complete. You can run the dev executable via: $LINK_NAME"
