@@ -259,6 +259,22 @@ namespace forge
         sb.AppendLine("        conan = {},");
       }
       sb.AppendLine("    },");
+      // Build flags section - only output if there is anything to write
+      if (config.Build.HasAny)
+      {
+        sb.AppendLine("    build = {");
+        if (config.Build.Presets.Count > 0)
+          sb.AppendLine($"        presets = {{ {string.Join(", ", config.Build.Presets.Select(p => $"\"{p}\""))} }},");
+        if (config.Build.CompileOptions.Count > 0)
+          sb.AppendLine($"        compile_options = {{ {string.Join(", ", config.Build.CompileOptions.Select(o => $"\"{o}\""))} }},");
+        if (config.Build.CompileDefinitions.Count > 0)
+          sb.AppendLine($"        compile_definitions = {{ {string.Join(", ", config.Build.CompileDefinitions.Select(o => $"\"{o}\""))} }},");
+        if (config.Build.LinkOptions.Count > 0)
+          sb.AppendLine($"        link_options = {{ {string.Join(", ", config.Build.LinkOptions.Select(o => $"\"{o}\""))} }},");
+        if (config.Build.LinkLibraries.Count > 0)
+          sb.AppendLine($"        link_libraries = {{ {string.Join(", ", config.Build.LinkLibraries.Select(o => $"\"{o}\""))} }},");
+        sb.AppendLine("    },");
+      }
       // Resources section - always output
       sb.AppendLine("    resources = {");
       if (config.Resources.Files.Count > 0)

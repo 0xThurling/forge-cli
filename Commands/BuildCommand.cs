@@ -55,6 +55,22 @@ namespace forge.Commands
     [CliOption(Description = "C++ standard to use (e.g., 11, 14, 17, 20). Defaults to 20.")]
     public string Standard { get; set; } = "20";
 
+    /// <summary>Production preset (-O3 -DNDEBUG) regardless of forge.lua.</summary>
+    [CliOption(Description = "Build with the production preset (-O3 -DNDEBUG) regardless of config.")]
+    public bool Release { get; set; }
+
+    /// <summary>Debug preset (-O0 -g) regardless of forge.lua.</summary>
+    [CliOption(Description = "Build with the debug preset (-O0 -g) regardless of config.")]
+    public bool Debug { get; set; }
+
+    /// <summary>Extra presets for a quick build (comma-separated).</summary>
+    [CliOption(Description = "Add build presets for a quick build (comma-separated), e.g. --preset simd,concurrency.", Required = false)]
+    public string? Preset { get; set; }
+
+    /// <summary>Ignore presets declared in forge.lua (use only CLI presets).</summary>
+    [CliOption(Description = "Ignore presets declared in forge.lua (use only CLI presets).")]
+    public bool NoConfigPresets { get; set; }
+
     /// <summary>
     /// Executes the full build pipeline including CMake generation and compilation.
     /// </summary>
@@ -102,6 +118,21 @@ namespace forge.Commands
 
         // Refresh config to get the googletest dependency
         projectConfig = await ProjectConfigManager.LoadConfigAsync();
+      }
+
+      // Apply CLI flag overrides (quick builds without editing forge.lua)
+      if (projectConfig != null)
+      {
+        var build = projectConfig.Build;
+        if (NoConfigPresets)
+          build.Presets.Clear();
+        if (Release)
+          build.Presets.Add("production");
+        if (Debug)
+          build.Presets.Add("debug");
+        if (!string.IsNullOrWhiteSpace(Preset))
+          build.Presets.AddRange(
+            Preset.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
       }
 
       if (projectConfig?.Project.Type == "library" && projectConfig.Project.InstallHeaders)
@@ -161,13 +192,14 @@ namespace forge.Commands
           File.WriteAllText("CMakeLists.txt", rootCmakeContent.ToString());
 
           // Configure step
-          var cmakeArgs = new StringBuilder($"-B build -DCMAKE_BUILD_TYPE=Release -S . -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=.");
+          var buildType = Debug && !Release ? "Debug" : "Release";
+          var cmakeArgs = new StringBuilder($"-B build -DCMAKE_BUILD_TYPE={buildType} -S . -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=.");
 
           if (!string.IsNullOrEmpty(policyVersion))
           {
             cmakeArgs.Append($" -DCMAKE_POLICY_VERSION_MINIMUM={policyVersion}");
           }
-          var toolchain = Path.Combine("build", "build", "Release", "generators", "conan_toolchain.cmake");
+          var toolchain = Path.Combine("build", "build", buildType, "generators", "conan_toolchain.cmake");
 
           if (File.Exists(toolchain))
           {

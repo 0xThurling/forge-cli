@@ -223,13 +223,36 @@ public static partial class CoreUtils
     }
     AnsiConsole.MarkupLine("[cyan]--- Generating library headers ---[/]");
 
-    // Copy hand-written .hpp files from src/ verbatim
+    // Build a map of project-local header includes -> installed include path,
+    // so quoted includes in the copied headers point at the full installed
+    // path (e.g. "fp/result.hpp" -> "forgefp/fp/result.hpp").
+    var installedIncludes = new Dictionary<string, string>();
     foreach (var hppFile in hppFiles)
     {
-      var relativePath = Path.GetRelativePath(srcDir, hppFile);
+      var rel = Path.GetRelativePath(srcDir, hppFile).Replace('\\', '/');
+      var installed = $"{projectName}/{rel}";
+      installedIncludes[rel] = installed;                       // "fp/result.hpp"
+      installedIncludes[Path.GetFileName(rel)] = installed;     // "result.hpp"
+    }
+
+    // Copy hand-written .hpp files from src/, rewriting project-local includes
+    // to the installed path so consumers can `#include <name/fp/...>`.
+    foreach (var hppFile in hppFiles)
+    {
+      var relativePath = Path.GetRelativePath(srcDir, hppFile).Replace('\\', '/');
       var targetPath = Path.Combine(includeDir, relativePath);
       Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-      File.Copy(hppFile, targetPath, true);
+
+      var content = File.ReadAllText(hppFile);
+      content = LocalIncludesPattern().Replace(content, match =>
+      {
+        var include = match.Groups[1].Value;
+        return installedIncludes.TryGetValue(include, out var installed)
+          ? $"#include \"{installed}\""
+          : match.Value;
+      });
+      File.WriteAllText(targetPath, content);
+
       AnsiConsole.MarkupLine($"[green]Copied:[/] {targetPath}");
     }
 

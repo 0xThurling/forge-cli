@@ -54,6 +54,22 @@ namespace forge.Commands
     [CliOption(Description = "C++ standard to use (e.g., 11, 14, 17, 20). Defaults to 20.")]
     public string Standard { get; set; } = "20";
 
+    /// <summary>Production preset (-O3 -DNDEBUG) regardless of forge.lua.</summary>
+    [CliOption(Description = "Build tests with the production preset regardless of config.")]
+    public bool Release { get; set; }
+
+    /// <summary>Debug preset (-O0 -g) regardless of forge.lua.</summary>
+    [CliOption(Description = "Build tests with the debug preset regardless of config.")]
+    public bool Debug { get; set; }
+
+    /// <summary>Extra presets for a quick build (comma-separated).</summary>
+    [CliOption(Description = "Add build presets for a quick build (comma-separated).", Required = false)]
+    public string? Preset { get; set; }
+
+    /// <summary>Ignore presets declared in forge.lua.</summary>
+    [CliOption(Description = "Ignore presets declared in forge.lua (use only CLI presets).")]
+    public bool NoConfigPresets { get; set; }
+
     /// <summary>
     /// Executes the test build and run pipeline.
     /// </summary>
@@ -71,7 +87,11 @@ namespace forge.Commands
       var buildCommand = new BuildCommand
       {
         Verbose = false, // Tests usually don't need verbose build output
-        Standard = Standard
+        Standard = Standard,
+        Release = Release,
+        Debug = Debug,
+        Preset = Preset,
+        NoConfigPresets = NoConfigPresets,
       };
 
       if (await buildCommand.RunAsync() != 0)
@@ -81,49 +101,54 @@ namespace forge.Commands
 
       AnsiConsole.Status().Start("Running Tests...", _ =>
       {
-        var testExecutable = Path.Combine("build", "run_tests");
-        if (!File.Exists(testExecutable))
+        // Prefer CTest: gtest_discover_tests registers the suite on configure,
+        // and the test target is named `<project>_tests` (not `run_tests`).
+        var ctestArgs = new List<string> { "--test-dir", "build", "--output-on-failure" };
+        var gtestFilter = Filter;
+        if (string.IsNullOrEmpty(gtestFilter) && !string.IsNullOrEmpty(TestSuiteName))
         {
-          AnsiConsole.MarkupLine("[bold red]Error:[/] Test executable not found. Ensure googletest is a dependency and project builds correctly.");
-          return 1;
+          gtestFilter = $"{TestSuiteName}.*";
+        }
+        if (!string.IsNullOrEmpty(gtestFilter))
+        {
+          ctestArgs.Add("-R");
+          ctestArgs.Add(gtestFilter);
         }
 
         try
         {
-          var testCommandArgs = new List<string>();
-          var gtestFilter = Filter;
-          if (string.IsNullOrEmpty(gtestFilter) && !string.IsNullOrEmpty(TestSuiteName))
+          var ctest = RunProcess("ctest", ctestArgs);
+          if (ctest.HasValue)
           {
-            gtestFilter = $"{TestSuiteName}.*";
-          }
-
-          if (!string.IsNullOrEmpty(gtestFilter))
-          {
-            testCommandArgs.Add($"--gtest_filter={gtestFilter}");
-          }
-
-          var processStartInfo = new ProcessStartInfo(testExecutable)
-          {
-            UseShellExecute = false,
-            RedirectStandardOutput = false,
-            RedirectStandardError = false,
-            CreateNoWindow = true,
-          };
-
-          foreach (var arg in testCommandArgs)
-          {
-            processStartInfo.ArgumentList.Add(arg);
-          }
-
-          using (var process = Process.Start(processStartInfo))
-          {
-            if (process == null) throw new Exception("Failed to start test process.");
-            process.WaitForExit();
-            if (process.ExitCode != 0)
+            if (ctest.Value != 0)
             {
               AnsiConsole.MarkupLine("[bold red]Tests failed.[/]");
               return 1;
             }
+            AnsiConsole.MarkupLine("[bold green]All tests passed.[/]");
+            return 0;
+          }
+
+          // Fallback: run the test executable discovered in build/ (`*_tests`).
+          var testExecutable = Directory.Exists("build")
+            ? Directory.GetFiles("build", "*_tests").FirstOrDefault()
+            : null;
+          if (testExecutable == null)
+          {
+            AnsiConsole.MarkupLine("[bold red]Error:[/] Test executable not found. Ensure googletest is a dependency and project builds correctly.");
+            return 1;
+          }
+
+          var directArgs = new List<string>();
+          if (!string.IsNullOrEmpty(gtestFilter))
+          {
+            directArgs.Add($"--gtest_filter={gtestFilter}");
+          }
+
+          if (RunProcess(testExecutable, directArgs) is not 0)
+          {
+            AnsiConsole.MarkupLine("[bold red]Tests failed.[/]");
+            return 1;
           }
           AnsiConsole.MarkupLine("[bold green]All tests passed.[/]");
         }
@@ -137,6 +162,36 @@ namespace forge.Commands
       });
 
       return 0;
+    }
+
+    /// <summary>
+    /// Runs a process and returns its exit code, or null if the executable
+    /// could not be started (e.g. not installed).
+    /// </summary>
+    private static int? RunProcess(string fileName, IEnumerable<string> args)
+    {
+      var startInfo = new ProcessStartInfo(fileName)
+      {
+        UseShellExecute = false,
+        RedirectStandardOutput = false,
+        RedirectStandardError = false,
+        CreateNoWindow = true,
+      };
+      foreach (var arg in args)
+        startInfo.ArgumentList.Add(arg);
+
+      try
+      {
+        using var process = Process.Start(startInfo);
+        if (process == null)
+          return null;
+        process.WaitForExit();
+        return process.ExitCode;
+      }
+      catch (System.ComponentModel.Win32Exception)
+      {
+        return null; // executable not found
+      }
     }
   }
 }

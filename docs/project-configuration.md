@@ -99,6 +99,49 @@ features = {
 ### `testing` (boolean)
 If set to `true`, Forge will automatically configure GoogleTest and set up a `test/` directory.
 
+### `build`
+Controls compiler/linker flags. Presets are applied directory-scoped, so they
+affect your project and test targets but **not** fetched dependencies (e.g.
+GoogleTest) or Conan-provided packages.
+
+```lua
+build = {
+    presets = { "warnings", "concurrency" },   -- named bundles, applied in order
+    cxx_flags = { "-fno-omit-frame-pointer" }, -- optional raw escape hatch
+    link_flags = { "-rdynamic" },
+    link_libraries = { "m" },
+}
+```
+
+- `presets` (list of strings): Named flag bundles (see below). Unknown names
+  produce a warning, so a typo is visible at configure time.
+- `cxx_flags` / `link_flags` / `link_libraries` (lists): Raw flags prepended to
+  the preset bundle for that category.
+
+Available presets:
+
+| Preset | Effect |
+|---|---|
+| `production` | `-O3 -DNDEBUG` |
+| `debug` | `-O0 -g` |
+| `size` | `-Os` |
+| `warnings` | `-Wall -Wextra -Wpedantic` |
+| `warnings_as_errors` | adds `-Werror` |
+| `concurrency` | `find_package(Threads)` + link `Threads::Threads` |
+| `simd` | `-march=native` |
+| `lto` | `-flto` (compile and link) |
+| `asan` / `ubsan` / `tsan` | the corresponding sanitizer |
+| `sanitize` | address + undefined together |
+| `coverage` | `--coverage`, linked with `--coverage` |
+| `fast_math` | `-ffast-math` |
+| `hardening` | `_FORTIFY_SOURCE=2`, `-fstack-protector-strong`, `-fPIE`, `-pie` |
+| `no_exceptions` | `-fno-exceptions` |
+
+Preset flags are emitted behind a GNU/Clang compiler-ID guard
+(`$<CXX_COMPILER_ID:GNU,Clang,AppleClang:…>`), so they are safe on toolchains
+that only understand a subset. The `sanitize`-family presets also disable
+inlining (`-fno-omit-frame-pointer -fno-common`) so stack traces stay useful.
+
 ### `custom`
 A free-form table for any additional configuration you want to access via the Lua API using `forge.config.get()`.
 

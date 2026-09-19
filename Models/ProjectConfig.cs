@@ -60,6 +60,11 @@ namespace forge.Models
 
     public Dictionary<string, string> Custom { get; set; } = [];
 
+    /// <summary>
+    /// Gets or sets the compiler/linker flag configuration (`build` section).
+    /// </summary>
+    public BuildConfig Build { get; set; } = new();
+
     public bool Testing { get; set; } = false;
   }
 
