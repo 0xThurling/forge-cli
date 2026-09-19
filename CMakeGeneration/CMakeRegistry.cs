@@ -29,6 +29,7 @@ public class CMakeRegistry
     Register(new FeaturesSection());
     Register(new FetchContentSection());
     Register(new ConanSection());
+    Register(new FlagsSection());
     Register(new ProjectTargetSection());
     Register(new LinkingSection());
     Register(new CustomCMakeSection());

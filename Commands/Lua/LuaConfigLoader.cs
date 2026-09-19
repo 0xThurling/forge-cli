@@ -80,6 +80,12 @@ public class LuaConfigLoader
       ParseFeatures(ref config, featuresTable);
     }
 
+    // Parse Build flags
+    if (table["build"].TryRead<LuaTable>(out var buildTable))
+    {
+      ParseBuild(ref config, buildTable);
+    }
+
     // Check if testing is enabled
     if (table["testing"] != LuaValue.Nil)
     {
@@ -103,7 +109,7 @@ public class LuaConfigLoader
       var key = kvp.Key.ToString();
 
       // Skip known sections
-      if (key is "project" or "dependencies" or "resources" or "scripts" or "features" or "custom")
+      if (key is "project" or "dependencies" or "resources" or "scripts" or "features" or "custom" or "build" or "testing")
         continue;
 
       var value = kvp.Value.ToString();
@@ -160,6 +166,32 @@ public class LuaConfigLoader
 
       config.Scripts[name] = script;
     }
+  }
+
+  private static void ParseBuild(ref ProjectConfig config, LuaTable table)
+  {
+    config.Build.Presets = ReadStringList(table["presets"]);
+    config.Build.CompileOptions = ReadStringList(table["compile_options"]);
+    config.Build.CompileDefinitions = ReadStringList(table["compile_definitions"]);
+    config.Build.LinkOptions = ReadStringList(table["link_options"]);
+    config.Build.LinkLibraries = ReadStringList(table["link_libraries"]);
+  }
+
+  private static List<string> ReadStringList(LuaValue value)
+  {
+    var list = new List<string>();
+
+    if (value.TryRead<LuaTable>(out var table))
+    {
+      foreach (var kvp in table)
+        list.Add(kvp.Value.ToString());
+    }
+    else if (value != LuaValue.Nil)
+    {
+      list.Add(value.ToString());
+    }
+
+    return list;
   }
 
   private static void ParseResources(ref ProjectConfig config, LuaTable table)

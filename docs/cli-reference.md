@@ -34,10 +34,17 @@ Generates CMake files and builds the project.
 
 - `--verbose`: Show verbose output from CMake.
 - `--standard <version>`: C++ standard to use (11, 14, 17, 20). Defaults to 20.
+- `--release` / `--debug`: Force the CMake build type.
+- `--preset <names>`: Comma-separated build-flag presets for this invocation
+  (e.g. `--preset asan,concurrency`). Replaces the `build.presets` list.
+- `--no-config-presets`: Ignore `build.presets` from `forge.lua` entirely.
+- `--no-simd`: Disable SIMD flags (if configured).
 
 **Example:**
 ```bash
 forge build --verbose --standard 17
+forge build --release --preset warnings,lto
+forge build --preset asan --no-config-presets
 ```
 
 ---
@@ -140,9 +147,18 @@ Generates a new C++ source file.
 ---
 
 ### `test`
-Runs project tests (if enabled).
+Runs project tests (if enabled). Uses CTest when available and falls back to
+the built test binary; the build step runs first.
 
-**Usage:** `forge test`
+**Usage:** `forge test [options]`
+
+Accepts the same build overrides as `forge build` (`--release`/`--debug`/
+`--preset`/`--no-config-presets`), so you can, for example, run the suite under
+sanitizers without changing `forge.lua`:
+
+```bash
+forge test --preset asan,ubsan --no-config-presets
+```
 
 ---
 

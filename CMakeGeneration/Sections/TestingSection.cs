@@ -41,8 +41,6 @@ add_executable(${{PROJECT_NAME}}_tests ${{TEST_SOURCES}} ${{APP_SOURCES}})
 target_include_directories(${{PROJECT_NAME}}_tests PRIVATE
   ${{CMAKE_CURRENT_SOURCE_DIR}}/src
   ${{CMAKE_CURRENT_SOURCE_DIR}}/include
-  ${{CMAKE_CURRENT_SOURCE_DIR}}/build/googletest-src/googletest/include
-  ${{CMAKE_CURRENT_SOURCE_DIR}}/build/googletest-src/googletest
 )
 target_link_libraries(${{PROJECT_NAME}}_tests PUBLIC {string.Join(" ", testDeps)})
 include(GoogleTest)

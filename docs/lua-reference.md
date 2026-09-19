@@ -72,6 +72,26 @@ Extracts a ZIP or TAR archive.
 
 ## Build System Integration
 
+### `build` section
+Declarative compiler/linker flags read from `forge.lua` (presets plus raw
+flags). Applied directory-scoped so dependencies are unaffected. See
+[Project Configuration](project-configuration.md#build) for the preset table.
+
+```lua
+build = {
+    presets = { "warnings", "concurrency" },
+    cxx_flags = { "-fno-omit-frame-pointer" },
+    link_flags = { "-rdynamic" },
+    link_libraries = { "m" },
+}
+```
+
+CLI overrides for a single invocation:
+- `forge build --preset asan,ubsan` replaces the configured presets.
+- `forge build --no-config-presets` ignores `build.presets` entirely.
+- `forge build --release` / `--debug` force `CMAKE_BUILD_TYPE`.
+- `forge test` forwards the same flag options to the build step.
+
 ### `forge.add_cmake(snippet)`
 Adds a custom CMake snippet directly into the generated `CMakeLists.txt`.
 - `snippet`: The CMake code to inject.
