@@ -118,29 +118,30 @@ build = {
 - `cxx_flags` / `link_flags` / `link_libraries` (lists): Raw flags prepended to
   the preset bundle for that category.
 
-Available presets:
+Available presets (GNU/Clang vs MSVC):
 
-| Preset | Effect |
-|---|---|
-| `production` | `-O3 -DNDEBUG` |
-| `debug` | `-O0 -g` |
-| `size` | `-Os` |
-| `warnings` | `-Wall -Wextra -Wpedantic` |
-| `warnings_as_errors` | adds `-Werror` |
-| `concurrency` | `find_package(Threads)` + link `Threads::Threads` |
-| `simd` | `-march=native` |
-| `lto` | `-flto` (compile and link) |
-| `asan` / `ubsan` / `tsan` | the corresponding sanitizer |
-| `sanitize` | address + undefined together |
-| `coverage` | `--coverage`, linked with `--coverage` |
-| `fast_math` | `-ffast-math` |
-| `hardening` | `_FORTIFY_SOURCE=2`, `-fstack-protector-strong`, `-fPIE`, `-pie` |
-| `no_exceptions` | `-fno-exceptions` |
+| Preset | GNU/Clang | MSVC |
+|---|---|---|
+| `production` | `-O3 -DNDEBUG` | `/O2` |
+| `debug` | `-O0 -g` | `/Od /Zi` (+`/DEBUG` link) |
+| `size` | `-Os` | `/O1` |
+| `warnings` | `-Wall -Wextra -Wpedantic` | `/W4` |
+| `warnings_as_errors` | `-Werror` | `/WX` |
+| `concurrency` | `find_package(Threads)` + `Threads::Threads` | same |
+| `simd` | `-march=native` | `/arch:AVX2` |
+| `lto` | `-flto` (compile and link) | `/GL` + `/LTCG` |
+| `asan` | `-fsanitize=address` | `/fsanitize=address` |
+| `ubsan` / `tsan` / `sanitize` | the corresponding combination | — (unsupported) |
+| `coverage` | `--coverage`, linked with `--coverage` | — (unsupported) |
+| `fast_math` | `-ffast-math` | `/fp:fast` |
+| `hardening` | `_FORTIFY_SOURCE=2`, `-fstack-protector-strong` | `/GS` |
+| `no_exceptions` | `-fno-exceptions -fno-rtti` | `/EHs-c- /GR-` |
 
-Preset flags are emitted behind a GNU/Clang compiler-ID guard
-(`$<CXX_COMPILER_ID:GNU,Clang,AppleClang:…>`), so they are safe on toolchains
-that only understand a subset. The `sanitize`-family presets also disable
-inlining (`-fno-omit-frame-pointer -fno-common`) so stack traces stay useful.
+Preset flags are emitted behind compiler-ID guards
+(`$<CXX_COMPILER_ID:GNU,Clang,AppleClang:…>` and `$<CXX_COMPILER_ID:MSVC:…>`),
+so each toolchain only sees the flags it understands. The `sanitize`-family
+presets also disable inlining (`-fno-omit-frame-pointer`) so stack traces stay
+useful. Presets with no MSVC equivalent are silently inert there.
 
 ### `custom`
 A free-form table for any additional configuration you want to access via the Lua API using `forge.config.get()`.

@@ -26,44 +26,55 @@ public class FlagsSection : CMakeSectionBase
     List<string> Compile,
     List<string> Definitions,
     List<string> Link,
-    bool Threads);
+    bool Threads,
+    List<string> MsvcCompile,
+    List<string> MsvcLink);
 
-  // Flags are wrapped in a GNU/Clang guard so MSVC builds ignore them until
-  // dedicated MSVC presets land.
+  // GNU/Clang flags are wrapped in a compiler guard; MSVC gets its own
+  // equivalents where one exists (none for the sanitizers that MSVC lacks).
   private static readonly Dictionary<string, Preset> Presets =
     new(StringComparer.OrdinalIgnoreCase)
     {
-      ["production"] = new(["-O3"], ["NDEBUG"], [], false),
-      ["debug"] = new(["-O0", "-g"], [], [], false),
-      ["size"] = new(["-Os"], ["NDEBUG"], [], false),
-      ["warnings"] = new(["-Wall", "-Wextra", "-Wpedantic"], [], [], false),
-      ["warnings_as_errors"] = new(["-Werror"], [], [], false),
-      ["concurrency"] = new([], [], [], true),
-      ["simd"] = new(["-march=native"], [], [], false),
-      ["lto"] = new(["-flto"], [], ["-flto"], false),
+      ["production"] = new(["-O3"], ["NDEBUG"], [], false, ["/O2"], []),
+      ["debug"] = new(["-O0", "-g"], [], [], false, ["/Od", "/Zi"], ["/DEBUG"]),
+      ["size"] = new(["-Os"], ["NDEBUG"], [], false, ["/O1"], []),
+      ["warnings"] = new(["-Wall", "-Wextra", "-Wpedantic"], [], [], false,
+                         ["/W4"], []),
+      ["warnings_as_errors"] = new(["-Werror"], [], [], false, ["/WX"], []),
+      ["concurrency"] = new([], [], [], true, [], []),
+      ["simd"] = new(["-march=native"], [], [], false, ["/arch:AVX2"], []),
+      ["lto"] = new(["-flto"], [], ["-flto"], false, ["/GL"], ["/LTCG"]),
       ["asan"] = new(["-fsanitize=address", "-fno-omit-frame-pointer"], [],
-                     ["-fsanitize=address"], false),
+                     ["-fsanitize=address"], false,
+                     ["/fsanitize=address"], ["/fsanitize=address"]),
       ["ubsan"] = new(["-fsanitize=undefined", "-fno-omit-frame-pointer"], [],
-                      ["-fsanitize=undefined"], false),
-      ["tsan"] = new(["-fsanitize=thread"], [], ["-fsanitize=thread"], false),
+                      ["-fsanitize=undefined"], false, [], []),
+      ["tsan"] = new(["-fsanitize=thread"], [], ["-fsanitize=thread"], false,
+                     [], []),
       ["sanitize"] = new(["-fsanitize=address,undefined",
                           "-fno-omit-frame-pointer"], [],
-                         ["-fsanitize=address,undefined"], false),
-      ["coverage"] = new(["--coverage"], [], ["--coverage"], false),
-      ["fast_math"] = new(["-ffast-math"], [], [], false),
+                         ["-fsanitize=address,undefined"], false, [], []),
+      ["coverage"] = new(["--coverage"], [], ["--coverage"], false, [], []),
+      ["fast_math"] = new(["-ffast-math"], [], [], false, ["/fp:fast"], []),
       ["hardening"] = new(["-fstack-protector-strong"], ["_FORTIFY_SOURCE=2"],
-                          [], false),
-      ["no_exceptions"] = new(["-fno-exceptions", "-fno-rtti"], [], [], false),
+                          [], false, ["/GS"], []),
+      ["no_exceptions"] = new(["-fno-exceptions", "-fno-rtti"], [], [], false,
+                              ["/EHs-c-", "/GR-"], []),
     };
 
   private static string Guard(string flag) =>
     $"$<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:{flag}>";
+
+  private static string MsvcGuard(string flag) =>
+    $"$<$<CXX_COMPILER_ID:MSVC>:{flag}>";
 
   public override string Generate(ProjectConfig config)
   {
     var presetCompile = new List<string>();
     var defines = new List<string>();
     var presetLink = new List<string>();
+    var msvcCompile = new List<string>();
+    var msvcLink = new List<string>();
     var libraries = new List<string>();
     var threads = false;
 
@@ -79,6 +90,8 @@ public class FlagsSection : CMakeSectionBase
       presetCompile.AddRange(preset.Compile);
       defines.AddRange(preset.Definitions);
       presetLink.AddRange(preset.Link);
+      msvcCompile.AddRange(preset.MsvcCompile);
+      msvcLink.AddRange(preset.MsvcLink);
       threads |= preset.Threads;
     }
 
@@ -103,11 +116,17 @@ public class FlagsSection : CMakeSectionBase
     foreach (var c in presetCompile.Distinct())
       sb.AppendLine($"add_compile_options(\"{Guard(c)}\")");
 
+    foreach (var c in msvcCompile.Distinct())
+      sb.AppendLine($"add_compile_options(\"{MsvcGuard(c)}\")");
+
     foreach (var c in rawCompile.Distinct())
       sb.AppendLine($"add_compile_options(\"{c}\")");
 
     foreach (var l in presetLink.Distinct())
       sb.AppendLine($"add_link_options(\"{Guard(l)}\")");
+
+    foreach (var l in msvcLink.Distinct())
+      sb.AppendLine($"add_link_options(\"{MsvcGuard(l)}\")");
 
     foreach (var l in rawLink.Distinct())
       sb.AppendLine($"add_link_options(\"{l}\")");
