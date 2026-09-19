@@ -74,8 +74,10 @@ Extracts a ZIP or TAR archive.
 
 ### `build` section
 Declarative compiler/linker flags read from `forge.lua` (presets plus raw
-flags). Applied directory-scoped so dependencies are unaffected. See
-[Project Configuration](project-configuration.md#build) for the preset table.
+flags). Applied directory-scoped so dependencies are unaffected. Each preset
+emits a GNU/Clang flag (guarded by compiler ID) and, where one exists, an MSVC
+equivalent — see
+[Project Configuration](project-configuration.md#build) for the full table.
 
 ```lua
 build = {
