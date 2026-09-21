@@ -46,7 +46,8 @@ public class CoreFunctionModule : LuaFunctionModule
     new("pull_repo", async (context, token) =>
     {
       var repoUrl = context.GetArgument<string>(0);
-      var tag = context.GetArgument<string?>(1);
+      // Optional: GetArgument<T> throws on a missing argument, so check first.
+      var tag = context.ArgumentCount > 1 ? context.GetArgument<string>(1) : null;
 
       var repoName = repoUrl.Split('/')[^1].Split(".")[0];
 
@@ -138,14 +139,27 @@ public class CoreFunctionModule : LuaFunctionModule
         return 0;
       });
 
+  // Provides forge.add_cmake(snippet) / forge.add_cmake(snippet, "pre")
   private static LuaFunction CreateCustomCMakeFunction() =>
     new("add_cmake", (context, token) =>
     {
       var cmakeSnippet = context.GetArgument<string>(0);
+      // Optional: GetArgument<T> throws on a missing argument, so check first.
+      var phase = context.ArgumentCount > 1 ? context.GetArgument<string>(1) : null;
 
-      ProjectBuildManager.CustomCmakeSnippets.Add(cmakeSnippet);
-
-      AnsiConsole.MarkupLine($"[green]Added custom CMake snippet[/]");
+      // "pre" lands before the project target (toolchain/SDK setup: variables,
+      // find_package, add_subdirectory); anything else is emitted after the
+      // target and its link line, which is the historical default.
+      if (string.Equals(phase, "pre", StringComparison.OrdinalIgnoreCase))
+      {
+        ProjectBuildManager.CustomCmakeSnippetsPre.Add(cmakeSnippet);
+        AnsiConsole.MarkupLine($"[green]Added custom CMake snippet[/] [dim](pre)[/]");
+      }
+      else
+      {
+        ProjectBuildManager.CustomCmakeSnippets.Add(cmakeSnippet);
+        AnsiConsole.MarkupLine($"[green]Added custom CMake snippet[/]");
+      }
 
       return ValueTask.FromResult(0);
     });
@@ -290,7 +304,8 @@ public class CoreFunctionModule : LuaFunctionModule
       {
         var archive = context.GetArgument<string>(0);
         var output = context.GetArgument<string>(1);
-        var stripComponents = context.GetArgument<int>(2);
+        // Optional (default 0): GetArgument<T> throws on a missing argument.
+        var stripComponents = context.ArgumentCount > 2 ? context.GetArgument<int>(2) : 0;
 
         try
         {
@@ -303,7 +318,11 @@ public class CoreFunctionModule : LuaFunctionModule
           }
           else if (ext is ".tar" or ".tgz" or ".gz")
           {
-            var psi = new ProcessStartInfo("tar", $"-xf \"{archive}\" -c \"{output}\" --strip-components={stripComponents}")
+            // -C (capital) selects the destination directory for extraction;
+            // -c would mean "create" and makes tar fail on an extract.
+            var psi = new ProcessStartInfo(
+              "tar",
+              $"-xf \"{archive}\" -C \"{output}\" --strip-components={stripComponents}")
             {
               UseShellExecute = false,
               RedirectStandardOutput = true,
@@ -311,7 +330,20 @@ public class CoreFunctionModule : LuaFunctionModule
             };
 
             using var p = Process.Start(psi);
-            p?.WaitForExit();
+            if (p == null)
+            {
+              AnsiConsole.MarkupLine("[red]Extraction failed:[/] could not start tar.");
+              return ValueTask.FromResult(1);
+            }
+
+            var stderr = p.StandardError.ReadToEnd();
+            p.WaitForExit();
+            if (p.ExitCode != 0)
+            {
+              AnsiConsole.MarkupLine(
+                $"[red]Extraction failed:[/] tar exited with {p.ExitCode}: {stderr.Trim()}");
+              return ValueTask.FromResult(1);
+            }
           }
 
           AnsiConsole.MarkupLine($"[green]Extracted:[/] {output}");

@@ -1,3 +1,5 @@
+using forge.Models;
+
 namespace forge
 {
   /// <summary>
@@ -45,6 +47,31 @@ namespace forge
     /// </remarks>
     public static List<string> FindDependencies { get; set; } = [];
 
+    /// <summary>
+    /// Snippets injected after the project target and its link line
+    /// (<c>forge.add_cmake(snippet)</c>).
+    /// </summary>
     public static List<string> CustomCmakeSnippets { get; set; } = [];
+
+    /// <summary>
+    /// Snippets injected before the project target is created
+    /// (<c>forge.add_cmake(snippet, "pre")</c>), for toolchain and SDK setup
+    /// such as <c>find_package</c>, <c>add_subdirectory</c> or variables.
+    /// </summary>
+    public static List<string> CustomCmakeSnippetsPre { get; set; } = [];
+
+    /// <summary>
+    /// Structured CMake options returned by Lua build scripts
+    /// (<c>.config/forge/build/*.lua</c> → <c>cmakeOptions</c>).
+    /// </summary>
+    public static CmakeOptions LuaCmakeOptions { get; set; } = new();
+
+    /// <summary>Drops every contribution from the previous build.</summary>
+    public static void ResetCustomCmake()
+    {
+      CustomCmakeSnippets.Clear();
+      CustomCmakeSnippetsPre.Clear();
+      LuaCmakeOptions.Clear();
+    }
   }
 }

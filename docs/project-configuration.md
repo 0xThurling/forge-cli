@@ -149,11 +149,19 @@ presets also disable inlining (`-fno-omit-frame-pointer`) so stack traces stay
 useful. Presets with no MSVC equivalent are silently inert there.
 
 ### `custom`
-A free-form table for any additional configuration you want to access via the Lua API using `forge.config.get()`.
+A free-form table of key/value pairs. Values are readable from Lua with
+`forge.config.get()`, and keys that are valid CMake identifiers are also
+emitted into the generated CMake as variables:
 
 ```lua
 custom = {
-    api_endpoint = "https://api.example.com"
+    api_endpoint = "https://api.example.com",  -- Lua-only (not an identifier)
+    WEBGPU_DIR   = "external/webgpu-sdk"       -- also: set(WEBGPU_DIR "...")
 }
 ```
+
+Keys must match `[A-Za-z_][A-Za-z0-9_]*` to be emitted; anything else stays
+Lua-only. This is the declarative counterpart to a
+[custom setup script](custom-setup.md).
+
 Any top-level keys that aren't recognized by Forge are also added to the `custom` section.

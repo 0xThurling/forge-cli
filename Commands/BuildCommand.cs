@@ -97,6 +97,10 @@ namespace forge.Commands
         }
       }
 
+      // Drop anything a previous build left behind, then run the scripts that
+      // contribute CMake (cmakeOptions / add_cmake).
+      ProjectBuildManager.ResetCustomCmake();
+
       // Needs to run synchronously
       Task.Run(() => LuaBuilder.RunBuilderScripts()).Wait();
 
@@ -169,8 +173,6 @@ namespace forge.Commands
           }
 
           var cmakeContent = CMakeRegistry.Instance.Generate(projectConfig);
-
-          ProjectBuildManager.CustomCmakeSnippets.Clear();
 
           var cmakeConfigPath = Path.Combine(".config", "cmake", "CMakeLists.txt");
           File.WriteAllText(cmakeConfigPath, cmakeContent);

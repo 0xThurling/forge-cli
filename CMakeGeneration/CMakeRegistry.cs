@@ -30,6 +30,7 @@ public class CMakeRegistry
     Register(new FetchContentSection());
     Register(new ConanSection());
     Register(new FlagsSection());
+    Register(new LuaOptionsSection());
     Register(new ProjectTargetSection());
     Register(new LinkingSection());
     Register(new CustomCMakeSection());

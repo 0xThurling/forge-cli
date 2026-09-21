@@ -94,9 +94,19 @@ CLI overrides for a single invocation:
 - `forge build --release` / `--debug` force `CMAKE_BUILD_TYPE`.
 - `forge test` forwards the same flag options to the build step.
 
-### `forge.add_cmake(snippet)`
+### `forge.add_cmake(snippet, phase?)`
 Adds a custom CMake snippet directly into the generated `CMakeLists.txt`.
-- `snippet`: The CMake code to inject.
+- `snippet`: The CMake code to inject. `${PROJECT_NAME}` is replaced with the
+  project name.
+- `phase`: (Optional) `"pre"` injects the snippet *before* the project target is
+  created — for variables, `find_package`, `add_subdirectory` and toolchain
+  setup. Anything else (the default) injects it *after* the target and its link
+  line, for `set_target_properties`, install rules and extra
+  `target_link_libraries`.
+
+Build scripts can also describe their contribution declaratively with the
+`cmakeOptions` table they return — see
+[Custom Setup Scripts](custom-setup.md).
 
 ### `forge.get_packages(password, manager, packages)`
 Installs system packages using a package manager (e.g., `apt`, `pacman`).
