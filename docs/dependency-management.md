@@ -35,6 +35,42 @@ dependencies = {
 
 ---
 
+## Local Path Dependencies
+
+When the dependency lives beside your project — a workspace of sibling
+checkouts — point at it directly instead of going through Git:
+
+```lua
+dependencies = {
+    direct = {
+        ["forgefp"] = {
+            path = "../fp",       -- relative to the project directory
+            target = "forgefp"    -- the CMake target to link
+        }
+    }
+}
+```
+
+Forge emits
+`FetchContent_Declare(forgefp SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../fp")`,
+so the dependency is configured and built from that directory with no clone,
+fetch, or tag round-trip. Edits to the dependency are picked up on the next
+`forge build`.
+
+- Relative paths resolve against the project directory; absolute paths are
+  used as-is.
+- The emitted path is relative to the project, so the generated CMake stays
+  portable across machines that share the layout.
+- A missing directory is reported at generation time, with the resolved path,
+  instead of surfacing later as a confusing CMake error.
+- `path` and `git`/`tag` are interchangeable per dependency: use `path` while
+  developing side by side, and `git`/`tag` for CI or for consumers that don't
+  share the layout.
+- The dependency **key** is the `FetchContent` name while `target` is what gets
+  linked, so they may differ (a key of `myfoo` linking a target `foo`).
+
+---
+
 ## Conan Packages
 
 Forge has built-in support for [Conan](https://conan.io/), a powerful C/C++ package manager.

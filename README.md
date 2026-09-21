@@ -7,7 +7,7 @@
 ## Features
 
 *   **Project Scaffolding**: Quickly create new executable or library projects.
-*   **Dependency Management**: Unified management of Git-based dependencies and Conan packages.
+*   **Dependency Management**: Unified management of Git-based dependencies, local-path checkouts and Conan packages.
 *   **Lua Configuration**: Flexible project configuration using `forge.lua`.
 *   **Automated Builds**: Hands-off CMake generation and compilation.
 *   **Resource Embedding**: Easily embed and access binary assets in your C++ code.
@@ -18,6 +18,20 @@
 ```bash
 curl -sSL https://raw.githubusercontent.com/0xThurling/forge-cli/refs/heads/main/install.sh | bash
 ```
+
+## Development
+
+```bash
+./compile.sh linux     # publish a standalone binary to ~/.local/bin
+./dev.sh               # build + run every end-to-end scenario (no install)
+./dev.sh path cache    # run only the named scenarios
+./dev.sh --keep        # keep the scratch workspace for inspection
+```
+
+`dev.sh` drives the dev build directly (`dotnet bin/Release/net10.0/forge.dll`)
+against a throwaway workspace, so the installed `forge` is never touched. It
+covers local-path dependencies, missing paths, git dependencies, stale
+build-cache recovery, and library header installation.
 
 ## Quick Start
 

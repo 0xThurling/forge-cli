@@ -48,10 +48,15 @@ Contains metadata about your project.
 Manages external libraries.
 
 #### `dependencies.direct`
-Git-based dependencies that use CMake `FetchContent`.
-- `git` (string): The URL to the Git repository.
-- `tag` (string): The branch, tag, or commit hash.
-- `target` (string): (Optional) The CMake target name to link against.
+Dependencies that use CMake `FetchContent`, either fetched from Git or taken
+from a local directory.
+- `git` (string): The URL to the Git repository. Required unless `path` is set.
+- `tag` (string): The branch, tag, or commit hash. Required unless `path` is set.
+- `path` (string): A local directory to use as the dependency's source instead
+  of Git. Relative paths resolve against the project directory. When set,
+  `git` and `tag` are ignored.
+- `target` (string): (Optional) The CMake target name to link against. The
+  dependency **key** is the `FetchContent` name, so the two may differ.
 
 #### `dependencies.conan`
 Packages from the Conan package manager.

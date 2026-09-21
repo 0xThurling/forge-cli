@@ -235,18 +235,27 @@ public static partial class CoreUtils
       installedIncludes[Path.GetFileName(rel)] = installed;     // "result.hpp"
     }
 
-    // Copy hand-written .hpp files from src/, rewriting project-local includes
-    // to the installed path so consumers can `#include <name/fp/...>`.
+    // Copy hand-written .hpp files from src/. An include that already resolves
+    // next to the header is copied verbatim — the copy keeps the same layout,
+    // so the installed tree stays byte-identical to src/ and parses standalone.
+    // Includes that need the installed prefix (path-style ones like
+    // "fp/result.hpp", or a name that lives in another src/ directory) are
+    // rewritten so consumers can `#include <name/fp/...>`.
     foreach (var hppFile in hppFiles)
     {
       var relativePath = Path.GetRelativePath(srcDir, hppFile).Replace('\\', '/');
       var targetPath = Path.Combine(includeDir, relativePath);
       Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
 
+      var sourceDirectory = Path.GetDirectoryName(hppFile)!;
       var content = File.ReadAllText(hppFile);
       content = LocalIncludesPattern().Replace(content, match =>
       {
         var include = match.Groups[1].Value;
+
+        if (File.Exists(Path.Combine(sourceDirectory, include)))
+          return match.Value;
+
         return installedIncludes.TryGetValue(include, out var installed)
           ? $"#include \"{installed}\""
           : match.Value;

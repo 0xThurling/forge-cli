@@ -192,6 +192,7 @@ namespace forge.Commands
           File.WriteAllText("CMakeLists.txt", rootCmakeContent.ToString());
 
           // Configure step
+          EnsureBuildCacheMatchesProject("build");
           var buildType = Debug && !Release ? "Debug" : "Release";
           var cmakeArgs = new StringBuilder($"-B build -DCMAKE_BUILD_TYPE={buildType} -S . -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=.");
 
@@ -347,6 +348,70 @@ namespace forge.Commands
       }
 
       return 0;
+    }
+
+    /// <summary>
+    /// CMake refuses to configure when <c>build/CMakeCache.txt</c> was created
+    /// for a different source directory — a moved, renamed or re-cloned
+    /// checkout — with "The current CMakeCache.txt directory ... is different".
+    /// Detect that here and drop the stale cache plus its generated files,
+    /// keeping <c>_deps/*-src</c> so fetched dependency sources are not
+    /// re-downloaded, then let the configure step start clean.
+    /// </summary>
+    private static void EnsureBuildCacheMatchesProject(string buildDir)
+    {
+      var cachePath = Path.Combine(buildDir, "CMakeCache.txt");
+      if (!File.Exists(cachePath))
+        return;
+
+      string? cachedSource = null;
+      foreach (var line in File.ReadLines(cachePath))
+      {
+        if (!line.StartsWith("CMAKE_HOME_DIRECTORY:", StringComparison.Ordinal))
+          continue;
+
+        var separator = line.IndexOf('=');
+        if (separator >= 0)
+          cachedSource = line[(separator + 1)..].Trim();
+        break;
+      }
+
+      if (string.IsNullOrEmpty(cachedSource))
+        return;
+
+      static string Normalise(string path) =>
+        Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+
+      var comparison = OperatingSystem.IsWindows()
+        ? StringComparison.OrdinalIgnoreCase
+        : StringComparison.Ordinal;
+
+      if (string.Equals(Normalise(cachedSource),
+                        Normalise(Directory.GetCurrentDirectory()), comparison))
+        return;
+
+      AnsiConsole.MarkupLine(
+        $"[yellow]Note:[/] build/ was configured for [dim]{cachedSource}[/]; " +
+        "regenerating the cache (fetched dependency sources are kept).");
+
+      File.Delete(cachePath);
+
+      var cmakeFiles = Path.Combine(buildDir, "CMakeFiles");
+      if (Directory.Exists(cmakeFiles))
+        Directory.Delete(cmakeFiles, true);
+
+      // FetchContent's per-dependency subbuilds carry the same stale paths.
+      var depsDir = Path.Combine(buildDir, "_deps");
+      if (!Directory.Exists(depsDir))
+        return;
+
+      foreach (var dir in Directory.GetDirectories(depsDir))
+      {
+        var leaf = Path.GetFileName(dir);
+        if (leaf.EndsWith("-build", StringComparison.Ordinal) ||
+            leaf.EndsWith("-subbuild", StringComparison.Ordinal))
+          Directory.Delete(dir, true);
+      }
     }
 
     private static Version GetCmakeVersion()

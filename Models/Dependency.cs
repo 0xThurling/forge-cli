@@ -26,6 +26,22 @@ namespace forge.Models
     public string Tag { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets a local directory to use as the dependency's source instead
+    /// of fetching it from Git.
+    /// </summary>
+    /// <remarks>
+    /// Use this when the dependency lives beside the project (a workspace of
+    /// sibling checkouts) and is being edited at the same time — no commit,
+    /// push or tag round-trip is needed. Relative paths are resolved against
+    /// the project directory. When set, <see cref="Git"/> and <see cref="Tag"/>
+    /// are ignored.
+    /// </remarks>
+    /// <value>
+    /// A path to a directory containing the dependency's CMakeLists.txt.
+    /// </value>
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the CMake target name to use when linking this dependency.
     /// </summary>
     /// <value>

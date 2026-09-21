@@ -18,7 +18,7 @@ When you run `forge build`, the following happens:
 Forge uses a modular approach to generate CMake files. The `.config/cmake/CMakeLists.txt` file is composed of several sections:
 
 - **Standard Section**: Sets the C++ standard and basic project settings.
-- **FetchContent Section**: Handles Git dependencies.
+- **FetchContent Section**: Handles dependencies — Git repositories or local `path` directories.
 - **Conan Section**: Handles `find_package` for Conan dependencies.
 - **Project Target Section**: Defines the main executable or library target, including source files from `src/`.
 - **Linking Section**: Handles linking all dependencies and libraries.
@@ -57,3 +57,12 @@ Forge automatically generates a `compile_commands.json` file and creates a symbo
 - **Executables**: Found in `build/`.
 - **Libraries**: Found in `build/` (e.g., `libMyLib.a` or `MyLib.lib`).
 - **Temporary Files**: Stored in `build/` and `.config/`.
+
+### Moved or renamed projects
+
+CMake records the source directory it was configured for, and refuses to
+configure a cache that belongs to a different one. If you move, rename or
+re-clone a project (or copy a `build/` directory between machines), Forge
+detects the mismatch on the next `forge build`, regenerates the cache — keeping
+`build/_deps/*-src` so fetched dependency sources are not downloaded again —
+and continues. No manual `rm -rf build` needed.

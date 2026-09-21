@@ -248,6 +248,11 @@ public class LuaConfigLoader
       dep.Tag = table["tag"].ToString();
     }
 
+    if (table["path"] != LuaValue.Nil)
+    {
+      dep.Path = table["path"].ToString();
+    }
+
     if (table["target"] != LuaValue.Nil)
     {
       dep.Target = table["target"].ToString();
