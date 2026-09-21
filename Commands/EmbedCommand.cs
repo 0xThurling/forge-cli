@@ -7,7 +7,7 @@ namespace forge.Commands
   /// Registers a resource file to be embedded in the compiled executable.
   /// </summary>
   /// <remarks>
-  /// This command adds a file to the [resources] section of package.toml.
+  /// This command adds a file to the [resources] section of forge.lua.
   /// During the next build, the file will be converted to a C++ byte array
   /// and embedded in the executable, allowing runtime access via the
   /// Embedded::get() API.
@@ -34,7 +34,7 @@ namespace forge.Commands
     public string FilePath { get; set; } = string.Empty;
 
     /// <summary>
-    /// Registers the resource file in package.toml.
+    /// Registers the resource file in forge.lua.
     /// </summary>
     public async Task RunAsync()
     {
@@ -66,12 +66,12 @@ namespace forge.Commands
         }
         catch (Exception ex)
         {
-          AnsiConsole.MarkupLine($"[bold red]Error:[/] Could not write to package.toml: {ex.Message}");
+          AnsiConsole.MarkupLine($"[bold red]Error:[/] Could not write to forge.lua: {ex.Message}");
         }
       }
       else
       {
-        AnsiConsole.MarkupLine($"[yellow]Resource `[bold]{relativePath}[/]` is already registered in package.toml.[/]");
+        AnsiConsole.MarkupLine($"[yellow]Resource `[bold]{relativePath}[/]` is already registered in forge.lua.[/]");
       }
     }
   }

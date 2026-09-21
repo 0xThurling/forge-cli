@@ -9,7 +9,7 @@ namespace forge.Commands
   /// </summary>
   /// <remarks>
   /// This command initializes a new Forge project by creating the required directory
-  /// structure, generating a package.toml configuration file, and setting up Lua
+  /// structure, generating a forge.lua configuration file, and setting up Lua
   /// environment definitions. The created project is immediately ready for use with
   /// standard CMake-based C++ development.
   /// </remarks>
@@ -29,7 +29,7 @@ namespace forge.Commands
     /// Gets or sets the name of the project to create.
     /// </summary>
     /// <value>
-    /// The name used for the project directory, executable/library, and package.toml name.
+    /// The name used for the project directory, executable/library, and forge.lua name.
     /// </value>
     [CliArgument(Description = "The name of the project.")]
     public string Name { get; set; } = string.Empty;
@@ -53,7 +53,7 @@ namespace forge.Commands
     /// - external/ for Git dependencies
     /// - assets/ for resource files
     /// - .config/forge/ containing Lua configuration directories
-    /// - package.toml with project configuration
+    /// - forge.lua with project configuration
     /// - .gitignore with appropriate patterns
     /// </remarks>
     public async Task RunAsync()
@@ -87,7 +87,7 @@ namespace forge.Commands
           File.WriteAllText(Path.Combine(projectName, "src", "main.cpp"), mainCppContent);
         }
 
-        // Create package.toml
+        // Create forge.lua
         var installHeaders = Type == "library" ? "install_headers = true," : "";
         var forgeLuaContent =
 @$"return {{

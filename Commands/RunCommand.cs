@@ -50,7 +50,10 @@ namespace forge.Commands
         return await startCommand.RunAsync();
       }
 
-      AnsiConsole.Status().Start(ScriptName != null ? $"Running {ScriptName}" : "Running project...", _ =>
+      // The status callback's result carries the script's exit code: a failing
+      // script must fail `forge run` too.
+      return AnsiConsole.Status().Start(
+        ScriptName != null ? $"Running {ScriptName}" : "Running project...", _ =>
       {
         if (!config!.Scripts.TryGetValue(ScriptName!, out var scriptCommand))
         {
@@ -79,8 +82,6 @@ namespace forge.Commands
           return 1;
         }
       });
-
-      return 0;
     }
   }
 }

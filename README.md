@@ -22,16 +22,19 @@ curl -sSL https://raw.githubusercontent.com/0xThurling/forge-cli/refs/heads/main
 ## Development
 
 ```bash
-./compile.sh linux     # publish a standalone binary to ~/.local/bin
-./dev.sh               # build + run every end-to-end scenario (no install)
-./dev.sh path cache    # run only the named scenarios
-./dev.sh --keep        # keep the scratch workspace for inspection
+./compile.sh linux      # publish a standalone binary to ~/.local/bin
+test/run.sh             # build + run the end-to-end suite (no install needed)
+test/run.sh path cache  # run only the matching scenarios
+test/run.sh --list      # list the scenarios
+test/run.sh --keep      # keep the scratch workspace for inspection
 ```
 
-`dev.sh` drives the dev build directly (`dotnet bin/Release/net10.0/forge.dll`)
-against a throwaway workspace, so the installed `forge` is never touched. It
-covers local-path dependencies, missing paths, git dependencies, stale
-build-cache recovery, and library header installation.
+`test/run.sh` (also reachable as `./dev.sh`) drives the dev build directly
+(`dotnet bin/Release/net10.0/forge.dll`) against a throwaway workspace, so the
+installed `forge` is never touched. It covers scaffolding, the dependency
+channels (git, local `path`, Conan no-op), the generated CMake, Lua build
+scripts, resources, error paths and exit codes. See
+[test/README.md](test/README.md) to add a scenario.
 
 ## Quick Start
 

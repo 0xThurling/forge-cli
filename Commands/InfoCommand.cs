@@ -8,7 +8,7 @@ namespace forge.Commands
   /// </summary>
   /// <remarks>
   /// Shows key project information including name, type, number of dependencies,
-  /// and number of scripts defined in package.toml.
+  /// and number of scripts defined in forge.lua.
   /// </remarks>
   /// <example>
   /// <code>
@@ -27,7 +27,7 @@ namespace forge.Commands
       var config = await ProjectConfigManager.LoadConfigAsync();
       if (config == null)
       {
-        AnsiConsole.MarkupLine("[bold red]Error:[/] Not a forge project. `package.toml` not found or is missing project name.");
+        AnsiConsole.MarkupLine("[bold red]Error:[/] Not a forge project. `forge.lua` not found or is missing project name.");
         return 1;
       }
 

@@ -27,7 +27,7 @@ namespace forge.Commands
       var projectRoot = ProjectConfigManager.FindProjectRoot();
       if (projectRoot == null)
       {
-        AnsiConsole.MarkupLine("[bold red]Error:[/] Not a forge project. `package.toml` not found.");
+        AnsiConsole.MarkupLine("[bold red]Error:[/] Not a forge project. `forge.lua` not found.");
         return 1;
       }
 

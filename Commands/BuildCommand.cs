@@ -15,7 +15,7 @@ namespace forge.Commands
   /// </summary>
   /// <remarks>
   /// This is the primary build command that orchestrates the entire build process:
-  /// 1. Loads project configuration from package.toml
+  /// 1. Loads project configuration from forge.lua
   /// 2. Runs pre-build script (if defined)
   /// 3. Installs Conan dependencies
   /// 4. Generates embedded resource files

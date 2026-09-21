@@ -122,6 +122,11 @@ build = {
   produce a warning, so a typo is visible at configure time.
 - `cxx_flags` / `link_flags` / `link_libraries` (lists): Raw flags prepended to
   the preset bundle for that category.
+- `compile_definitions` (list): definitions emitted with
+  `add_compile_definitions`, e.g. `{ "MY_FEATURE=1" }`.
+
+The earlier spellings `compile_options` / `link_options` / `definitions` are
+still accepted as aliases.
 
 Available presets (GNU/Clang vs MSVC):
 

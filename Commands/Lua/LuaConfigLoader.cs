@@ -171,24 +171,42 @@ public class LuaConfigLoader
   private static void ParseBuild(ref ProjectConfig config, LuaTable table)
   {
     config.Build.Presets = ReadStringList(table["presets"]);
-    config.Build.CompileOptions = ReadStringList(table["compile_options"]);
-    config.Build.CompileDefinitions = ReadStringList(table["compile_definitions"]);
-    config.Build.LinkOptions = ReadStringList(table["link_options"]);
+    // Documented names first (docs/project-configuration.md), with the earlier
+    // spellings accepted so existing projects keep working.
+    config.Build.CompileOptions =
+      ReadStringList(table["cxx_flags"], table["compile_options"]);
+    config.Build.CompileDefinitions =
+      ReadStringList(table["compile_definitions"], table["definitions"]);
+    config.Build.LinkOptions =
+      ReadStringList(table["link_flags"], table["link_options"]);
     config.Build.LinkLibraries = ReadStringList(table["link_libraries"]);
   }
 
-  private static List<string> ReadStringList(LuaValue value)
+  /// <summary>
+  /// Reads one or more Lua values as a list of strings: a table becomes its
+  /// entries, a scalar becomes a one-element list, and nil is skipped. Passing
+  /// several values merges them, which is how a documented key and its earlier
+  /// spelling are both accepted.
+  /// </summary>
+  private static List<string> ReadStringList(params LuaValue[] values)
   {
     var list = new List<string>();
 
-    if (value.TryRead<LuaTable>(out var table))
+    foreach (var value in values)
     {
-      foreach (var kvp in table)
-        list.Add(kvp.Value.ToString());
-    }
-    else if (value != LuaValue.Nil)
-    {
-      list.Add(value.ToString());
+      if (value.TryRead<LuaTable>(out var table))
+      {
+        foreach (var kvp in table)
+        {
+          var text = kvp.Value.ToString();
+          if (!string.IsNullOrWhiteSpace(text)) list.Add(text);
+        }
+      }
+      else if (value != LuaValue.Nil)
+      {
+        var text = value.ToString();
+        if (!string.IsNullOrWhiteSpace(text)) list.Add(text);
+      }
     }
 
     return list;

@@ -4,7 +4,7 @@ using Spectre.Console;
 namespace forge.Commands
 {
   /// <summary>
-  /// Lists all project dependencies from package.toml.
+  /// Lists all project dependencies from forge.lua.
   /// </summary>
   /// <remarks>
   /// Displays a table showing all Git-based dependencies including their names,
@@ -27,13 +27,13 @@ namespace forge.Commands
       var config = await ProjectConfigManager.LoadConfigAsync();
       if (config == null)
       {
-        AnsiConsole.MarkupLine("[bold red]Error:[/] Not a forge project. `package.toml` not found or is missing project name.");
+        AnsiConsole.MarkupLine("[bold red]Error:[/] Not a forge project. `forge.lua` not found or is missing project name.");
         return 1;
       }
 
       if (config.Dependencies.Count == 0)
       {
-        AnsiConsole.MarkupLine("[yellow]No dependencies defined in package.toml.[/]");
+        AnsiConsole.MarkupLine("[yellow]No dependencies defined in forge.lua.[/]");
         return 0;
       }
 

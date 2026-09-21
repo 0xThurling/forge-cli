@@ -16,4 +16,6 @@ using forge.Commands.Lua;
 // Start the Lua Sandbox Engine
 LuaEngine.InitialiseLuaEngine();
 
-await Cli.RunAsync<RootCommand>(args);
+// The command's result is the process exit code: scripts, CI and `forge && …`
+// all rely on a failing command reporting failure.
+return await Cli.RunAsync<RootCommand>(args);

@@ -11,7 +11,7 @@ namespace forge.Commands.Conan
   /// </summary>
   /// <remarks>
   /// This command generates a conanfile.txt from the [conan-dependencies] section
-  /// of package.toml and runs `conan install` to fetch and configure the packages.
+  /// of forge.lua and runs `conan install` to fetch and configure the packages.
   /// It also parses the Conan output to extract CMake target information for use
   /// during the build phase.
   /// </remarks>
