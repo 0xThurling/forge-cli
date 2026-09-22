@@ -73,6 +73,25 @@ Cleans the build directory.
 
 ---
 
+### `install`
+Resolves dependencies and writes `forge.lock`, and installs Conan packages when
+the project declares them.
+
+**Usage:** `forge install [--prefix <dir>] [--update]`
+
+- `--prefix <dir>`: install the project itself into that directory (the CMake
+  install tree: headers, library and package file) instead of only resolving
+  dependencies.
+- `--update`: re-resolve git refs and rewrite `forge.lock`, even when nothing
+  in `forge.lua` changed.
+
+`forge build` runs the dependency half of this automatically; run `forge install`
+explicitly to pin new or changed dependencies without building, or in CI to
+produce a reproducible lock. See
+[Locking](dependency-management.md#locking-forgelock).
+
+---
+
 ### `config`
 Manages project configuration.
 

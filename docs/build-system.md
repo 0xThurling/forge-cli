@@ -33,6 +33,43 @@ compilers, toolchain file, prefix path). That lets IDEs and
 `cmake --preset forge` reproduce Forge's configuration without going through
 the CLI. A `CMakePresets.json` that Forge did not generate is left untouched.
 
+## Build speed
+
+Three things happen before a single file is compiled, and all three are on by
+default where they can be:
+
+- **Parallel builds.** `forge build` passes `--parallel <jobs>` to CMake, with
+  the job count from `--jobs`, then `build.jobs`, then every core.
+- **A compiler launcher.** `ccache` or `sccache` is detected on `PATH` and used
+  as `CMAKE_CXX_COMPILER_LAUNCHER`; set `build.compiler_launcher = "none"` to
+  opt out, or name a different one.
+- **Configured-only-when-needed.** The generated files are written on every
+  build, but CMake is only re-run when they (or the cache variables) changed.
+
+Unity builds and precompiled headers cut compile time further — see
+[Modern build features](#modern-build-features).
+
+## Installing and consuming a library
+
+`forge install --prefix <dir>` installs the project into a CMake-style tree:
+
+```
+<dir>/lib/lib<name>.a          # or .so, with SOVERSION from project.version
+<dir>/include/…                # the mirrored headers
+<dir>/lib/cmake/<name>/<name>Config.cmake
+```
+
+Another project consumes it with plain CMake — no Forge involved:
+
+```cmake
+find_package(mylib CONFIG REQUIRED)
+target_link_libraries(app PRIVATE mylib::mylib)
+```
+
+`project.version` drives the library version and its `SOVERSION`. A consumer
+that also uses Forge does not need the installed tree: a `git` or `path`
+dependency builds it from source instead, and its headers are used in place.
+
 ## Modern build features
 
 Three `build` toggles cover the usual "why is my build slow" answers:

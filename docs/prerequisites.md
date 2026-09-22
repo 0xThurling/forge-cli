@@ -10,7 +10,7 @@ You need a modern C++ compiler that supports at least C++11, though C++20 is rec
 - **macOS**: Clang (via Xcode Command Line Tools)
 - **Windows**: MSVC (via Visual Studio) or MinGW/GCC
 
-### 2. CMake (v3.23 or higher)
+### 2. CMake (v3.23 or higher; 3.28+ for `modules = true`)
 Forge generates CMake files and uses the `cmake` executable to configure and build your project.
 - **Verification**: `cmake --version`
 - **Installation**: [cmake.org/download](https://cmake.org/download/) or your system's package manager.

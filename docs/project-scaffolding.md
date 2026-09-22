@@ -104,3 +104,10 @@ Shell scripts in `.config/forge/commands/` behave like `scripts` entries:
 `forge project scripts` lists them (marked with their directory), `forge run
 <name>` executes them with `bash`, and their exit codes propagate. A script of
 the same name declared in `forge.lua` takes precedence.
+
+## After scaffolding
+
+Generated sources are starting points, not formatted output: run
+`forge format` before the first commit (and `forge format --check` in CI) so the
+new files match the project's `.clang-format`. `forge doctor` re-checks the
+layout if you moved things around.

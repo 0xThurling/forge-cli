@@ -68,6 +68,9 @@ return {
 
 Comprehensive documentation on commands, architecture, and the Lua engine is available in our **[Project Wiki](https://tinyurl.com/forge-cli)**.
 
+The same material lives in [`docs/`](docs/index.md) and is rendered with
+`mkdocs serve` (see [`mkdocs.yml`](mkdocs.yml)).
+
 ## ❤️ Support Forge
 
 Forge is a free, open-source tool. If it saves you setup headaches and keeps your C++ workflow clean, consider sponsoring its development.

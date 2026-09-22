@@ -117,6 +117,7 @@ scratch workspace path so the generated projects can be inspected.
 | `75-build-context` | Lua contributions belong to one build: no duplication across builds, identical regeneration |
 | `76-ci` | `forge ci`: generated workflow content, reproducibility (`--check`), `--force`, GitLab provider |
 | `77-dependency-isolation` | a dependency's tests, test framework fetch and CPack config stop at the dependency |
+| `78-docs-coverage` | docs stay in step: every command/subcommand is in the CLI reference, the nav matches the pages, recent features are described |
 
 ## Adding a scenario
 

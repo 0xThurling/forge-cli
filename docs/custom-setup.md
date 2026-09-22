@@ -110,3 +110,19 @@ written into `forge.lua` is a secret in version control.
   SDK before downloading it again.
 - **Keep them in the repo.** `.config/forge/build/` is part of the project, so
   the same script sets the dependency up on every machine.
+
+## Named CMake sections
+
+`forge.add_cmake` injects raw text at one of two fixed points. When the snippet
+needs to sit somewhere specific — after the target, before the test block, next
+to the packaging — use `forge.add_section` instead: it registers a *named*
+section at an anchor and keeps its identity in the generated file.
+
+```lua
+forge.add_section("codegen", "after:project_target", [[
+add_custom_command(OUTPUT ${PROJECT_NAME}_gen.cpp COMMAND my-codegen)
+]])
+```
+
+The [Lua reference](lua-reference.md#forgeadd_sectionname-position-content) lists
+every anchor and its priority.

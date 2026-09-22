@@ -260,6 +260,11 @@ namespace forge.Commands
             cacheVariables["CMAKE_C_COMPILER"] = build.CCompiler;
           if (build.CmakePrefixPath.Count > 0)
             cacheVariables["CMAKE_PREFIX_PATH"] = string.Join(";", build.CmakePrefixPath);
+
+          // vcpkg's toolchain reads these, so they must be cache variables (set
+          // before the toolchain runs), not plain `set()` calls.
+          if (!string.IsNullOrWhiteSpace(projectConfig!.VcpkgTriplet))
+            cacheVariables["VCPKG_TARGET_TRIPLET"] = projectConfig.VcpkgTriplet;
           if (build.SystemName.Length > 0)
             cacheVariables["CMAKE_SYSTEM_NAME"] = build.SystemName;
           if (build.SystemProcessor.Length > 0)

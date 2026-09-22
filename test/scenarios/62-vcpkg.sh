@@ -39,7 +39,8 @@ return {
   scripts = {},
   features = {},
   vcpkg_root = "$fake",
-  vcpkg_baseline = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+  vcpkg_baseline = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+  vcpkg_triplet = "x64-mingw-static"
 }
 LUA
   printf 'int main() { return 0; }\n' >"$app/src/main.cpp"
@@ -71,6 +72,16 @@ LUA
   fi
   assert_contains "$app/build/CMakeCache.txt" "VCPKG_STUB_TOOLCHAIN:BOOL=ON" \
     "the vcpkg toolchain was read by CMake"
+
+  # The triplet must be a cache variable: vcpkg's toolchain runs before the
+  # generated CMakeLists, so a plain set() would be too late.
+  local triplet
+  triplet="$(grep -m1 '^VCPKG_TARGET_TRIPLET' "$app/build/CMakeCache.txt" || true)"
+  if [[ "$triplet" == *"x64-mingw-static"* ]]; then
+    pass "the configured vcpkg triplet reaches the toolchain"
+  else
+    fail "the configured vcpkg triplet reaches the toolchain (got '$triplet')"
+  fi
 
   # Without a usable vcpkg checkout the build explains what to do.
   local missing="$root/missing"

@@ -94,6 +94,9 @@ manifest mode.
 - `vcpkg_root` (string): The vcpkg checkout; defaults to `$VCPKG_ROOT`, then
   `external/vcpkg`.
 - `vcpkg_baseline` (string): `builtin-baseline` commit for `vcpkg.json`.
+- `vcpkg_triplet` (string, top level): the vcpkg target triplet, passed as
+  `VCPKG_TARGET_TRIPLET` so the toolchain builds dependencies for that platform
+  (e.g. `x64-mingw-static`). Leave it empty to use vcpkg's default for the host.
 - vcpkg and Conan both own `CMAKE_TOOLCHAIN_FILE`, so pick one per project.
 
 ### `resources`
