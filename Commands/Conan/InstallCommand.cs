@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 using DotMake.CommandLine;
+using forge.CMakeGeneration;
 using Spectre.Console;
 
 namespace forge.Commands.Conan
@@ -30,17 +31,42 @@ namespace forge.Commands.Conan
     [CliOption(Description = "The Directory to install the project to")]
     public string? Prefix { get; set; } = null;
 
+    /// <summary>Re-resolve every locked git dependency to its current commit.</summary>
+    [CliOption(Description = "Refresh forge.lock (re-resolve git refs)", Required = false)]
+    public bool Update { get; set; }
+
     /// <summary>
     /// Generates conanfile.txt and runs Conan to install dependencies.
     /// </summary>
     /// <returns>0 on success, 1 on failure.</returns>
-    public async Task<int> RunAsync()
+    public async Task<int> RunAsync() => await InstallAsync(lockDependencies: true);
+
+    /// <summary>
+    /// Used by <c>forge build</c>: installs Conan packages and leaves
+    /// <c>forge.lock</c> alone, so a build never needs the network for a
+    /// dependency that is already declared.
+    /// </summary>
+    public async Task<int> InstallForBuildAsync(BuildContext context) =>
+      await InstallAsync(lockDependencies: false, context: context);
+
+    private async Task<int> InstallAsync(bool lockDependencies, BuildContext? context = null)
     {
+      // A standalone `forge install` has no build to contribute to; its parsed
+      // targets only matter to a build, which passes its own context.
+      context ??= new BuildContext();
+
       var config = await ProjectConfigManager.LoadConfigAsync();
       if (config == null) return 1;
 
       if (config.ConanDependencies.Count == 0 && !string.IsNullOrEmpty(Prefix)) return InstallLib();
-      if (config.ConanDependencies.Count == 0) return 0;
+
+      if (config.ConanDependencies.Count == 0)
+      {
+        // Nothing for Conan, but git dependencies still get locked.
+        if (lockDependencies)
+          await LockfileManager.ResolveAsync(config, Update);
+        return 0;
+      }
 
       Directory.CreateDirectory(".config");
 
@@ -94,8 +120,8 @@ namespace forge.Commands.Conan
 
         process.WaitForExit();
 
-        LinkConanDependencies(errorBuilder.ToString());
-        FindConanDependencies(errorBuilder.ToString());
+        LinkConanDependencies(errorBuilder.ToString(), context);
+        FindConanDependencies(errorBuilder.ToString(), context);
 
         if (process.ExitCode != 0)
         {
@@ -108,11 +134,18 @@ namespace forge.Commands.Conan
           return InstallLib();
         }
 
+        if (lockDependencies)
+          await LockfileManager.ResolveAsync(config, Update);
         return process.ExitCode;
       }
       catch (Exception ex)
       {
-        AnsiConsole.MarkupLine($"[red]Error: {ex.Message}[/]");
+        // The common case by far: `conan` is not on PATH. Say what to do
+        // instead of only echoing the process-start error.
+        AnsiConsole.MarkupLine($"[red]Error:[/] {ex.Message}");
+        AnsiConsole.MarkupLine(
+          "[yellow]Conan is required by dependencies.conan but could not be run.[/] " +
+          "Install it (https://conan.io) or remove the packages from forge.lua.");
         return 1;
       }
     }
@@ -125,23 +158,37 @@ namespace forge.Commands.Conan
     /// Parses lines starting with "target_link_libraries" and extracts the
     /// CMake target names for linking during the build phase.
     /// </remarks>
-    private static void LinkConanDependencies(string output)
+    private static void LinkConanDependencies(string output, BuildContext context)
     {
-      var lines = output.Split('\n');
-
-      foreach (var line in lines)
+      foreach (var line in output.Split('\n'))
       {
         var trimmedLine = line.Trim();
 
-        if (trimmedLine.StartsWith("target_link_libraries"))
-        {
-          var linkTags = trimmedLine.Split(' ')[1..];
-          foreach (var tag in linkTags)
-          {
-            var strippedTag = tag.Replace(')', ' ').Trim();
-            ProjectBuildManager.LinkDependencies.Add(strippedTag);
-          }
-        }
+        if (!trimmedLine.StartsWith("target_link_libraries"))
+          continue;
+
+        // Accept both shapes: `target_link_libraries(fmt::fmt spdlog::spdlog)`
+        // and `target_link_libraries fmt::fmt spdlog::spdlog`. A CMake-style
+        // leading target name is dropped when it is followed by a keyword
+        // (`target_link_libraries(my_app PRIVATE fmt::fmt)`).
+        var payload = trimmedLine["target_link_libraries".Length..]
+          .Trim()
+          .Trim('(', ')');
+
+        var tags = payload
+          .Split([' ', ',', ';'], StringSplitOptions.RemoveEmptyEntries)
+          .Select(tag => tag.Trim())
+          .Where(tag => tag.Length != 0)
+          .ToList();
+
+        static bool IsKeyword(string tag) =>
+          tag is "PRIVATE" or "PUBLIC" or "INTERFACE";
+
+        if (tags.Count > 1 && IsKeyword(tags[1]))
+          tags.RemoveAt(0); // the library being linked, not a dependency
+
+        foreach (var tag in tags.Where(tag => !IsKeyword(tag)))
+          context.LinkDependencies.Add(tag);
       }
     }
 
@@ -195,7 +242,7 @@ namespace forge.Commands.Conan
     /// Parses lines starting with "find_package" and extracts the
     /// package names for CMake find_package() calls.
     /// </remarks>
-    private static void FindConanDependencies(string output)
+    private static void FindConanDependencies(string output, BuildContext context)
     {
       var lines = output.Split('\n');
 
@@ -209,7 +256,7 @@ namespace forge.Commands.Conan
           if (match.Success)
           {
             string extracted = match.Groups[1].Value;
-            ProjectBuildManager.FindDependencies.Add(extracted);
+            context.FindDependencies.Add(extracted);
           }
         }
       }

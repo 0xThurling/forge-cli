@@ -8,8 +8,9 @@ public class LinkingSection : CMakeSectionBase
 
   public override int Priority => 40;
 
-  public override string Generate(ProjectConfig config)
+  public override string Generate(BuildContext context)
   {
+    var config = context.Config;
     var linkTargets = new List<string>();
 
     foreach (var dep in config.Dependencies)
@@ -22,7 +23,16 @@ public class LinkingSection : CMakeSectionBase
     }
 
     // From Conan
-    linkTargets.AddRange(ProjectBuildManager.LinkDependencies);
+    linkTargets.AddRange(context.LinkDependencies);
+
+    // From pkg-config: the imported target pkg_check_modules creates.
+    foreach (var module in config.PkgConfigDependencies)
+      linkTargets.Add(PkgConfigSection.TargetFor(module));
+
+    // From vcpkg: the declared target (vcpkg cannot be queried for them
+    // without running it, so they are explicit).
+    foreach (var (name, dependency) in config.VcpkgDependencies)
+      linkTargets.Add(dependency.Target.Length > 0 ? dependency.Target : name);
 
     if (linkTargets.Count == 0) return string.Empty;
 

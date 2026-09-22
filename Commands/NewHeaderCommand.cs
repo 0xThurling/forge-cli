@@ -57,6 +57,7 @@ namespace forge.Commands
 
       try
       {
+        headerContent = TemplateManager.Render("header", Name, ".hpp") ?? headerContent;
         File.WriteAllText(headerPath, headerContent);
         AnsiConsole.MarkupLine($"[bold green]Created header file `[bold]{fileName}.h[/]` in `src/`.[/]");
       }

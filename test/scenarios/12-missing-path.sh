@@ -2,7 +2,7 @@
 scenario_12_missing_path() {
   local root="$WORK/12-missing-path"
   make_dep_project "$root"
-  sed -i 's|path = "../lib"|path = "../nope"|' "$root/app/forge.lua"
+  sed_in_place 's|path = "../lib"|path = "../nope"|' "$root/app/forge.lua"
 
   local out flat
   out="$(forge_in "$root/app" build 2>&1 || true)"

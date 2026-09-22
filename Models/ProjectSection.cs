@@ -29,8 +29,17 @@ namespace forge.Models
     // Sets the library linking method (static | shared)
     public string Linkage { get; set; } = "static";
 
+    /// <summary>Project version (used by vcpkg.json and the CMake export).</summary>
+    public string Version { get; set; } = string.Empty;
+
+    /// <summary>One-line summary, used in packages (`CPACK_PACKAGE_DESCRIPTION_SUMMARY`).</summary>
+    public string Description { get; set; } = string.Empty;
+
+    /// <summary>Maintainer contact (`CPACK_PACKAGE_CONTACT`), required by DEB/RPM.</summary>
+    public string Contact { get; set; } = string.Empty;
+
     ///
-    public string Standard { get; set; } = string.Empty;
+    public string Standard { get; set; } = "20";
 
     /// <summary>
     /// Gets or sets the minimum CMake policy version to use.

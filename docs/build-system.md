@@ -25,6 +25,76 @@ Forge uses a modular approach to generate CMake files. The `.config/cmake/CMakeL
 - **Testing Section**: Configures GoogleTest if enabled.
 - **Custom Sections**: Any custom CMake snippets added via `forge.add_cmake()` in Lua.
 
+## CMake Presets
+
+Alongside the generated CMake files, every build writes `CMakePresets.json`
+mirroring the configure settings (binary directory, generator, build type,
+compilers, toolchain file, prefix path). That lets IDEs and
+`cmake --preset forge` reproduce Forge's configuration without going through
+the CLI. A `CMakePresets.json` that Forge did not generate is left untouched.
+
+## Modern build features
+
+Three `build` toggles cover the usual "why is my build slow" answers:
+
+```lua
+build = {
+    unity = true,             -- one translation unit per target
+    pch = "src/pch.hpp",      -- force-included precompiled header
+    modules = true,           -- C++20 module scanning (needs Ninja)
+}
+```
+
+`unity` is the cheapest win for small projects and the strictest check that
+every file includes what it uses. `pch` pays off when a heavy header (a
+standard library umbrella, a framework header) is included nearly everywhere.
+`modules` changes the generator when needed, because CMake can only scan for
+modules with Ninja or Visual Studio 17.4+.
+
+## Packaging
+
+A versioned project gets a CPack section in the generated file
+(`packaging`, priority 55) and can be packaged with `forge publish`:
+
+```bash
+forge publish                        # dist/<name>-<version>-<system>.tar.gz
+forge publish --format ZIP           # or TGZ, DEB, RPM, …
+```
+
+Libraries install themselves (library, headers and CMake package file);
+executables are installed to `bin/`. Add `project.description` and
+`project.contact` for nicer packages — DEB and RPM require the contact.
+
+## Extending the generated CMake
+
+Two Lua hooks cover setup the declarative configuration cannot express:
+`forge.add_cmake` injects raw text at a fixed point (pre/post target), and
+`forge.add_section` registers a *named* section at a chosen anchor
+(`"after:project_target"`, `"before:testing"`, …). See the
+[Lua reference](lua-reference.md#forgeadd_sectionname-position-content).
+
+## Continuous integration
+
+`forge ci` writes a workflow for the project instead of asking you to
+transcribe your configuration into YAML by hand:
+
+```bash
+forge ci                 # .github/workflows/forge.yml
+forge ci --provider gitlab
+```
+
+The matrix, the toolchain install, the dependency-channel setup, the test and
+lint steps and the packaging step all follow from `forge.lua` and the project's
+own files. Regenerate with `--force` after changing the configuration, or use
+`forge ci --check` to fail when the workflow is stale.
+
+## Quality tooling
+
+`forge build` produces a compile database, which is what the other tools need:
+`forge lint` runs clang-tidy over it, and `forge format` runs clang-format over
+the same source set (`src`, `test`, `bench`). Both write a sensible config file
+on first use (`.clang-tidy`, `.clang-format`) that you are expected to edit.
+
 ## Customizing CMake
 
 While Forge automates most things, you can still inject custom CMake code using the Lua API:

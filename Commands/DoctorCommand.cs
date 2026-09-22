@@ -9,6 +9,10 @@ public class DoctorCommand
 {
   private readonly ConanDependencyChecker _conanChecker = new();
 
+  /// <summary>Create what is missing instead of only reporting it.</summary>
+  [CliOption(Description = "Create missing directories and files", Required = false)]
+  public bool Fix { get; set; }
+
   public async Task<int> RunAsync()
   {
     AnsiConsole.MarkupLine("[bold cyan]🔍 Running Forge Doctor...[/]");
@@ -53,8 +57,25 @@ public class DoctorCommand
     foreach (var (path, required, note) in dirs)
     {
       var exists = Directory.Exists(path);
-      var icon = exists ? "[green]✅[/]" : (required ? "[red]❌[/]" : "[yellow]⚠️[/]");
       var status = exists ? "exists" : (required ? "missing" : "missing (optional)");
+
+      if (!exists && Fix)
+      {
+        try
+        {
+          Directory.CreateDirectory(path);
+          status = "created";
+          exists = true;
+        }
+        catch (Exception ex)
+        {
+          AnsiConsole.MarkupLine($"   [red]❌[/] {path}/ - {note} (could not create: {ex.Message})");
+          issues++;
+          continue;
+        }
+      }
+
+      var icon = exists ? "[green]✅[/]" : (required ? "[red]❌[/]" : "[yellow]⚠️[/]");
       AnsiConsole.MarkupLine($"   {icon} {path}/ - {note} ({status})");
     }
     AnsiConsole.WriteLine();
@@ -139,16 +160,17 @@ public class DoctorCommand
         AnsiConsole.MarkupLine($"   [green]✅[/] {name} = {cmd}");
       }
 
-      // Check if build scripts exist
-      if (Directory.Exists(".config/forge/build"))
-      {
-        var scripts = Directory.GetFiles(".config/forge/build", "*.lua");
-        AnsiConsole.MarkupLine($"   [dim]Build scripts found: {scripts.Length}[/]");
-      }
     }
     else
     {
       AnsiConsole.MarkupLine("   [dim]No custom scripts configured[/]");
+    }
+
+    // Build scripts are independent of the custom-script list.
+    if (Directory.Exists(".config/forge/build"))
+    {
+      var buildScripts = Directory.GetFiles(".config/forge/build", "*.lua");
+      AnsiConsole.MarkupLine($"   [dim]Build scripts found: {buildScripts.Length}[/]");
     }
     AnsiConsole.WriteLine();
 

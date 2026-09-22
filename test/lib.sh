@@ -14,6 +14,18 @@ skip() { printf '  \033[2mskip\033[0m %s\n' "$*"; SKIPPED=$((SKIPPED + 1)); }
 
 # Strip ANSI escapes and collapse whitespace/newlines: Spectre wraps its output
 # at the console width, so a message can be split mid-phrase.
+# GNU sed takes `sed -i`; BSD/macOS sed needs an explicit (empty) backup
+# suffix. Everything goes through this so the suite is portable.
+sed_in_place() { # <expression> <file...>
+  local expression="$1"
+  shift
+  if sed --version >/dev/null 2>&1; then
+    sed -i "$expression" "$@"
+  else
+    sed -i '' "$expression" "$@"
+  fi
+}
+
 flatten() { sed $'s/\033\\[[0-9;]*m//g' | tr '\n' ' ' | tr -s ' '; }
 
 # The CLI under test (an array, so it can be `dotnet <dll>` or a binary path).
@@ -63,6 +75,27 @@ assert_exit() { # <expected code> <label> <command...>
   fi
 }
 
+assert_order() { # <text> <label> <needle...> — the needles must appear in order
+  local text="$1" label="$2"
+  shift 2
+  local previous=-1 needle position
+  for needle in "$@"; do
+    # `|| true`: a missing needle must be reported, not abort the scenario
+    # under `set -e`.
+    position="$(grep -boF "$needle" <<<"$text" | head -1 | cut -d: -f1 || true)"
+    if [[ -z "$position" ]]; then
+      fail "$label (missing '$needle')"
+      return
+    fi
+    if ((position < previous)); then
+      fail "$label ('$needle' is out of order)"
+      return
+    fi
+    previous="$position"
+  done
+  pass "$label"
+}
+
 assert_exists() { # <path> <label>
   if [[ -e "$1" ]]; then
     pass "$2"
@@ -77,6 +110,41 @@ assert_missing() { # <path> <label>
   else
     pass "$2"
   fi
+}
+
+# --- local HTTP server (download/fetch scenarios) ----------------------------
+
+HTTP_PID=""
+HTTP_PORT=""
+
+wait_for_http() { # <port>
+  local tries=0
+  until python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:$1/', timeout=1)" >/dev/null 2>&1; do
+    tries=$((tries + 1))
+    [[ "$tries" -ge 50 ]] && return 1
+    sleep 0.1
+  done
+  return 0
+}
+
+start_http_server() { # <dir> — sets HTTP_PORT
+  if ! command -v python3 >/dev/null 2>&1; then
+    return 1
+  fi
+  HTTP_PORT=$((8700 + RANDOM % 200))
+  (cd "$1" && exec python3 -m http.server "$HTTP_PORT" >/dev/null 2>&1) &
+  HTTP_PID=$!
+  wait_for_http "$HTTP_PORT" || return 1
+  return 0
+}
+
+stop_http_server() {
+  if [[ -n "$HTTP_PID" ]]; then
+    kill "$HTTP_PID" 2>/dev/null || true
+    wait "$HTTP_PID" 2>/dev/null || true
+  fi
+  HTTP_PID=""
+  HTTP_PORT=""
 }
 
 # --- fixtures ----------------------------------------------------------------

@@ -42,7 +42,13 @@ done
 
 FORGE_CMD=(dotnet "$FORGE_DLL")
 
+# Scenarios that put stubs on PATH (cmake/ctest/conan/ccache) restore it
+# themselves, but a scenario that returns early could leak one into the next.
+# Reset to the baseline before every scenario.
+BASELINE_PATH="$PATH"
+
 cleanup() {
+  stop_http_server
   if [[ "$KEEP" -eq 1 || "$FAILED" -gt 0 ]]; then
     printf '\nscratch workspace: %s\n' "$WORK"
   else
@@ -116,6 +122,10 @@ for id in "${SELECTED[@]}"; do
   before_failed=$FAILED
 
   printf '\n== %s ==\n' "$id"
+  # A scenario that returned early may have left its local HTTP server or stub
+  # PATH entries behind; never let them leak into the next scenario.
+  stop_http_server
+  export PATH="$BASELINE_PATH"
   # shellcheck disable=SC1090
   source "$REPO/test/scenarios/$id.sh"
   "$fn"

@@ -37,4 +37,19 @@ scenario_20_scaffold() {
   else
     fail "still builds after adding sources"
   fi
+
+  # A library scaffold sets the library type and installs headers.
+  local lib="$root/libdemo"
+  if forge_in "$root" create libdemo --type library >/dev/null 2>&1; then
+    pass "create --type library"
+  else
+    fail "create --type library"
+  fi
+  assert_contains "$lib/forge.lua" 'type = "library"' "library type recorded"
+  assert_contains "$lib/forge.lua" "install_headers = true" "library installs headers"
+  if forge_in "$lib" build >/dev/null 2>&1; then
+    pass "scaffolded library builds"
+  else
+    fail "scaffolded library builds"
+  fi
 }

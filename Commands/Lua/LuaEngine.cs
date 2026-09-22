@@ -1,4 +1,5 @@
 using System.Text;
+using forge.CMakeGeneration;
 using forge.ForgeEngine.CoreUtils;
 using forge.Models;
 using Lua;
@@ -27,6 +28,7 @@ namespace forge.Commands.Lua
   {
     private static LuaState _state = null!;
     private static LuaTable _forge = null!;
+    private static BuildContext? _context;
 
     /// <summary>
     /// Initializes the Lua engine with standard libraries and custom Forge functions.
@@ -43,7 +45,20 @@ namespace forge.Commands.Lua
       _forge = new LuaTable();
 
       SetEnvironmentLibraries(ref _state);
-      SetEnvironmentVariableInformation();
+      RegisterModules();
+    }
+
+    /// <summary>
+    /// Points the Lua API at the build it is contributing to. The functions
+    /// capture the context, so a script's contributions belong to exactly one
+    /// build instead of accumulating in static state.
+    /// </summary>
+    public static void UseContext(BuildContext context)
+    {
+      if (ReferenceEquals(_context, context))
+        return;
+
+      _context = context;
       RegisterModules();
     }
 
@@ -68,9 +83,14 @@ namespace forge.Commands.Lua
 
     private static void RegisterModules()
     {
+      // Rebuilt per build: the environment tables carry the working directory
+      // and the modules carry the build context.
+      _forge = new LuaTable();
+      SetEnvironmentVariableInformation();
+
       var modules = new LuaFunctionModule[]
       {
-        new CoreFunctionModule()
+        new CoreFunctionModule(_context ?? new BuildContext())
       };
 
       foreach (var module in modules)

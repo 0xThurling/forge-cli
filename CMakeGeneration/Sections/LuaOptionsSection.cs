@@ -23,18 +23,27 @@ public partial class LuaOptionsSection : CMakeSectionBase
 
   public override int Priority => 25;
 
-  public override bool IsEnabled(ProjectConfig config) =>
-    !ProjectBuildManager.LuaCmakeOptions.IsEmpty ||
-    config.Custom.Count != 0 ||
-    ProjectBuildManager.CustomCmakeSnippetsPre.Count != 0;
+  public override bool IsEnabled(BuildContext context) =>
+    !context.LuaOptions.IsEmpty ||
+    context.Config.Custom.Count != 0 ||
+    context.CustomCmakeSnippetsPre.Count != 0;
 
   // `custom` keys become CMake variables, so only identifiers are emitted.
   [GeneratedRegex(@"^[A-Za-z_][A-Za-z0-9_]*$")]
   private static partial Regex VariableNamePattern();
 
-  public override string Generate(ProjectConfig config)
+  /// <summary>
+  /// Wraps a value as a CMake quoted argument. Backslashes and quotes must be
+  /// escaped: a raw value such as <c>say "hi"</c> would otherwise emit a
+  /// malformed <c>set()</c> line.
+  /// </summary>
+  private static string Quote(string value) =>
+    "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+
+  public override string Generate(BuildContext context)
   {
-    var options = ProjectBuildManager.LuaCmakeOptions;
+    var config = context.Config;
+    var options = context.LuaOptions;
     var sb = new StringBuilder();
 
     sb.AppendLine("# --- Lua build-script options ---");
@@ -44,11 +53,11 @@ public partial class LuaOptionsSection : CMakeSectionBase
     foreach (var (key, value) in config.Custom)
     {
       if (VariableNamePattern().IsMatch(key))
-        sb.AppendLine($"set({key} \"{value}\")");
+        sb.AppendLine($"set({key} {Quote(value)})");
     }
 
     foreach (var (key, value) in options.Variables)
-      sb.AppendLine($"set({key} \"{value}\")");
+      sb.AppendLine($"set({key} {Quote(value)})");
 
     foreach (var package in options.FindPackages)
       sb.AppendLine($"find_package({package} REQUIRED)");
@@ -71,7 +80,7 @@ public partial class LuaOptionsSection : CMakeSectionBase
     foreach (var library in options.LinkLibraries)
       sb.AppendLine($"link_libraries({library})");
 
-    foreach (var snippet in ProjectBuildManager.CustomCmakeSnippetsPre)
+    foreach (var snippet in context.CustomCmakeSnippetsPre)
       sb.AppendLine(snippet.Replace("${PROJECT_NAME}", config.Project.Name));
 
     return sb.ToString();

@@ -4,7 +4,7 @@ scenario_14_stale_cache() {
   make_dep_project "$root"
   forge_in "$root/app" build >/dev/null 2>&1 || true
 
-  sed -i 's|^CMAKE_HOME_DIRECTORY:INTERNAL=.*|CMAKE_HOME_DIRECTORY:INTERNAL=/nonexistent/old-checkout|' \
+  sed_in_place 's|^CMAKE_HOME_DIRECTORY:INTERNAL=.*|CMAKE_HOME_DIRECTORY:INTERNAL=/nonexistent/old-checkout|' \
     "$root/app/build/CMakeCache.txt"
   if grep -qF "CMAKE_HOME_DIRECTORY:INTERNAL=/nonexistent/old-checkout" \
     "$root/app/build/CMakeCache.txt"; then

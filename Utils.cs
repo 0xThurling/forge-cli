@@ -115,9 +115,12 @@ namespace forge
       ]);
       foreach (var resourcePath in validResources)
       {
-        var baseName = Path.GetFileName(resourcePath);
+        // Key by the path recorded in forge.lua (forward slashes). The bare
+        // file name would not match what the project registered, and two files
+        // with the same name in different directories would collide.
+        var key = resourcePath.Replace('\\', '/');
         var varName = SanitizeFileName(resourcePath);
-        cppLines.Add($"        {{\"{baseName}\", {{{varName}_data, {varName}_size}}}},");
+        cppLines.Add($"        {{\"{key}\", {{{varName}_data, {varName}_size}}}},");
       }
       cppLines.AddRange([
           "    };",

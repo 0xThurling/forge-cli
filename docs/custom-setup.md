@@ -19,13 +19,14 @@ the full Lua API available:
 | Function | Purpose |
 |---|---|
 | `forge.download(url, output, options?)` | download a file (`options`: `timeout`, `sha256`) |
-| `forge.extract(archive, output, stripComponents?)` | unpack a `.zip` / `.tar` / `.tgz` |
-| `forge.fetch(url, output?)` | download **and** extract in one call |
+| `forge.extract(archive, output, stripComponents?)` | unpack a `.zip` / `.tar` / `.tgz` / `.tar.gz` (`stripComponents` defaults to 0) |
+| `forge.fetch(url, output?, stripComponents?)` | download **and** extract in one call (`stripComponents` defaults to 1, the GitHub-archive shape; output defaults to `external/<name>`) |
 | `forge.pull_repo(url, tag?)` | `git clone` into `external/` |
 | `forge.get_packages(password, manager, packages)` | install system packages |
 | `forge.add_cmake(snippet, phase?)` | inject raw CMake |
 | `forge.config.get(key)` / `forge.config.set(key, value)` | read/write config values |
 | `forge.log.info(...)` / `warn(...)` / `error(...)` | log from a script |
+| `forge.os`, `forge.distro`, `forge.package_manager` | branch on the machine (see [Lua Reference](lua-reference.md#environment-tables)) |
 
 ## The contract: `cmakeOptions`
 

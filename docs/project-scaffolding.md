@@ -70,3 +70,37 @@ You can then run your tests with:
 ```bash
 forge test
 ```
+
+
+## Templates
+
+`forge new class/struct/header/source` uses the built-in scaffolding unless the
+project provides a template. Drop a file in `.config/forge/templates/` named
+after the kind — `class.hpp`, `struct.h`, `source.cpp`, `header.h` — and it is
+used instead, with `{{name}}` and `{{NAME}}` substituted:
+
+```cpp
+// .config/forge/templates/class.hpp
+#pragma once
+namespace demo {
+class {{name}} {  // {{NAME}} in caps
+ public:
+  {{name}}();
+};
+}
+```
+
+Both `.h` and `.hpp` are accepted for headers. Without a template the built-in
+file is written, so adding one is a per-project opt-in.
+
+## Project commands
+
+Shell scripts in `.config/forge/commands/` behave like `scripts` entries:
+
+```bash
+.config/forge/commands/format.sh   #  ->  forge run format
+```
+
+`forge project scripts` lists them (marked with their directory), `forge run
+<name>` executes them with `bash`, and their exit codes propagate. A script of
+the same name declared in `forge.lua` takes precedence.

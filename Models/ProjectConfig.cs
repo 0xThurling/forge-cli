@@ -36,6 +36,28 @@ namespace forge.Models
     public Dictionary<string, Dependency> Dependencies { get; set; } = [];
 
     /// <summary>
+    /// pkg-config module names, resolved with pkg_check_modules.
+    /// </summary>
+    public List<string> PkgConfigDependencies { get; set; } = [];
+
+    /// <summary>
+    /// Gets or sets vcpkg dependencies (manifest mode), keyed by package name.
+    /// </summary>
+    public Dictionary<string, VcpkgDependency> VcpkgDependencies { get; set; } = [];
+
+    /// <summary>
+    /// vcpkg checkout to use: an explicit path, otherwise <c>$VCPKG_ROOT</c>,
+    /// otherwise <c>external/vcpkg</c>.
+    /// </summary>
+    public string VcpkgRoot { get; set; } = string.Empty;
+
+    /// <summary>Optional <c>builtin-baseline</c> commit for vcpkg.json.</summary>
+    public string VcpkgBaseline { get; set; } = string.Empty;
+
+    /// <summary>Optional vcpkg triplet (e.g. <c>x64-linux</c>).</summary>
+    public string VcpkgTriplet { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets the collection of Conan package dependencies.
     /// </summary>
     /// <value>
@@ -66,6 +88,12 @@ namespace forge.Models
     public BuildConfig Build { get; set; } = new();
 
     public bool Testing { get; set; } = false;
+
+    /// <summary>Test framework used by the generated test target.</summary>
+    public string TestFramework { get; set; } = "gtest";
+
+    /// <summary>Build a Google Benchmark target from <c>bench/</c>.</summary>
+    public bool Benchmark { get; set; }
   }
 
   public class FeatureConfig

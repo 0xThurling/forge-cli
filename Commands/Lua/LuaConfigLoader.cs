@@ -86,11 +86,30 @@ public class LuaConfigLoader
       ParseBuild(ref config, buildTable);
     }
 
-    // Check if testing is enabled
-    if (table["testing"] != LuaValue.Nil)
+    // `testing = true` or `testing = { framework = "...", benchmark = true }`
+    var testingValue = table["testing"];
+    if (testingValue.TryRead<LuaTable>(out var testingTable))
     {
-      config.Testing = bool.TryParse(table["testing"].ToString(), out var t) && t;
+      var enabled = testingTable["enabled"];
+      config.Testing = enabled == LuaValue.Nil ||
+                       (bool.TryParse(enabled.ToString(), out var te) && te);
+      if (testingTable["framework"] != LuaValue.Nil)
+        config.TestFramework = testingTable["framework"].ToString().ToLowerInvariant();
+      if (testingTable["benchmark"] != LuaValue.Nil)
+        config.Benchmark = bool.TryParse(testingTable["benchmark"].ToString(), out var tb) && tb;
     }
+    else if (testingValue != LuaValue.Nil)
+    {
+      config.Testing = bool.TryParse(testingValue.ToString(), out var t) && t;
+    }
+
+    // vcpkg settings live next to the dependency table.
+    if (table["vcpkg_root"] != LuaValue.Nil)
+      config.VcpkgRoot = table["vcpkg_root"].ToString();
+    if (table["vcpkg_baseline"] != LuaValue.Nil)
+      config.VcpkgBaseline = table["vcpkg_baseline"].ToString();
+    if (table["vcpkg_triplet"] != LuaValue.Nil)
+      config.VcpkgTriplet = table["vcpkg_triplet"].ToString();
 
     // Parse Custom section
     if (table["custom"].TryRead<LuaTable>(out var customTable))
@@ -129,7 +148,10 @@ public class LuaConfigLoader
       {
         var featureConfig = new FeatureConfig();
 
-        if (featureTable["enabled"].TryRead<LuaValue>(out var enabled))
+        // Compare against Nil rather than TryRead<LuaValue>: reading a boolean
+        // through TryRead fails, which silently left every feature disabled.
+        var enabled = featureTable["enabled"];
+        if (enabled != LuaValue.Nil)
         {
           featureConfig.Enabled = bool.TryParse(enabled.ToString(), out var e) && e;
         }
@@ -170,6 +192,34 @@ public class LuaConfigLoader
 
   private static void ParseBuild(ref ProjectConfig config, LuaTable table)
   {
+    if (table["cxx_compiler"] != LuaValue.Nil)
+      config.Build.CxxCompiler = table["cxx_compiler"].ToString();
+    if (table["c_compiler"] != LuaValue.Nil)
+      config.Build.CCompiler = table["c_compiler"].ToString();
+    if (table["toolchain_file"] != LuaValue.Nil)
+      config.Build.ToolchainFile = table["toolchain_file"].ToString();
+    if (table["cmake_prefix_path"] != LuaValue.Nil)
+      config.Build.CmakePrefixPath = ReadStringList(table["cmake_prefix_path"]);
+    if (table["system_name"] != LuaValue.Nil)
+      config.Build.SystemName = table["system_name"].ToString();
+    if (table["system_processor"] != LuaValue.Nil)
+      config.Build.SystemProcessor = table["system_processor"].ToString();
+    if (table["generator"] != LuaValue.Nil)
+      config.Build.Generator = table["generator"].ToString();
+    if (table["jobs"] != LuaValue.Nil && int.TryParse(table["jobs"].ToString(), out var jobs))
+      config.Build.Jobs = jobs;
+
+    if (table["unity"] != LuaValue.Nil)
+      config.Build.Unity = bool.TryParse(table["unity"].ToString(), out var unity) && unity;
+    if (table["pch"] != LuaValue.Nil)
+      config.Build.Pch = table["pch"].ToString();
+    if (table["modules"] != LuaValue.Nil)
+      config.Build.Modules = bool.TryParse(table["modules"].ToString(), out var modules) && modules;
+
+    var launcher = table["compiler_launcher"];
+    if (launcher != LuaValue.Nil)
+      config.Build.CompilerLauncher = launcher.ToString();
+
     config.Build.Presets = ReadStringList(table["presets"]);
     // Documented names first (docs/project-configuration.md), with the earlier
     // spellings accepted so existing projects keep working.
@@ -240,6 +290,35 @@ public class LuaConfigLoader
       }
     }
 
+    if (table["pkgconfig"].TryRead<LuaTable>(out var pkgConfigTable))
+    {
+      config.PkgConfigDependencies = ReadStringList(pkgConfigTable);
+    }
+
+    if (table["vcpkg"].TryRead<LuaTable>(out var vcpkgTable))
+    {
+      foreach (var kvp in vcpkgTable)
+      {
+        var name = kvp.Key.ToString();
+        var dep = new VcpkgDependency();
+
+        if (kvp.Value.TryRead<LuaTable>(out var options))
+        {
+          if (options["target"] != LuaValue.Nil)
+            dep.Target = options["target"].ToString();
+          if (options["version"] != LuaValue.Nil)
+            dep.Version = options["version"].ToString();
+        }
+        else if (kvp.Value != LuaValue.Nil)
+        {
+          // Shorthand: `fmt = "fmt::fmt"`.
+          dep.Target = kvp.Value.ToString();
+        }
+
+        config.VcpkgDependencies[name] = dep;
+      }
+    }
+
     if (table["conan"].TryRead<LuaTable>(out var conanTable))
     {
       foreach (var kvp in conanTable)
@@ -300,6 +379,19 @@ public class LuaConfigLoader
     if (table["linkage"] != LuaValue.Nil)
     {
       config.Project.Linkage = table["linkage"].ToString().ToLower();
+    }
+
+    if (table["version"] != LuaValue.Nil)
+    {
+      config.Project.Version = table["version"].ToString();
+    }
+    if (table["description"] != LuaValue.Nil)
+    {
+      config.Project.Description = table["description"].ToString();
+    }
+    if (table["contact"] != LuaValue.Nil)
+    {
+      config.Project.Contact = table["contact"].ToString();
     }
 
     // Default install_headers to true for libraries, otherwise follow the lua value if provided

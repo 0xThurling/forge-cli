@@ -145,9 +145,10 @@ public static partial class CoreUtils
     if (needsSudo)
     {
       startInfo.FileName = "sudo";
-      startInfo.Arguments = packageManager == "pacman"
-        ? $"-S {commandArgs}"
-        : $"-S {packageManager} {commandArgs}";
+      // sudo needs the command it should run: `sudo -S <manager> <args>`.
+      // (The pacman branch used to omit the manager entirely, producing
+      // `sudo -S -S <packages>`.)
+      startInfo.Arguments = $"-S {packageManager} {commandArgs}";
 
       if (!string.IsNullOrEmpty(pass))
       {

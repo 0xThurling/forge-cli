@@ -55,9 +55,17 @@ namespace forge.Commands
       return AnsiConsole.Status().Start(
         ScriptName != null ? $"Running {ScriptName}" : "Running project...", _ =>
       {
+        // forge.lua scripts win; otherwise a script file in
+        // .config/forge/commands/ of the same name is used.
         if (!config!.Scripts.TryGetValue(ScriptName!, out var scriptCommand))
         {
-          AnsiConsole.MarkupLine($"[bold red]Error:[/] Script '[bold]{ScriptName}[/]' not found in forge.lua.");
+          scriptCommand = ProjectCommands.CommandFor(ScriptName!);
+        }
+
+        if (scriptCommand is null)
+        {
+          AnsiConsole.MarkupLine(
+            $"[bold red]Error:[/] Script '[bold]{ScriptName}[/]' not found in forge.lua or .config/forge/commands/.");
           return 1;
         }
 

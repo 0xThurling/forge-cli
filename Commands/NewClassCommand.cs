@@ -80,7 +80,9 @@ public:
 
       try
       {
+        headerContent = TemplateManager.Render("class", Name, ".hpp") ?? headerContent;
         File.WriteAllText(headerPath, headerContent);
+        cppContent = TemplateManager.Render("class", Name, ".cpp") ?? cppContent;
         File.WriteAllText(cppPath, cppContent);
         AnsiConsole.MarkupLine($"[bold green]Created class `[bold]{className}[/]` in `src/`.[/]");
       }

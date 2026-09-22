@@ -1,6 +1,8 @@
 ﻿using System.Diagnostics;
 using System.IO.Compression;
+using forge.CMakeGeneration;
 using forge.ForgeEngine.CoreUtils;
+using forge.Models;
 using Lua;
 using Spectre.Console;
 
@@ -14,6 +16,14 @@ public abstract class LuaFunctionModule
 
 public class CoreFunctionModule : LuaFunctionModule
 {
+  private readonly BuildContext _context;
+
+  /// <summary>
+  /// The module contributes to the build it was created for: the functions
+  /// capture that context, so contributions cannot leak between builds.
+  /// </summary>
+  public CoreFunctionModule(BuildContext context) => _context = context;
+
   public override string ModuleName => "forge";
   public override void RegisterFunctions(ref LuaTable table)
   {
@@ -25,6 +35,7 @@ public class CoreFunctionModule : LuaFunctionModule
 
     var configTable = new LuaTable();
     configTable[new LuaValue("get")] = new LuaValue(CreateConfigGetFunction());
+    configTable[new LuaValue("set")] = new LuaValue(CreateConfigSetFunction());
     configTable[new LuaValue("has_feature")] = new LuaValue(CreateConfigHasFeatureFunction());
     configTable[new LuaValue("get_feature_option")] = new LuaValue(CreateGetFeatureFunction());
 
@@ -32,6 +43,7 @@ public class CoreFunctionModule : LuaFunctionModule
     table[new LuaValue("pull_repo")] = new LuaValue(CreatePullRepoFunction());
     table[new LuaValue("get_packages")] = new LuaValue(CreateGetPackagesFunction());
     table[new LuaValue("add_cmake")] = new LuaValue(CreateCustomCMakeFunction());
+    table[new LuaValue("add_section")] = new LuaValue(CreateAddSectionFunction());
     table[new LuaValue("download")] = new LuaValue(CreateDownloadFunction());
     table[new LuaValue("extract")] = new LuaValue(CreateExtractFunction());
     table[new LuaValue("fetch")] = new LuaValue(CreateFetchFunction());
@@ -140,7 +152,7 @@ public class CoreFunctionModule : LuaFunctionModule
       });
 
   // Provides forge.add_cmake(snippet) / forge.add_cmake(snippet, "pre")
-  private static LuaFunction CreateCustomCMakeFunction() =>
+  private LuaFunction CreateCustomCMakeFunction() =>
     new("add_cmake", (context, token) =>
     {
       var cmakeSnippet = context.GetArgument<string>(0);
@@ -152,15 +164,56 @@ public class CoreFunctionModule : LuaFunctionModule
       // target and its link line, which is the historical default.
       if (string.Equals(phase, "pre", StringComparison.OrdinalIgnoreCase))
       {
-        ProjectBuildManager.CustomCmakeSnippetsPre.Add(cmakeSnippet);
+        _context.CustomCmakeSnippetsPre.Add(cmakeSnippet);
         AnsiConsole.MarkupLine($"[green]Added custom CMake snippet[/] [dim](pre)[/]");
       }
       else
       {
-        ProjectBuildManager.CustomCmakeSnippets.Add(cmakeSnippet);
+        _context.CustomCmakeSnippets.Add(cmakeSnippet);
         AnsiConsole.MarkupLine($"[green]Added custom CMake snippet[/]");
       }
 
+      return ValueTask.FromResult(0);
+    });
+
+  // forge.add_section(name, position, content) — a named CMake section placed
+  // relative to a built-in one. forge.add_section(name, content) appends.
+  private LuaFunction CreateAddSectionFunction() =>
+    new("add_section", (context, token) =>
+    {
+      if (context.ArgumentCount < 2)
+      {
+        AnsiConsole.MarkupLine(
+          "[bold red]Error:[/] forge.add_section needs (name, content) or (name, position, content).");
+        return ValueTask.FromResult(0);
+      }
+
+      var name = context.GetArgument<string>(0);
+      var position = context.ArgumentCount > 2 ? context.GetArgument<string>(1) : "last";
+      var content = context.ArgumentCount > 2 ? context.GetArgument<string>(2) : context.GetArgument<string>(1);
+
+      if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(content))
+      {
+        AnsiConsole.MarkupLine("[bold red]Error:[/] forge.add_section needs a name and some CMake content.");
+        return ValueTask.FromResult(0);
+      }
+
+      if (!System.Text.RegularExpressions.Regex.IsMatch(name, "^[A-Za-z_][A-Za-z0-9_-]*$"))
+      {
+        AnsiConsole.MarkupLine(
+          $"[bold red]Error:[/] forge.add_section name `{name}` must start with a letter or `_` " +
+          "and contain only letters, digits, `_` or `-`.");
+        return ValueTask.FromResult(0);
+      }
+
+      _context.RegisterLuaSection(new LuaCmakeSection
+      {
+        Name = name,
+        Position = position,
+        Content = content
+      });
+
+      AnsiConsole.MarkupLine($"[green]Added CMake section[/] [dim]{name} ({position})[/]");
       return ValueTask.FromResult(0);
     });
 
@@ -178,7 +231,9 @@ public class CoreFunctionModule : LuaFunctionModule
         }
 
         var value = LuaEngine.GetConfigValue(config, key);
-        context.Return(value ?? "");
+        // The docs promise nil for an unknown key: an empty string would be
+        // truthy in Lua and silently break `if forge.config.get(k) then` checks.
+        context.Return(value is null ? LuaValue.Nil : new LuaValue(value));
         return 1;
       });
 
@@ -256,16 +311,25 @@ public class CoreFunctionModule : LuaFunctionModule
         using var client = new HttpClient();
         client.DefaultRequestHeaders.Add("User-Agent", "Forge/1.0");
 
+        // Options table: { timeout = 300, sha256 = "..." }
+        if (options != null && options.TryGetValue("timeout", out var timeoutText) &&
+            int.TryParse(timeoutText, out var timeoutSeconds) && timeoutSeconds > 0)
+        {
+          client.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+        }
+
         // Use streaming to avoid memory issues with large files
         using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, token);
         response.EnsureSuccessStatusCode();
 
         var totalBytes = response.Content.Headers.ContentLength ?? -1;
-        await using var contentStream = await response.Content.ReadAsStreamAsync(token);
-        await using var fileStream = new FileStream(output, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
-
-        var buffer = new byte[8192];
         long totalRead = 0;
+
+        // The writer is scoped so the file is closed before hashing.
+        await using (var contentStream = await response.Content.ReadAsStreamAsync(token))
+        await using (var fileStream = new FileStream(output, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
+        {
+        var buffer = new byte[8192];
         int bytesRead;
         long lastReported = 0;
 
@@ -291,6 +355,25 @@ public class CoreFunctionModule : LuaFunctionModule
             }
           }
         }
+        }
+
+        // Optional verification, matching `forge download --sha-256`.
+        if (options != null && options.TryGetValue("sha256", out var expected) &&
+            !string.IsNullOrWhiteSpace(expected))
+        {
+          using var readStream = File.OpenRead(output);
+          using var sha = System.Security.Cryptography.SHA256.Create();
+          var hash = Convert.ToHexString(await sha.ComputeHashAsync(readStream, token)).ToLowerInvariant();
+          if (!hash.Equals(expected, StringComparison.OrdinalIgnoreCase))
+          {
+            AnsiConsole.MarkupLine(
+              $"[red]SHA256 verification failed! Expected: {expected}, Got: {hash}[/]");
+            File.Delete(output);
+            return 1;
+          }
+          AnsiConsole.MarkupLine("[green]SHA256 verification passed[/]");
+        }
+
         AnsiConsole.MarkupLine($"[green]Downloaded:[/] {output} ({totalRead} bytes)");
 
         // Return downloaded size for verification
@@ -307,141 +390,58 @@ public class CoreFunctionModule : LuaFunctionModule
         // Optional (default 0): GetArgument<T> throws on a missing argument.
         var stripComponents = context.ArgumentCount > 2 ? context.GetArgument<int>(2) : 0;
 
-        try
+        // One implementation shared with `forge extract` / `forge fetch`.
+        var result = ArchiveExtractor.Extract(archive, output, stripComponents);
+        if (result == 0)
         {
-          Directory.CreateDirectory(output);
-
-          var ext = Path.GetExtension(archive).ToLower();
-          if (ext is ".zip")
-          {
-            ZipFile.ExtractToDirectory(archive, output, true);
-          }
-          else if (ext is ".tar" or ".tgz" or ".gz")
-          {
-            // -C (capital) selects the destination directory for extraction;
-            // -c would mean "create" and makes tar fail on an extract.
-            var psi = new ProcessStartInfo(
-              "tar",
-              $"-xf \"{archive}\" -C \"{output}\" --strip-components={stripComponents}")
-            {
-              UseShellExecute = false,
-              RedirectStandardOutput = true,
-              RedirectStandardError = true
-            };
-
-            using var p = Process.Start(psi);
-            if (p == null)
-            {
-              AnsiConsole.MarkupLine("[red]Extraction failed:[/] could not start tar.");
-              return ValueTask.FromResult(1);
-            }
-
-            var stderr = p.StandardError.ReadToEnd();
-            p.WaitForExit();
-            if (p.ExitCode != 0)
-            {
-              AnsiConsole.MarkupLine(
-                $"[red]Extraction failed:[/] tar exited with {p.ExitCode}: {stderr.Trim()}");
-              return ValueTask.FromResult(1);
-            }
-          }
-
           AnsiConsole.MarkupLine($"[green]Extracted:[/] {output}");
-        }
-        catch (Exception ex)
-        {
-          AnsiConsole.MarkupLine($"[red]Extraction failed:[/] {ex.Message}");
-          return ValueTask.FromResult(1);
+          return ValueTask.FromResult(0);
         }
 
-        return ValueTask.FromResult(0);
+        return ValueTask.FromResult(result);
       });
 
   // forge.fetch(url, output_dir?) - download and extract to external/<name>
   // Returns the path to the extracted directory
+  // forge.fetch(url, output_dir?, strip_components?) - download and extract.
+  // Returns the path to the extracted directory.
   private static LuaFunction CreateFetchFunction() =>
       new("fetch", async (context, token) =>
       {
         var url = context.GetArgument<string>(0);
         string? outputOverride = null;
+        // Optional: GetArgument<T> throws on a missing argument, so check first.
+        if (context.ArgumentCount > 1) outputOverride = context.GetArgument<string>(1);
+        var stripComponents = context.ArgumentCount > 2 ? context.GetArgument<int>(2) : 1;
 
-        // Check if second argument is provided (could be output dir or nil)
-        try { outputOverride = context.GetArgument<string>(1); } catch { }
-
-        // Derive simple name from URL (like pull_repo does)
+        // Derive a directory name from the URL (like pull_repo does).
         var urlParts = url.Split('/');
         var lastPart = urlParts[^1];
-        var archiveName = lastPart.Split('.')[0]; // Remove extension
-
-        // Remove common prefixes like "archive/" or "refs/tags/"
+        var archiveName = lastPart.Split('.')[0];
         if (archiveName.StartsWith("archive") || archiveName.StartsWith("refs"))
         {
           archiveName = urlParts.Length > 1 ? urlParts[^2] : archiveName;
         }
 
-        // Default to external/<name> if no output specified
+        // Default to external/<name> if no output is specified.
         var output = outputOverride ?? Path.Combine("external", archiveName);
+        var extension = Path.GetExtension(lastPart);
+        var tempFile = Path.Combine(Path.GetTempPath(), $"forge_fetch_{Guid.NewGuid()}{extension}");
 
-        var tempFile = Path.Combine(Path.GetTempPath(), $"forge_fetch_{Guid.NewGuid()}.zip");
         try
         {
-          // Download
           using var client = new HttpClient();
           client.DefaultRequestHeaders.Add("User-Agent", "Forge/1.0");
           AnsiConsole.MarkupLine($"[cyan]Fetching:[/] {url}");
           var bytes = await client.GetByteArrayAsync(url, token);
           await File.WriteAllBytesAsync(tempFile, bytes, token);
-          // Extract to temp location first
-          var tempExtractDir = Path.Combine(Path.GetTempPath(), $"forge_fetch_extract_{Guid.NewGuid()}");
-          Directory.CreateDirectory(tempExtractDir);
-          ZipFile.ExtractToDirectory(tempFile, tempExtractDir, true);
-          // Find the single root directory and copy contents to final output
-          var entries = Directory.GetDirectories(tempExtractDir);
-          var rootDir = entries.Length == 1 ? entries[0] : null;
 
-          Directory.CreateDirectory(output);
-
-          if (rootDir != null && Directory.GetFiles(rootDir).Length == 0 && Directory.GetDirectories(rootDir).Length == 0)
-          {
-            // Root dir is empty folder, use its contents
-            rootDir = Directory.GetDirectories(tempExtractDir)[0];
-          }
-
-          // Helper to copy a directory's contents (handles cross-device moves)
-          void CopyDirectoryContents(string src, string dest)
-          {
-            Directory.CreateDirectory(dest);
-            foreach (var file in Directory.GetFiles(src))
-            {
-              var destFile = Path.Combine(dest, Path.GetFileName(file));
-              File.Copy(file, destFile, true);
-            }
-            foreach (var dir in Directory.GetDirectories(src))
-            {
-              var destDir = Path.Combine(dest, Path.GetFileName(dir));
-              CopyDirectoryContents(dir, destDir);
-            }
-          }
-          if (rootDir != null)
-          {
-            // Copy all contents from rootDir to output (copy handles cross-device)
-            CopyDirectoryContents(rootDir, output);
-          }
-          else
-          {
-            // No nested structure, files directly in tempExtractDir
-            foreach (var file in Directory.GetFiles(tempExtractDir))
-            {
-              var destFile = Path.Combine(output, Path.GetFileName(file));
-              File.Copy(file, destFile, true);
-            }
-          }
-          // Cleanup temp files
-          if (Directory.Exists(tempExtractDir)) Directory.Delete(tempExtractDir, true);
+          // One extractor shared with `forge fetch` and forge.extract.
+          var result = ArchiveExtractor.Extract(tempFile, output, stripComponents);
           if (File.Exists(tempFile)) File.Delete(tempFile);
-          AnsiConsole.MarkupLine($"[green]Fetch complete:[/] {output}");
+          if (result != 0) return 1;
 
-          // Return the output path for use in Lua
+          AnsiConsole.MarkupLine($"[green]Fetch complete:[/] {output}");
           context.Return(output);
           return 1;
         }

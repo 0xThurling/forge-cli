@@ -7,11 +7,16 @@
 ## Features
 
 *   **Project Scaffolding**: Quickly create new executable or library projects.
-*   **Dependency Management**: Unified management of Git-based dependencies, local-path checkouts and Conan packages.
+*   **Dependency Management**: Unified management of Git-based dependencies, local-path checkouts, Conan, vcpkg and pkg-config — with `forge.lock` pinning, `forge outdated` and `forge vendor` for offline builds.
 *   **Lua Configuration**: Flexible project configuration using `forge.lua`.
-*   **Automated Builds**: Hands-off CMake generation and compilation.
+*   **Automated Builds**: Hands-off CMake generation and compilation, with parallel builds, ccache/sccache, toolchain selection, unity builds, PCH and module scanning.
+*   **Workspaces**: Build and test a directory of sibling projects in dependency order (`forge workspace build`).
 *   **Resource Embedding**: Easily embed and access binary assets in your C++ code.
-*   **Testing**: Integrated Google Test support.
+*   **Testing**: Google Test, Catch2 or doctest, plus benchmarks (`forge bench`).
+*   **Quality Tooling**: `forge format` and `forge lint` wired to clang-format/clang-tidy, and `forge doctor --fix`.
+*   **Packaging**: `forge publish` builds a CPack archive (TGZ, ZIP, DEB, RPM) from a versioned project.
+*   **Extensible CMake**: Lua build scripts can inject snippets or register named CMake sections at a chosen anchor (`forge.add_section`).
+*   **CI Generation**: `forge ci` writes a GitHub Actions workflow (or a GitLab pipeline) that matches the project's configuration.
 
 ## Installation
 
@@ -31,10 +36,10 @@ test/run.sh --keep      # keep the scratch workspace for inspection
 
 `test/run.sh` (also reachable as `./dev.sh`) drives the dev build directly
 (`dotnet bin/Release/net10.0/forge.dll`) against a throwaway workspace, so the
-installed `forge` is never touched. It covers scaffolding, the dependency
-channels (git, local `path`, Conan no-op), the generated CMake, Lua build
-scripts, resources, error paths and exit codes. See
-[test/README.md](test/README.md) to add a scenario.
+installed `forge` is never touched. 32 scenarios cover every command, the three
+dependency channels, the generated CMake, the Lua API and build scripts,
+downloads/extraction against a local server, and the failure paths — see
+[test/README.md](test/README.md) for the list and how to add a scenario.
 
 ## Quick Start
 

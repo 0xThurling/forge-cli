@@ -16,4 +16,16 @@ scenario_10_build() {
   assert_exists "$root/.config/cmake/CMakeLists.txt" "generated CMake config"
   assert_exists "$root/compile_commands.json" "compile_commands.json symlinked for the LSP"
   assert_runs "$root/build/demo_build" "hello from demo_build" "binary runs"
+
+  # Verbose mode streams CMake's own output.
+  local verbose_out
+  verbose_out="$(forge_in "$root" build -v 2>&1 || true)"
+  if grep -qE "Building CXX object|cmake --build|Build finished" <<<"$verbose_out"; then
+    pass "verbose build streams CMake output"
+  else
+    fail "verbose build streams CMake output"
+  fi
+
+  # A rebuild of an unchanged project is still a success.
+  assert_exit 0 "rebuild is clean" forge_in "$root" build
 }

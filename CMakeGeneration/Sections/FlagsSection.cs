@@ -20,7 +20,8 @@ public class FlagsSection : CMakeSectionBase
 
   public override int Priority => 20;
 
-  public override bool IsEnabled(ProjectConfig config) => config.Build.HasAny;
+  public override bool IsEnabled(BuildContext context) =>
+    context.Config.Build.HasAny || ResolveLauncher(context.Config.Build.CompilerLauncher) is not null;
 
   private sealed record Preset(
     List<string> Compile,
@@ -62,14 +63,60 @@ public class FlagsSection : CMakeSectionBase
                               ["/EHs-c-", "/GR-"], []),
     };
 
+  /// <summary>
+  /// The compiler launcher to use: an explicit name, "none"/"false" to disable,
+  /// or the first of ccache/sccache found on PATH.
+  /// </summary>
+  private static string? ResolveLauncher(string configured)
+  {
+    if (configured.Equals("none", StringComparison.OrdinalIgnoreCase) ||
+        configured.Equals("false", StringComparison.OrdinalIgnoreCase))
+      return null;
+
+    if (!string.IsNullOrWhiteSpace(configured))
+      return configured.Trim();
+
+    foreach (var candidate in new[] { "ccache", "sccache" })
+    {
+      if (IsOnPath(candidate))
+        return candidate;
+    }
+    return null;
+  }
+
+  private static bool IsOnPath(string executable)
+  {
+    var path = Environment.GetEnvironmentVariable("PATH");
+    if (string.IsNullOrEmpty(path))
+      return false;
+
+    foreach (var dir in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+    {
+      try
+      {
+        if (File.Exists(Path.Combine(dir, executable)))
+          return true;
+        if (OperatingSystem.IsWindows() &&
+            File.Exists(Path.Combine(dir, executable + ".exe")))
+          return true;
+      }
+      catch (ArgumentException)
+      {
+        // Malformed PATH entry; ignore it.
+      }
+    }
+    return false;
+  }
+
   private static string Guard(string flag) =>
     $"$<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:{flag}>";
 
   private static string MsvcGuard(string flag) =>
     $"$<$<CXX_COMPILER_ID:MSVC>:{flag}>";
 
-  public override string Generate(ProjectConfig config)
+  public override string Generate(BuildContext context)
   {
+    var config = context.Config;
     var presetCompile = new List<string>();
     var defines = new List<string>();
     var presetLink = new List<string>();
@@ -103,6 +150,21 @@ public class FlagsSection : CMakeSectionBase
 
     var sb = new StringBuilder();
     sb.AppendLine("# --- Build Flags ---");
+
+    // Modern-build toggles, before any target exists.
+    if (config.Build.Unity)
+      sb.AppendLine("set(CMAKE_UNITY_BUILD ON)");
+    if (config.Build.Modules)
+      sb.AppendLine("set(CMAKE_CXX_SCAN_FOR_MODULES ON)");
+
+    // Compiler launcher (ccache/sccache): a big rebuild win, and harmless when
+    // the tool is missing because we only set it when it is on PATH.
+    var launcher = ResolveLauncher(config.Build.CompilerLauncher);
+    if (launcher is not null)
+    {
+      sb.AppendLine($"set(CMAKE_CXX_COMPILER_LAUNCHER {launcher})");
+      sb.AppendLine($"set(CMAKE_C_COMPILER_LAUNCHER {launcher})");
+    }
 
     if (threads)
     {

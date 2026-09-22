@@ -22,6 +22,10 @@ namespace forge.Commands
     /// Displays project configuration summary.
     /// </summary>
     /// <returns>0 on success, 1 if project configuration cannot be loaded.</returns>
+    /// <summary>Print machine-readable JSON instead of a report.</summary>
+    [CliOption(Description = "Print JSON", Required = false)]
+    public bool Json { get; set; }
+
     public async Task<int> RunAsync()
     {
       var config = await ProjectConfigManager.LoadConfigAsync();
@@ -29,6 +33,27 @@ namespace forge.Commands
       {
         AnsiConsole.MarkupLine("[bold red]Error:[/] Not a forge project. `forge.lua` not found or is missing project name.");
         return 1;
+      }
+
+      if (Json)
+      {
+        var json = new System.Text.StringBuilder();
+        json.Append('{');
+        json.Append($"\"name\":{JsonOutput.Quote(config.Project.Name)},");
+        json.Append($"\"type\":{JsonOutput.Quote(config.Project.Type)},");
+        json.Append($"\"standard\":{JsonOutput.Quote(config.Project.Standard)},");
+        json.Append($"\"linkage\":{JsonOutput.Quote(config.Project.Linkage)},");
+        json.Append($"\"installHeaders\":{JsonOutput.Bool(config.Project.InstallHeaders)},");
+        json.Append($"\"cmakePolicyVersion\":{JsonOutput.Quote(config.Project.CmakePolicyVersion)},");
+        json.Append($"\"testing\":{JsonOutput.Bool(config.Testing)},");
+        json.Append($"\"dependencies\":{config.Dependencies.Count},");
+        json.Append($"\"conanDependencies\":{config.ConanDependencies.Count},");
+        json.Append($"\"scripts\":{config.Scripts.Count},");
+        json.Append($"\"resources\":{config.Resources.Files.Count},");
+        json.Append($"\"features\":{config.Features.Count}");
+        json.Append('}');
+        Console.WriteLine(json.ToString());
+        return 0;
       }
 
       AnsiConsole.MarkupLine($"[bold]Project Name:[/] {config.Project.Name}");

@@ -64,9 +64,25 @@ namespace forge
         return null;
       }
 
-      var configPath = Path.Combine(projectRoot, ConfigFileName);
+      // Work from the project root: the commands below use paths relative to it
+      // (build/, .config/, src/, forge.lua), and the root was found by walking
+      // upwards from the current directory.
+      var root = Path.GetFullPath(projectRoot);
+      if (root != Path.GetFullPath(Directory.GetCurrentDirectory()))
+      {
+        Directory.SetCurrentDirectory(root);
+      }
 
-      return await _luaLoader.LoadConfig(configPath);
+      var configPath = Path.Combine(root, ConfigFileName);
+      var config = await _luaLoader.LoadConfig(configPath);
+
+      // A configuration without a project name cannot drive anything: treat it
+      // as "not a forge project" instead of letting CMake fail later on an
+      // empty project() line.
+      if (config is null || string.IsNullOrWhiteSpace(config.Project.Name))
+        return null;
+
+      return config;
     }
 
     /// <summary>
@@ -180,13 +196,12 @@ namespace forge
     }
 
     /// <summary>
-    /// Saves the project configuration to package.toml file.
+    /// Writes the project configuration back to <c>forge.lua</c>.
     /// </summary>
-    /// <param name="config">The <see cref="ProjectConfig"/> object to serialize to TOML format.</param>
+    /// <param name="config">The <see cref="ProjectConfig"/> to serialize.</param>
     /// <remarks>
-    /// This method serializes the provided ProjectConfig object to TOML format and writes it
-    /// to the package.toml file in the specified directory. Only sections with data are written:
-    /// dependencies, resources, and scripts are only included if they contain entries.
+    /// Used by the commands that change the configuration in place (<c>forge embed</c>,
+    /// <c>forge.config.set</c>). Sections with data are written; empty ones are omitted.
     /// </remarks>
     /// <example>
     /// <code>
@@ -211,6 +226,19 @@ namespace forge
       sb.AppendLine($"        name = \"{config.Project.Name}\",");
       sb.AppendLine($"        type = \"{config.Project.Type}\",");
       sb.AppendLine($"        standard = \"{config.Project.Standard}\",");
+      if (!string.IsNullOrWhiteSpace(config.Project.Description))
+        sb.AppendLine($"        description = \"{config.Project.Description.Replace("\\", "\\\\").Replace("\"", "\\\"")}\",");
+      if (!string.IsNullOrWhiteSpace(config.Project.Contact))
+        sb.AppendLine($"        contact = \"{config.Project.Contact.Replace("\\", "\\\\").Replace("\"", "\\\"")}\",");
+      if (!string.IsNullOrEmpty(config.Project.Linkage) &&
+          !config.Project.Linkage.Equals("static", StringComparison.OrdinalIgnoreCase))
+      {
+        sb.AppendLine($"        linkage = \"{config.Project.Linkage}\",");
+      }
+      if (!string.IsNullOrEmpty(config.Project.Version))
+      {
+        sb.AppendLine($"        version = \"{config.Project.Version}\",");
+      }
       if (!string.IsNullOrEmpty(config.Project.CmakePolicyVersion))
       {
         sb.AppendLine($"        cmake_policy_version = \"{config.Project.CmakePolicyVersion}\",");
@@ -221,7 +249,18 @@ namespace forge
       }
       sb.AppendLine("    },");
       // Dependencies section - always output structure
-      sb.AppendLine($"    testing = {config.Testing.ToString().ToLower()},");
+      if (config.TestFramework != "gtest" || config.Benchmark)
+      {
+        sb.AppendLine("    testing = {");
+        sb.AppendLine($"        enabled = {config.Testing.ToString().ToLower()},");
+        sb.AppendLine($"        framework = \"{config.TestFramework}\",");
+        sb.AppendLine($"        benchmark = {config.Benchmark.ToString().ToLower()},");
+        sb.AppendLine("    },");
+      }
+      else
+      {
+        sb.AppendLine($"    testing = {config.Testing.ToString().ToLower()},");
+      }
       // Dependencies section - always output structure
       sb.AppendLine("    dependencies = {");
 
@@ -231,10 +270,20 @@ namespace forge
         foreach (var dep in config.Dependencies)
         {
           sb.AppendLine($"            {dep.Key} = {{");
-          if (!string.IsNullOrEmpty(dep.Value.Git))
-            sb.AppendLine($"                git = \"{dep.Value.Git}\",");
-          if (!string.IsNullOrEmpty(dep.Value.Tag))
-            sb.AppendLine($"                tag = \"{dep.Value.Tag}\",");
+          // A dependency is either a local checkout or a git fetch; writing
+          // both would be ambiguous, and dropping `path` would silently turn a
+          // local dependency back into a fetch.
+          if (!string.IsNullOrEmpty(dep.Value.Path))
+          {
+            sb.AppendLine($"                path = \"{dep.Value.Path}\",");
+          }
+          else
+          {
+            if (!string.IsNullOrEmpty(dep.Value.Git))
+              sb.AppendLine($"                git = \"{dep.Value.Git}\",");
+            if (!string.IsNullOrEmpty(dep.Value.Tag))
+              sb.AppendLine($"                tag = \"{dep.Value.Tag}\",");
+          }
           if (!string.IsNullOrEmpty(dep.Value.Target))
             sb.AppendLine($"                target = \"{dep.Value.Target}\",");
           sb.AppendLine("            },");
@@ -258,11 +307,58 @@ namespace forge
       {
         sb.AppendLine("        conan = {},");
       }
+      if (config.PkgConfigDependencies.Count > 0)
+      {
+        sb.AppendLine("        pkgconfig = {");
+        foreach (var module in config.PkgConfigDependencies)
+          sb.AppendLine($"            \"{module}\",");
+        sb.AppendLine("        },");
+      }
+      if (config.VcpkgDependencies.Count > 0)
+      {
+        sb.AppendLine("        vcpkg = {");
+        foreach (var (name, dependency) in config.VcpkgDependencies)
+        {
+          if (string.IsNullOrWhiteSpace(dependency.Version))
+          {
+            sb.AppendLine($"            {name} = \"{dependency.Target}\",");
+          }
+          else
+          {
+            sb.AppendLine($"            {name} = {{ target = \"{dependency.Target}\", version = \"{dependency.Version}\" }},");
+          }
+        }
+        sb.AppendLine("        },");
+      }
       sb.AppendLine("    },");
       // Build flags section - only output if there is anything to write
       if (config.Build.HasAny)
       {
         sb.AppendLine("    build = {");
+        if (config.Build.Unity)
+          sb.AppendLine("        unity = true,");
+        if (config.Build.Pch.Length > 0)
+          sb.AppendLine($"        pch = \"{config.Build.Pch}\",");
+        if (config.Build.Modules)
+          sb.AppendLine("        modules = true,");
+        if (config.Build.CxxCompiler.Length > 0)
+          sb.AppendLine($"        cxx_compiler = \"{config.Build.CxxCompiler}\",");
+        if (config.Build.CCompiler.Length > 0)
+          sb.AppendLine($"        c_compiler = \"{config.Build.CCompiler}\",");
+        if (config.Build.ToolchainFile.Length > 0)
+          sb.AppendLine($"        toolchain_file = \"{config.Build.ToolchainFile}\",");
+        if (config.Build.CmakePrefixPath.Count > 0)
+          sb.AppendLine($"        cmake_prefix_path = {{ {string.Join(", ", config.Build.CmakePrefixPath.Select(p => $"\"{p}\""))} }},");
+        if (config.Build.SystemName.Length > 0)
+          sb.AppendLine($"        system_name = \"{config.Build.SystemName}\",");
+        if (config.Build.SystemProcessor.Length > 0)
+          sb.AppendLine($"        system_processor = \"{config.Build.SystemProcessor}\",");
+        if (config.Build.Generator.Length > 0)
+          sb.AppendLine($"        generator = \"{config.Build.Generator}\",");
+        if (config.Build.Jobs > 0)
+          sb.AppendLine($"        jobs = {config.Build.Jobs},");
+        if (config.Build.CompilerLauncher.Length > 0)
+          sb.AppendLine($"        compiler_launcher = \"{config.Build.CompilerLauncher}\",");
         if (config.Build.Presets.Count > 0)
           sb.AppendLine($"        presets = {{ {string.Join(", ", config.Build.Presets.Select(p => $"\"{p}\""))} }},");
         if (config.Build.CompileOptions.Count > 0)

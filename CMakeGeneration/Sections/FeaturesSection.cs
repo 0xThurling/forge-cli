@@ -9,11 +9,12 @@ public class FeaturesSection : CMakeSectionBase
 
   public override int Priority => 2;
 
-  public override bool IsEnabled(ProjectConfig config)
-    => config.Features.Any(f => f.Value.Enabled);
+  public override bool IsEnabled(BuildContext context)
+    => context.Config.Features.Any(f => f.Value.Enabled);
 
-  public override string Generate(ProjectConfig config)
+  public override string Generate(BuildContext context)
   {
+    var config = context.Config;
     var sb = new StringBuilder();
 
     sb.AppendLine("# --- Feature Flags ---");

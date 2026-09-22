@@ -1,3 +1,4 @@
+using forge.CMakeGeneration;
 using Lua;
 using Spectre.Console;
 
@@ -34,14 +35,19 @@ namespace forge.Commands.Lua
     /// </summary>
     /// <remarks>
     /// Executes each .lua file sequentially and merges any returned
-    /// <c>cmakeOptions</c> table into <see cref="ProjectBuildManager.LuaCmakeOptions"/>.
+    /// <c>cmakeOptions</c> table into the build context's Lua options.
+    /// A script that raises a Lua error (bad argument, syntax error, failed
+    /// download) is reported with its file name and stops the build: the setup
+    /// it was meant to perform has not happened, so continuing would only
+    /// produce a confusing failure later.
     /// </remarks>
-    public static async Task RunBuilderScripts()
+    /// <returns>True when every script ran; false when one failed.</returns>
+    public static async Task<bool> RunBuilderScripts(BuildContext context)
     {
       var buildDir = Path.Combine(Directory.GetCurrentDirectory(), ".config", "forge", "build");
 
       if (!Directory.Exists(buildDir))
-        return; // No scripts to run
+        return true; // No scripts to run
 
       // Deterministic order: a setup script may depend on another's output.
       var files = Directory.GetFiles(buildDir, "*.lua");
@@ -49,18 +55,34 @@ namespace forge.Commands.Lua
 
       foreach (var file in files)
       {
-        var results = await LuaEngine.GetLuaEngine().DoFileAsync(file);
+        var name = Path.GetFileName(file);
+
+        LuaValue[] results;
+        try
+        {
+          // Point the Lua API at this build before any script runs.
+          LuaEngine.UseContext(context);
+          results = await LuaEngine.GetLuaEngine().DoFileAsync(file);
+        }
+        catch (Exception ex)
+        {
+          AnsiConsole.MarkupLine($"[bold red]Error:[/] build script '{name}' failed: {ex.Message}");
+          return false;
+        }
+
         if (results == null || results.Length == 0) continue;
 
         if (!results[0].TryRead<LuaTable>(out var table)) continue;
         if (table["cmakeOptions"].TryRead<LuaTable>(out var options))
-          ApplyCmakeOptions(options, Path.GetFileName(file));
+          ApplyCmakeOptions(options, name, context);
       }
+
+      return true;
     }
 
-    private static void ApplyCmakeOptions(LuaTable options, string script)
+    private static void ApplyCmakeOptions(LuaTable options, string script, BuildContext context)
     {
-      var target = ProjectBuildManager.LuaCmakeOptions;
+      var target = context.LuaOptions;
 
       foreach (var (key, value) in options)
       {

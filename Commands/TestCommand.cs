@@ -51,8 +51,16 @@ namespace forge.Commands
     /// <value>
     /// Valid values: "11", "14", "17", "20". Defaults to "20".
     /// </value>
-    [CliOption(Description = "C++ standard to use (e.g., 11, 14, 17, 20). Defaults to 20.")]
-    public string Standard { get; set; } = "20";
+    /// <summary>Parallel build jobs, forwarded to the build step.</summary>
+    [CliOption(Description = "Parallel build jobs (default: all cores)", Required = false)]
+    public int? Jobs { get; set; }
+
+    /// <summary>
+    /// Overrides the project's C++ standard for this invocation. Null when the
+    /// flag was not given, so the configured standard wins.
+    /// </summary>
+    [CliOption(Description = "C++ standard to use (e.g., 11, 14, 17, 20). Defaults to the configured standard.", Required = false)]
+    public string? Standard { get; set; }
 
     /// <summary>Production preset (-O3 -DNDEBUG) regardless of forge.lua.</summary>
     [CliOption(Description = "Build tests with the production preset regardless of config.")]
@@ -87,6 +95,7 @@ namespace forge.Commands
       var buildCommand = new BuildCommand
       {
         Verbose = false, // Tests usually don't need verbose build output
+        Jobs = Jobs,
         Standard = Standard,
         Release = Release,
         Debug = Debug,
