@@ -1,1 +1,0 @@
-/usr/sbin/c++ -m64 -O3 -DNDEBUG -m64 -Wl,--dependency-file=CMakeFiles/forge-utils_tests.dir/link.d "CMakeFiles/forge-utils_tests.dir/test/main.cpp.o" "CMakeFiles/forge-utils_tests.dir/src/defer.cpp.o" -o forge-utils_tests  ../../lib/libgtest_main.a ../../lib/libgtest.a
