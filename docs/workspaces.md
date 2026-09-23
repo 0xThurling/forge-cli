@@ -6,7 +6,7 @@ can be built and tested in one command, in the right order.
 
 ## Layout
 
-```
+```text
 my-stack/
 ├── fp/          forge.lua   (library)
 ├── ml/          forge.lua   (library, depends on fp)

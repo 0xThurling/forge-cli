@@ -101,6 +101,90 @@ Pass `"nopass"` when sudo isn't needed or the credential is already cached;
 otherwise the password is used to elevate. **Prefer `"nopass"`** — a password
 written into `forge.lua` is a secret in version control.
 
+## Worked example: WebGPU, GLFW and glfw3webgpu
+
+A real setup script: three upstream projects that have no package, fetched at
+configure time, built as subdirectories, and linked. Every primitive used here
+is covered by the suite against a local server, so the recipe works offline once
+the archives are in the cache.
+
+```lua
+-- .config/forge/build/webgpu.lua
+forge.log.info("Setting up the WebGPU environment...")
+
+-- System packages GLFW needs to build.
+forge.get_packages("nopass", "pacman", { "xorg" })
+
+-- forge.fetch downloads, extracts, and *returns* the extracted directory.
+local webgpu = forge.fetch(
+  "https://github.com/eliemichel/WebGPU-distribution/archive/refs/tags/main-v0.2.0.zip")
+local glfw = forge.fetch(
+  "https://eliemichel.github.io/LearnWebGPU/_downloads/6873a344e35ea9f5e4fc7e5cc85d3ab8/glfw-3.4.0-light.zip")
+local glfw3webgpu = forge.fetch(
+  "https://github.com/eliemichel/glfw3webgpu/releases/download/v1.2.0/glfw3webgpu-v1.2.0.zip")
+
+-- A named section keeps its place in the generated file (and a later script can
+-- replace it by name). `before:project_target` puts the subdirectories before
+-- the target exists, so its link line can name them.
+forge.add_section("webgpu-sources", "before:project_target", [[
+add_subdirectory(]] .. webgpu .. [[)
+add_subdirectory(]] .. glfw .. [[)
+add_subdirectory(]] .. glfw3webgpu .. [[)
+]])
+
+-- Anchored *after* the test target (priority 50), so both targets exist by the
+-- time this runs — which is what makes the guard below work.
+forge.add_section("webgpu-link", "after:testing", [[
+target_link_libraries(${PROJECT_NAME} PRIVATE webgpu glfw glfw3webgpu)
+target_copy_webgpu_binaries(${PROJECT_NAME})
+
+if(TARGET ${PROJECT_NAME}_tests)
+  target_link_libraries(${PROJECT_NAME}_tests PRIVATE webgpu glfw glfw3webgpu)
+endif()
+]])
+
+return {
+  cmakeOptions = {
+    -- GLFW's build options are cache variables: they have to be set *before*
+    -- add_subdirectory, which is exactly what `cacheVariables` is for.
+    cacheVariables = { GLFW_BUILD_WAYLAND = "OFF" },
+  }
+}
+```
+
+!!! tip "System packages differ by distribution"
+
+    `xorg` is Arch's package group; Debian/Ubuntu call it `xorg-dev`. The list
+    passed to `forge.get_packages` has to name what the machine's package
+    manager actually provides.
+
+Why it is shaped this way:
+
+- **Two sections, two anchors.** `before:project_target` for the sources (the
+  targets must exist before anything links them) and `after:testing` for the
+  link line (the test target must exist before it can be linked). The
+  [Lua reference](lua-reference.md#forgeadd_sectionname-position-content) lists
+  every anchor and its priority.
+- **`if(TARGET …)`.** With `testing = true` the test target links the same
+  libraries; without tests the guard is simply false. (A directory-scoped
+  `linkLibraries` would also reach the fetched projects themselves, which is why
+  the link line is explicit.)
+- **`${PROJECT_NAME}`** is substituted in every section, so the link line follows
+  the project if you rename it.
+
+!!! warning "`cacheVariables` must come before the subdirectory"
+
+    GLFW reads `GLFW_BUILD_WAYLAND` when it is added, so a plain `set()` inside
+    a snippet — which runs *after* `add_subdirectory` — would be ignored.
+    `cacheVariables` is emitted before the project target, and so before the
+    subdirectory.
+
+!!! note "Fetches live in `external/`"
+
+    Fetching at configure time needs the network once. Afterwards the archives
+    live in `external/`, and `forge clean` does not remove them — so a rebuild
+    is offline.
+
 ## Rules of thumb
 
 - **Prefer a real channel.** If the dependency has a CMake build and a Git repo,

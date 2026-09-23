@@ -117,7 +117,7 @@ see them — useful to switch off a dependency's tests, examples or extra
 backends.
 
 #### `dependencies.vcpkg`
-Packages resolved by [vcpkg](dependency-management.md#vcpkg-manifest-mode) in
+Packages resolved by [vcpkg](dependency-management.md#using-vcpkg-manifest-mode) in
 manifest mode.
 - Key: Package name.
 - Value: The CMake target to link (`"fmt::fmt"`), or a table

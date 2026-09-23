@@ -59,7 +59,9 @@ Clones a Git repository into the `external/` directory.
 Downloads a file (usually a zip), extracts it, and returns the path to the extracted directory.
 - `url`: The URL to download from.
 - `output_dir`: (Optional) The directory to extract to. Defaults to `external/<name>`.
-- **Returns**: The path to the extracted directory.
+- **Returns**: The path to the extracted directory — which is what you pass to
+  `add_subdirectory`, see the
+  [worked example](custom-setup.md#worked-example-webgpu-glfw-and-glfw3webgpu).
 
 ### `forge.download(url, output, options?, progress_callback?)`
 Downloads a file to a specific location.

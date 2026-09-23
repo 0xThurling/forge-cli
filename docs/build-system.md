@@ -82,7 +82,7 @@ export rules, so consumers see no difference.
 
 `forge install --prefix <dir>` installs the project into a CMake-style tree:
 
-```
+```text
 <dir>/lib/lib<name>.a          # or .so, with SOVERSION from project.version
 <dir>/include/…                # the mirrored headers
 <dir>/lib/cmake/<name>/<name>Config.cmake

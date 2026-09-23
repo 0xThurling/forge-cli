@@ -27,6 +27,16 @@ The easiest way to install Forge is using our installation script:
 curl -sSL https://raw.githubusercontent.com/0xThurling/forge-cli/refs/heads/main/install.sh | bash
 ```
 
+Then make sure the tools Forge drives are present — `forge setup` reports what
+is missing, and `forge setup --install` installs it:
+
+```bash
+forge setup              # table: tool, status, version, purpose
+forge setup --install    # install what is missing (asks first)
+```
+
+See [Prerequisites](prerequisites.md) for the full list.
+
 ### Creating a New Project
 
 To start a new C++ project:
@@ -77,6 +87,7 @@ forge build      # fetch, build, link
 
 | Page | What it covers |
 |---|---|
+| [Prerequisites](prerequisites.md) | the tools Forge drives, and `forge setup` |
 | [Project Configuration](project-configuration.md) | every `forge.lua` field |
 | [Dependency Management](dependency-management.md) | git, `path`, Conan, vcpkg, pkg-config, lockfile |
 | [Build System](build-system.md) | generated CMake, presets, build toggles, packaging, quality tooling |

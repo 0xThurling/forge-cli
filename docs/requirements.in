@@ -1,0 +1,6 @@
+# Direct dependencies of the documentation site.
+# Regenerate the lock file with:
+#
+#     pip-compile docs/requirements.in --output-file docs/requirements.txt
+#
+mkdocs>=1.6,<2
