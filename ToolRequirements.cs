@@ -109,6 +109,32 @@ public static class ToolRequirements
       ["pacman"] = "ninja", ["brew"] = "ninja", ["winget"] = "Ninja-build.Ninja", ["choco"] = "ninja"
     }, Required: false),
 
+    new("make", "build with the default generator (Ninja is preferred)", "", new()
+    {
+      ["apt-get"] = "make", ["dnf"] = "make", ["zypper"] = "make", ["apk"] = "make",
+      ["pacman"] = "make", ["brew"] = "make", ["winget"] = "GnuWin32.Make", ["choco"] = "make"
+    }, Required: false),
+
+    new("pkg-config", "resolve `dependencies.pkgconfig` modules", "", new()
+    {
+      // Arch and the RPM family ship pkgconf, which provides the binary.
+      ["apt-get"] = "pkg-config", ["dnf"] = "pkgconf", ["zypper"] = "pkgconf",
+      ["apk"] = "pkgconf", ["pacman"] = "pkgconf", ["brew"] = "pkg-config",
+      ["winget"] = "pkgconf.pkgconf", ["choco"] = "pkgconfiglite"
+    }, Required: false),
+
+    new("tar", "`forge extract` and `forge fetch`", "", new()
+    {
+      ["apt-get"] = "tar", ["dnf"] = "tar", ["zypper"] = "tar", ["apk"] = "tar",
+      ["pacman"] = "tar", ["brew"] = "gnu-tar", ["winget"] = "GnuWin32.Tar", ["choco"] = "tar"
+    }, Required: false),
+
+    new("unzip", "`forge extract` and `forge fetch` for zip archives", "", new()
+    {
+      ["apt-get"] = "unzip", ["dnf"] = "unzip", ["zypper"] = "unzip", ["apk"] = "unzip",
+      ["pacman"] = "unzip", ["brew"] = "unzip", ["winget"] = "GnuWin32.UnZip", ["choco"] = "unzip"
+    }, Required: false),
+
     new("ccache", "cache compilation between builds", "", new()
     {
       ["apt-get"] = "ccache", ["dnf"] = "ccache", ["zypper"] = "ccache", ["apk"] = "ccache",
@@ -150,13 +176,54 @@ public static class ToolRequirements
   ];
 
   /// <summary>
+  /// Where an ecosystem tool lives, when it is not on <c>PATH</c> — the same
+  /// places the build looks: vcpkg in <c>$VCPKG_ROOT</c> or the project's
+  /// <c>external/vcpkg</c>, Conan in pipx's bin directory.
+  /// </summary>
+  /// <returns>The path found, or null.</returns>
+  public static string? ResolveExtra(string name)
+  {
+    if (ToolLocator.Find(name) is not null)
+      return name; // on PATH
+
+    if (name == "vcpkg")
+    {
+      var roots = new List<string>();
+      var configured = Environment.GetEnvironmentVariable("VCPKG_ROOT");
+      if (!string.IsNullOrWhiteSpace(configured))
+        roots.Add(configured);
+      roots.Add(Path.Combine("external", "vcpkg"));
+      // Where `forge setup --install` puts it outside a project.
+      roots.Add(Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "forge", "vcpkg"));
+
+      foreach (var root in roots)
+      {
+        var candidate = Path.Combine(root, OperatingSystem.IsWindows() ? "vcpkg.exe" : "vcpkg");
+        if (File.Exists(candidate))
+          return candidate;
+      }
+    }
+
+    if (name == "conan")
+    {
+      var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+      var candidate = Path.Combine(home, ".local", "bin", OperatingSystem.IsWindows() ? "conan.exe" : "conan");
+      if (IsUsableFile(candidate))
+        return candidate;
+    }
+
+    return null;
+  }
+
+  /// <summary>
   /// The command that installs an extra tool on this machine. The table's
   /// fallback is used when the manager has no sensible package for it — Conan
   /// on Debian/Ubuntu, for instance, where the archive package is still 1.x.
   /// </summary>
   public static string HintFor(string name, string fallback, string? manager) => (name, manager) switch
   {
-    ("conan", "pacman") => "sudo pacman -S conan",
+    ("conan", "pacman") => "pipx install conan  (sudo pacman -S python-pipx)",
     ("conan", "apk") => "sudo apk add conan",
     ("conan", "dnf") => "sudo dnf install conan",
     ("conan", "zypper") => "sudo zypper install conan",
@@ -179,7 +246,13 @@ public static class ToolRequirements
 
     return manager switch
     {
-      "pacman" => [("pacman", ["-S", "--noconfirm", "conan"], true)],
+      // Arch has no `conan` package: `python-pipx` + `pipx install conan` is
+      // the route Conan's own documentation recommends.
+      "pacman" =>
+      [
+        ("pacman", ["-S", "--noconfirm", "python-pipx"], true),
+        ("pipx", ["install", "conan"], false)
+      ],
       "apk" => [("apk", ["add", "--no-cache", "conan"], true)],
       "dnf" => [("dnf", ["install", "-y", "conan"], true)],
       "zypper" => [("zypper", ["install", "-y", "conan"], true)],
@@ -210,6 +283,100 @@ public static class ToolRequirements
       .Where(tool => ToolLocator.Find(tool) is null)
       .Select(tool => Find(tool)?.PackageFor(manager) ?? tool)
       .ToList();
+  }
+
+  /// <summary>
+  /// A tool that is installed but *not on PATH*: found where Forge looks for it,
+  /// yet the command line could not run it. Returned with the location and the
+  /// command that fixes the PATH.
+  /// </summary>
+  public static List<(string Name, string Location, string Fix)> PathProblems()
+  {
+    var problems = new List<(string, string, string)>();
+
+    foreach (var (name, _, _) in ExtraSteps)
+    {
+      var location = ResolveExtra(name);
+      if (location is null || location == name)
+        continue; // missing, or already on PATH
+
+      var fix = name switch
+      {
+        "conan" => "pipx ensurepath",
+        // A vcpkg in the project needs nothing; one in the user's data
+        // directory needs VCPKG_ROOT so Forge can find it.
+        "vcpkg" when !IsInsideProject(location) =>
+          $"export VCPKG_ROOT={Path.GetDirectoryName(Path.GetFullPath(location))}",
+        "vcpkg" => string.Empty,
+        _ => string.Empty
+      };
+
+      if (fix.Length > 0)
+        problems.Add((name, location, fix));
+    }
+
+    return problems;
+  }
+
+  /// <summary>Whether a path is inside the current project's external directory.</summary>
+  private static bool IsInsideProject(string location)
+  {
+    var project = Path.GetFullPath(Path.Combine("external", "vcpkg"));
+    var candidate = Path.GetFullPath(Path.GetDirectoryName(location) ?? location);
+    return candidate.StartsWith(project, StringComparison.Ordinal);
+  }
+
+  /// <summary>
+  /// Whether a path is a usable file. A symlink whose target is missing does
+  /// not count — and <c>File.Exists</c> alone cannot tell: on .NET 10 it is
+  /// true for a dangling link, which is exactly the case that matters here.
+  /// </summary>
+  private static bool IsUsableFile(string path)
+  {
+    if (!File.Exists(path))
+      return false;
+
+    var info = new FileInfo(path);
+    if (info.LinkTarget is null)
+      return true;
+
+    var target = Path.IsPathRooted(info.LinkTarget)
+      ? info.LinkTarget
+      : Path.Combine(info.DirectoryName!, info.LinkTarget);
+    return File.Exists(target);
+  }
+
+  /// <summary>
+  /// Tools that are installed but unusable from the command line: a dangling
+  /// symlink (a <c>pipx install</c> that ran under sudo points into root's
+  /// home), or a pipx venv whose command was never exposed. Both look installed
+  /// and cannot run, so they are named for what they are.
+  /// </summary>
+  public static List<(string Name, string Reason, string Fix)> NeedsRepair()
+  {
+    var repaired = new List<(string, string, string)>();
+    if (ToolLocator.Find("conan") is not null)
+      return repaired; // on PATH: nothing to repair
+
+    var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    var link = Path.Combine(home, ".local", "bin", OperatingSystem.IsWindows() ? "conan.exe" : "conan");
+    if (IsUsableFile(link))
+      return repaired;
+
+    var target = new FileInfo(link).LinkTarget;
+    if (target is not null)
+    {
+      repaired.Add(("conan", $"points at {target}, which does not exist", "pipx install --force conan"));
+      return repaired;
+    }
+
+    // pipx has a venv for it but never exposed the command: `pipx install conan`
+    // would refuse ("already seems to be installed"), so --force is the fix.
+    var venv = Path.Combine(home, ".local", "share", "pipx", "venvs", "conan");
+    if (Directory.Exists(venv))
+      repaired.Add(("conan", "is installed by pipx but not exposed as a command", "pipx install --force conan"));
+
+    return repaired;
   }
 
   /// <summary>Finds a tool by name (case-insensitive), or null.</summary>

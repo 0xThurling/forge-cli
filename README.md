@@ -36,10 +36,11 @@ test/run.sh --keep      # keep the scratch workspace for inspection
 
 `test/run.sh` (also reachable as `./dev.sh`) drives the dev build directly
 (`dotnet bin/Release/net10.0/forge.dll`) against a throwaway workspace, so the
-installed `forge` is never touched. 32 scenarios cover every command, the three
-dependency channels, the generated CMake, the Lua API and build scripts,
-downloads/extraction against a local server, and the failure paths — see
-[test/README.md](test/README.md) for the list and how to add a scenario.
+installed `forge` is never touched. The scenarios cover every command, all five
+dependency channels (git, `path`, Conan, vcpkg, pkg-config), the generated CMake,
+the Lua API and build scripts, quality tooling, packaging, CI generation,
+workspaces, downloads/extraction against a local server, and the failure paths —
+see [test/README.md](test/README.md) for the list and how to add a scenario.
 
 ## Quick Start
 

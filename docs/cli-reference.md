@@ -507,9 +507,9 @@ forge setup --tools conan,vcpkg
 forge setup --install --yes --tools conan,vcpkg
 ```
 
-- **conan** — installed with the machine's package manager (`pacman -S conan`,
-  `brew install conan`, …), or through `pipx` on Debian/Ubuntu where the archive
-  package is still Conan 1.x.
+- **conan** — installed with the machine's package manager (`brew install
+  conan`, …), or through `pipx` where the archive has no Conan 2 (Arch) or only
+  1.x (Debian/Ubuntu).
 - **vcpkg** — its own prerequisites first (`curl`, `zip`, `unzip`, `tar`), then
   cloned and bootstrapped into `external/vcpkg` when run inside a project (which
   is where Forge looks for it, no environment variable needed), or into
@@ -517,13 +517,24 @@ forge setup --install --yes --tools conan,vcpkg
   use it. A checkout that exists but is not bootstrapped is bootstrapped rather
   than cloned again.
 
-Without `--tools`, `--install` also covers the ecosystems the project declares:
-a `forge.lua` with `dependencies.vcpkg` gets vcpkg bootstrapped, one with
-`dependencies.conan` gets Conan — so `forge setup --install` on a fresh machine
-is enough to build.
+Without `--tools`, `--install` offers **both** ecosystems — Conan and vcpkg —
+so a fresh machine is ready for whatever comes next. Each is confirmed
+separately (vcpkg is a checkout, Conan a package), and the output says whether
+the current project actually uses it, so an irrelevant one costs a keystroke to
+skip. `--tools conan` narrows it to one.
 
-`forge doctor` reports the same table, and `forge ci` uses it to write the
-install steps of the workflow it generates.
+A tool that is installed but **not on `PATH`** is reported separately, with the
+fix — as is a tool that is installed but *unusable*: a symlink pointing at a
+missing target (a `pipx install` that ran as root), or a pipx venv whose command
+was never exposed. Both say so and offer `pipx install --force`, or removing a
+stale venv and reinstalling. `--install` writes it: the missing `PATH` entry (or `VCPKG_ROOT` export) is
+appended to your shell profile (`~/.bashrc`, `~/.zshrc`, fish's `config.fish`,
+or `~/.profile`), once — every entry is marked with a comment and an entry
+already present is left alone. Nothing else in the file is touched, and a new
+shell is needed to pick it up.
+
+`forge doctor` reports the same table and the same PATH problems, and `forge ci`
+uses it to write the install steps of the workflow it generates.
 
 ---
 
@@ -563,6 +574,9 @@ Runs project tests (if enabled). Uses CTest when available and falls back to
 the built test binary; the build step runs first.
 
 **Usage:** `forge test [options]`
+
+`--filter <pattern>` (or a suite name as the first argument) selects which tests
+run; without one, the whole suite does.
 
 Accepts the same build overrides as `forge build` (`--release`/`--debug`/
 `--preset`/`--no-config-presets`), so you can, for example, run the suite under

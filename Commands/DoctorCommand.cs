@@ -285,6 +285,26 @@ public class DoctorCommand
       AnsiConsole.MarkupLine($"   {icon} {tool.Name} - {detail}");
     }
 
+    // A tool that is installed but not on PATH cannot be used, and a generator
+    // is not optional.
+    foreach (var (name, reason, fix) in ToolRequirements.NeedsRepair())
+    {
+      AnsiConsole.MarkupLine($"   [red]❌[/] {name} {reason}");
+      AnsiConsole.MarkupLine($"      [dim]fix:[/] {fix}");
+    }
+
+    foreach (var (name, location, fix) in ToolRequirements.PathProblems())
+    {
+      AnsiConsole.MarkupLine($"   [yellow]⚠️[/] {name} is at {location}, which is not on PATH");
+      AnsiConsole.MarkupLine($"      [dim]fix:[/] {fix}");
+    }
+
+    if (ToolLocator.Find("ninja") is null && ToolLocator.Find("make") is null)
+    {
+      AnsiConsole.MarkupLine("   [red]❌[/] neither ninja nor make is installed — CMake needs a generator");
+      issues++;
+    }
+
     if (missingTools.Count > 0)
     {
       AnsiConsole.MarkupLine(

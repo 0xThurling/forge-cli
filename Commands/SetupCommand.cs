@@ -40,42 +40,54 @@ public class SetupCommand
   public bool Json { get; set; }
 
   /// <summary>
-  /// Adds the ecosystem tools the project declares, so `forge setup --install`
-  /// bootstraps everything a build needs.
+  /// Marks the ecosystems this project actually declares, so the output can say
+  /// which of the offered tools a build would use.
   /// </summary>
-  private async Task AddExtrasTheProjectUsesAsync()
+  private void NoteExtrasTheProjectUses()
   {
-    var config = await ProjectConfigManager.LoadConfigAsync();
+    var config = ProjectConfigManager.LoadConfigAsync().GetAwaiter().GetResult();
     if (config == null)
       return;
 
-    var needed = new List<string>();
     if (config.ConanDependencies.Count > 0)
-      needed.Add("conan");
+      _extrasUsedByProject.Add("conan");
     if (config.VcpkgDependencies.Count > 0)
-      needed.Add("vcpkg");
-
-    foreach (var (name, purpose, hint) in ToolRequirements.ExtraSteps)
-    {
-      if (!needed.Contains(name) || _selectedExtras.Any(extra => extra.Name == name))
-        continue;
-      _selectedExtras.Add((name, purpose, hint));
-    }
+      _extrasUsedByProject.Add("vcpkg");
   }
 
   /// <summary>Ecosystem tools selected with <c>--tools</c> (conan, vcpkg).</summary>
   private readonly List<(string Name, string Purpose, string Hint)> _selectedExtras = [];
 
+  /// <summary>Which of them this project's <c>forge.lua</c> actually declares.</summary>
+  private readonly HashSet<string> _extrasUsedByProject = new(StringComparer.OrdinalIgnoreCase);
+
   public Task<int> RunAsync()
   {
+    // Installing as root puts the results in root's home — pipx venvs, and
+    // anything else that resolves `~`. Cheap to warn about, painful to debug.
+    if (Install &&
+        Environment.UserName == "root" &&
+        string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SUDO_USER")))
+    {
+      AnsiConsole.MarkupLine(
+        "[yellow]Warning:[/] running as root — installed tools will land in root's home.");
+    }
+
     var selected = Select();
     if (selected is null)
       return Task.FromResult(1);
 
-    // `--install` without `--tools` covers what this project actually uses: a
-    // project with Conan packages should not need to ask for Conan separately.
+    // `--install` without `--tools` covers every ecosystem, not only the ones
+    // this project declares: the point of a setup command is that a fresh
+    // machine is ready, whatever the next project needs. Each one is confirmed
+    // separately (vcpkg is a checkout), so an irrelevant one costs a keystroke.
     if (Install && string.IsNullOrWhiteSpace(Tools))
-      AddExtrasTheProjectUsesAsync().GetAwaiter().GetResult();
+    {
+      foreach (var (name, purpose, hint) in ToolRequirements.ExtraSteps)
+        _selectedExtras.Add((name, purpose, hint));
+
+      NoteExtrasTheProjectUses();
+    }
 
     var manager = ToolRequirements.DetectPackageManager();
     var statuses = selected
@@ -144,14 +156,25 @@ public class SetupCommand
     var missingExtras = new List<string>();
     foreach (var (name, purpose, hint) in ToolRequirements.ExtraSteps)
     {
-      var present = ToolLocator.Find(name) is not null;
-      if (!present)
+      // Found the way the *build* finds it, which is not always on PATH.
+      var location = ToolRequirements.ResolveExtra(name);
+      var broken = ToolRequirements.NeedsRepair().Any(entry => entry.Name == name);
+      if (location is null && !broken)
         missingExtras.Add(name);
 
-      AnsiConsole.MarkupLine(present
-        ? $"   [green]ok[/] {name} [dim]({purpose})[/]"
-        : $"   [yellow]missing (optional)[/] {name} [dim]({purpose})[/] — " +
-          $"{ToolRequirements.HintFor(name, hint, manager)}");
+      AnsiConsole.MarkupLine(location switch
+      {
+        null when broken =>
+          $"   [red]broken[/] {name} [dim]({purpose})[/] — see the broken links below",
+        null => $"   [yellow]missing (optional)[/] {name} [dim]({purpose})[/] — " +
+                $"{ToolRequirements.HintFor(name, hint, manager)}",
+        _ when location == name => $"   [green]ok[/] {name} [dim]({purpose})[/]",
+        // Conan has to be on PATH to be usable; vcpkg is used by path, so its
+        // location is just information.
+        _ when name == "conan" =>
+          $"   [green]ok[/] {name} [dim]({purpose}; at {location} — add it to PATH with `pipx ensurepath`)[/]",
+        _ => $"   [green]ok[/] {name} [dim]({purpose}; at {location})[/]"
+      });
     }
 
     AnsiConsole.WriteLine();
@@ -164,16 +187,143 @@ public class SetupCommand
 
     AnsiConsole.MarkupLine($"[dim]Package manager:[/] {manager}");
 
+    // Paths: a tool that is installed where the shell cannot see it is not
+    // usable, which is the most confusing way for a setup to "succeed".
+    var brokenLinks = ToolRequirements.NeedsRepair();
+    if (brokenLinks.Count > 0)
+    {
+      AnsiConsole.MarkupLine("[bold]Broken links[/]");
+      foreach (var (name, reason, fix) in brokenLinks)
+      {
+        AnsiConsole.MarkupLine($"   [red]{name}[/] {reason}");
+        AnsiConsole.MarkupLine($"      [dim]fix:[/] {fix}");
+      }
+
+      if (Install && !DryRun)
+      {
+        foreach (var (name, _, fix) in brokenLinks)
+        {
+          if (!Confirm($"Run `{fix}`?"))
+            continue;
+
+          var parts = fix.Split(' ');
+          var ran = RunProcess(parts[0], parts[1..]) == 0;
+          if (ran && ToolRequirements.ResolveExtra(name) is not null)
+          {
+            AnsiConsole.MarkupLine($"   [green]repaired[/] {name}");
+            continue;
+          }
+
+          // pipx refuses to replace a venv it did not create (an earlier
+          // install as another user), and `--force` alone cannot fix that: the
+          // venv has to go first.
+          var venv = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            ".local", "share", "pipx", "venvs", name);
+
+          if (Directory.Exists(venv) &&
+              Confirm($"Remove the stale venv at {venv} and install {name} again?"))
+          {
+            try
+            {
+              Directory.Delete(venv, recursive: true);
+            }
+            catch (Exception exception)
+            {
+              AnsiConsole.MarkupLine($"[bold red]Could not remove it:[/] {exception.Message}");
+              continue;
+            }
+
+            if (RunProcess("pipx", ["install", name]) == 0 &&
+                ToolRequirements.ResolveExtra(name) is not null)
+            {
+              AnsiConsole.MarkupLine($"   [green]repaired[/] {name}");
+            }
+            else
+            {
+              AnsiConsole.MarkupLine($"[bold red]{name} is still not usable.[/]");
+            }
+          }
+        }
+      }
+
+      AnsiConsole.WriteLine();
+    }
+
+    // Computed after any repair: a tool that was just relinked is visible now,
+    // and the same run can also fix its PATH entry.
+    var pathProblems = ToolRequirements.PathProblems();
+    if (pathProblems.Count > 0)
+    {
+      AnsiConsole.MarkupLine("[bold]PATH[/]");
+      foreach (var (name, location, fix) in pathProblems)
+        AnsiConsole.MarkupLine($"   [yellow]{name}[/] is at {location}, which is not on PATH");
+
+      // `--install` writes the fix: an export in the shell profile, or pipx's
+      // own ensurepath when pipx is what put the tool there.
+      var profile = ShellProfile.Path();
+      var writes = new List<(string Line, string Why)>();
+
+      var localBin = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".local", "bin");
+      var pathHasLocalBin = (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
+        .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+        .Any(entry => Path.GetFullPath(entry).TrimEnd('/') == localBin.TrimEnd('/'));
+
+      if (pathProblems.Any(problem => problem.Name == "conan") && !pathHasLocalBin)
+      {
+        var pathLine = OperatingSystem.IsWindows()
+          ? "setx PATH \"%PATH%;" + localBin + "\""
+          : "export PATH=\"" + localBin + ":$PATH\"";
+        writes.Add((pathLine, "so pipx-installed tools are found"));
+      }
+
+      foreach (var (_, location, fix) in pathProblems.Where(problem => problem.Fix.StartsWith("export", StringComparison.Ordinal)))
+        writes.Add((fix, "so vcpkg is found outside this project"));
+
+      if (Install && !DryRun && writes.Count > 0)
+      {
+        AnsiConsole.MarkupLine($"[dim]shell profile:[/] {profile}");
+        foreach (var (line, why) in writes)
+        {
+          if (!Confirm($"Add `{line}` ({why})?"))
+            continue;
+
+          if (ShellProfile.Ensure(line))
+            AnsiConsole.MarkupLine($"   [green]added[/] {line}");
+          else
+            AnsiConsole.MarkupLine($"   [dim]already there:[/] {line}");
+        }
+
+        AnsiConsole.MarkupLine("[dim]Open a new shell (or `exec $SHELL`) to pick it up.[/]");
+      }
+      else if (writes.Count > 0)
+      {
+        AnsiConsole.MarkupLine($"[dim]shell profile ({profile}) would get:[/]");
+        foreach (var (line, _) in writes)
+          AnsiConsole.MarkupLine($"   [dim]{line}[/]");
+      }
+
+      AnsiConsole.WriteLine();
+    }
+
     // The ecosystem tools are handled before the table's early return, so
     // `--tools conan` works on its own.
     if (Install)
     {
       foreach (var extra in _selectedExtras)
       {
-        if (ToolLocator.Find(extra.Name) is not null)
+        if (ToolRequirements.ResolveExtra(extra.Name) is not null)
         {
           AnsiConsole.MarkupLine($"[green]{extra.Name} is already installed.[/]");
           continue;
+        }
+
+        if (_extrasUsedByProject.Count > 0)
+        {
+          AnsiConsole.MarkupLine(_extrasUsedByProject.Contains(extra.Name)
+            ? $"[dim]({extra.Name} is used by this project)[/]"
+            : $"[dim]({extra.Name} is not used by this project — skip if you like)[/]");
         }
 
         if (extra.Name == "conan")
@@ -185,7 +335,8 @@ public class SetupCommand
 
     if (!Install)
     {
-      if (missing.Count == 0 && missingExtras.Count == 0)
+      if (missing.Count == 0 && missingExtras.Count == 0 &&
+          pathProblems.Count == 0 && brokenLinks.Count == 0)
       {
         AnsiConsole.MarkupLine("[green]Nothing to do.[/]");
       }
@@ -198,11 +349,19 @@ public class SetupCommand
             ? $", plus the optional {missingExtras[0]}"
             : $", plus the optional {string.Join(" and ", missingExtras)}";
 
-        AnsiConsole.MarkupLine(missing.Count > 0
-          ? $"[yellow]{tools} missing{extras}[/] — run `forge setup --install` " +
-            "(or `--install --dry-run` to see the commands)."
-          : $"[yellow]The optional {string.Join(" and ", missingExtras)} " +
+        if (missing.Count > 0)
+        {
+          AnsiConsole.MarkupLine(
+            $"[yellow]{tools} missing{extras}[/] — run `forge setup --install` " +
+            "(or `--install --dry-run` to see the commands).");
+        }
+        else if (missingExtras.Count > 0)
+        {
+          AnsiConsole.MarkupLine(
+            $"[yellow]The optional {string.Join(" and ", missingExtras)} " +
             $"{(missingExtras.Count == 1 ? "is" : "are")} missing[/] — see the commands above.");
+        }
+        // Otherwise the PATH report above is the whole story.
       }
       return Task.FromResult(missingRequired.Count > 0 ? 1 : 0);
     }
@@ -213,9 +372,9 @@ public class SetupCommand
 
     if (planned.Count == 0)
     {
-      // Not when an ecosystem tool was just handled: the output would claim
-      // nothing happened right after installing something.
-      if (_selectedExtras.Count == 0)
+      // Not when something else was handled or reported: the output would
+      // claim nothing happened right after installing or flagging something.
+      if (_selectedExtras.Count == 0 && pathProblems.Count == 0)
         AnsiConsole.MarkupLine("[green]Nothing to install.[/]");
       return Task.FromResult(0);
     }
@@ -331,12 +490,30 @@ public class SetupCommand
             needsSudo ? [fileName, .. arguments] : arguments) != 0)
       {
         AnsiConsole.MarkupLine($"[bold red]`{commandLine}` failed.[/]");
+        if (fileName != "pipx")
+        {
+          AnsiConsole.MarkupLine(
+            "[dim]Not packaged here? `pipx install conan` works wherever Conan 2 is not.[/]");
+        }
         return false;
       }
     }
 
     if (!dryRun)
+    {
+      // An exit code is not proof: pipx happily does nothing when it thinks the
+      // package is installed. Verify, or say what is actually wrong.
+      if (ToolRequirements.ResolveExtra("conan") is null)
+      {
+        AnsiConsole.MarkupLine(
+          "[yellow]conan is still not usable.[/] If a stale venv is in the way, remove it and install again:");
+        AnsiConsole.MarkupLine("   [dim]rm -rf ~/.local/share/pipx/venvs/conan && pipx install conan[/]");
+        return false;
+      }
+
       AnsiConsole.MarkupLine("[green]Conan installed.[/]");
+    }
+
     return true;
   }
 
@@ -377,7 +554,7 @@ public class SetupCommand
     {
       AnsiConsole.MarkupLine($"   [dim]git clone --depth 1 https://github.com/microsoft/vcpkg {target}[/]");
     }
-    AnsiConsole.MarkupLine($"   [dim]cd {target} && {bootstrap}[/]");
+    AnsiConsole.MarkupLine($"   [dim]cd {target} && {bootstrap} -disableMetrics[/]");
 
     if (prerequisites.Count > 0)
       AnsiConsole.MarkupLine($"   [dim]needs: {string.Join(", ", prerequisites)}[/]");
@@ -424,9 +601,11 @@ public class SetupCommand
 
     // Run it through the shell: a relative "./bootstrap-vcpkg.sh" is resolved
     // against the *current* directory, not the working directory.
+    // `-disableMetrics`: a build tool should not turn on someone else's
+    // telemetry in the user's checkout.
     var (interpreter, scriptArguments) = OperatingSystem.IsWindows()
-      ? ("cmd", new List<string> { "/c", bootstrap })
-      : ("bash", new List<string> { bootstrap });
+      ? ("cmd", new List<string> { "/c", bootstrap, "-disableMetrics" })
+      : ("bash", new List<string> { bootstrap, "-disableMetrics" });
 
     if (RunProcess(interpreter, scriptArguments, target) != 0)
     {
