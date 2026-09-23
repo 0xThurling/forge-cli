@@ -42,6 +42,24 @@ forge_in() { # <dir> [args...]
   (cd "$dir" && "${FORGE_CMD[@]}" "$@")
 }
 
+# A stub tool on PATH that does nothing but exit 0 — for scenarios that only
+# care about the arguments Forge passes, or that need a "successful" build
+# without a real toolchain. Pass a log file to record the invocations.
+stub_tool() { # <directory> <name> [log-file]
+  local dir="$1" name="$2" log="${3:-}"
+  mkdir -p "$dir"
+  if [[ -n "$log" ]]; then
+    {
+      printf '#!/usr/bin/env bash\n'
+      printf 'echo "%s $*" >>"%s"\n' "$name" "$log"
+      printf 'exit 0\n'
+    } >"$dir/$name"
+  else
+    printf '#!/usr/bin/env bash\nexit 0\n' >"$dir/$name"
+  fi
+  chmod +x "$dir/$name"
+}
+
 # Like forge_in, but bounded: a command that hangs (a watch loop, a stuck
 # download) fails the scenario instead of hanging the whole suite.
 forge_in_timeout() { # <seconds> <dir> [args...]

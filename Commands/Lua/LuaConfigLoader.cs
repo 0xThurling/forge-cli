@@ -1,4 +1,4 @@
-﻿using forge.Models;
+using forge.Models;
 using Lua;
 using Lua.Standard;
 using Spectre.Console;

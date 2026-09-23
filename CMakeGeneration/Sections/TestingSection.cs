@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using forge.Models;
 
 namespace forge.CMakeGeneration.Sections;
@@ -157,7 +157,7 @@ public class TestingSection : CMakeSectionBase
     sb.AppendLine("file(GLOB_RECURSE BENCH_SOURCES \"${PROJECT_SOURCE_DIR}/bench/*.cpp\")");
     sb.AppendLine("if(BENCH_SOURCES)");
     sb.AppendLine("  add_executable(${PROJECT_NAME}_bench ${BENCH_SOURCES})");
-  ProjectTargetSection.AppendModuleFileSet(sb, config, "${PROJECT_NAME}_bench", ["src", "bench"]);
+    ProjectTargetSection.AppendModuleFileSet(sb, config, "${PROJECT_NAME}_bench", ["src", "bench"]);
     sb.AppendLine("  target_link_libraries(${PROJECT_NAME}_bench PRIVATE benchmark::benchmark)");
     sb.AppendLine("  target_include_directories(${PROJECT_NAME}_bench PRIVATE");
     sb.AppendLine("    ${PROJECT_SOURCE_DIR}/src");

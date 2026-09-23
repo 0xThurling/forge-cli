@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.IO.Compression;
 using forge.CMakeGeneration;
 using forge.ForgeEngine.CoreUtils;
@@ -329,32 +329,32 @@ public class CoreFunctionModule : LuaFunctionModule
         await using (var contentStream = await response.Content.ReadAsStreamAsync(token))
         await using (var fileStream = new FileStream(output, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
         {
-        var buffer = new byte[8192];
-        int bytesRead;
-        long lastReported = 0;
+          var buffer = new byte[8192];
+          int bytesRead;
+          long lastReported = 0;
 
-        while ((bytesRead = await contentStream.ReadAsync(buffer, token)) > 0)
-        {
-          await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), token);
-          totalRead += bytesRead;
-
-          // Report progress every 1% or every 64KB (whichever comes first)
-          if (progressCallback != null && totalBytes > 0)
+          while ((bytesRead = await contentStream.ReadAsync(buffer, token)) > 0)
           {
-            var percent = totalRead * 100 / totalBytes;
-            if (percent > lastReported || totalRead - lastReported > 65536)
+            await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead), token);
+            totalRead += bytesRead;
+
+            // Report progress every 1% or every 64KB (whichever comes first)
+            if (progressCallback != null && totalBytes > 0)
             {
-              lastReported = percent;
-              // Call Lua callback using the state's CallAsync
-              var state = context.State;
-              var basePos = state.Stack.Count;
-              state.Push(progressCallback);
-              state.Push(new LuaValue(totalRead));
-              state.Push(new LuaValue(totalBytes));
-              await state.CallAsync(basePos, basePos, token);
+              var percent = totalRead * 100 / totalBytes;
+              if (percent > lastReported || totalRead - lastReported > 65536)
+              {
+                lastReported = percent;
+                // Call Lua callback using the state's CallAsync
+                var state = context.State;
+                var basePos = state.Stack.Count;
+                state.Push(progressCallback);
+                state.Push(new LuaValue(totalRead));
+                state.Push(new LuaValue(totalBytes));
+                await state.CallAsync(basePos, basePos, token);
+              }
             }
           }
-        }
         }
 
         // Optional verification, matching `forge download --sha-256`.

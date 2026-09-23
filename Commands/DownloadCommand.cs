@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.IO.Compression;
 using DotMake.CommandLine;
 using Spectre.Console;
@@ -13,16 +13,16 @@ public class DownloadCommand
 {
   [CliArgument(Description = "URL to download")]
   public string URL { get; set; } = null!;
-  
+
   [CliOption(Description = "Output file path (default: the URL's file name)", Required = false)]
   public string? Output { get; set; }
-  
+
   [CliOption(Description = "Timeout in seconds (default: 300)")]
   public int Timeout { get; set; } = 300;
-  
+
   [CliOption(Description = "Expected SHA256 hash for verification", Required = false)]
   public string? Sha256 { get; set; }
- 
+
   [CliOption(Description = "Show progress bar")]
   public bool ShowProgress { get; set; }
 
@@ -55,14 +55,14 @@ public class DownloadCommand
       using var client = new HttpClient();
       client.Timeout = TimeSpan.FromSeconds(Timeout);
       client.DefaultRequestHeaders.Add("User-Agent", "Forge/1.0");
- 
+
       AnsiConsole.MarkupLine($"[cyan]Downloading:[/] {URL}");
-      
+
       using var response = await client.GetAsync(URL, HttpCompletionOption.ResponseHeadersRead);
       response.EnsureSuccessStatusCode();
-      
+
       var totalBytes = response.Content.Headers.ContentLength ?? -1;
-      
+
       long totalRead = 0;
 
       // Scope the writer so the file is closed before the hash is computed:
@@ -159,13 +159,13 @@ public class ExtractCommand
 {
   [CliArgument(Description = "Archive file to extract")]
   public string Archive { get; set; } = null!;
- 
+
   [CliArgument(Description = "Output directory")]
   public string Output { get; set; } = null!;
-  
+
   [CliOption(Description = "Strip components from path (default: 1)")]
   public int StripComponents { get; set; } = 1;
-  
+
   public Task<int> RunAsync()
   {
     AnsiConsole.MarkupLine($"[cyan]Extracting:[/] {Archive}");
@@ -187,13 +187,13 @@ public class FetchCommand
 {
   [CliArgument(Description = "URL to fetch")]
   public string URL { get; set; } = null!;
- 
+
   [CliArgument(Description = "Output directory")]
   public string OutputDir { get; set; } = null!;
-  
+
   [CliOption(Description = "Strip components from path")]
   public int StripComponents { get; set; } = 1;
-  
+
   [CliOption(Description = "Expected SHA256 hash for verification", Required = false)]
   public string? Sha256 { get; set; }
 
@@ -206,12 +206,12 @@ public class FetchCommand
       using var client = new HttpClient();
       client.Timeout = TimeSpan.FromSeconds(300);
       client.DefaultRequestHeaders.Add("User-Agent", "Forge/1.0");
- 
+
       using var response = await client.GetAsync(URL, HttpCompletionOption.ResponseHeadersRead);
       response.EnsureSuccessStatusCode();
-      
+
       var totalBytes = response.Content.Headers.ContentLength ?? -1;
-      
+
       // The writer is scoped so the file is closed before hashing (the stream
       // is write-only and exclusive).
       await using (var contentStream = await response.Content.ReadAsStreamAsync())
