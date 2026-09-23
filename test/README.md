@@ -132,6 +132,7 @@ lines have scrolled away by the time a long run is read from its tail.
 | `88-multi-target` | extra executables/libraries: sources, link lines, install rules, `run --bin`, config round-trip, validation |
 | `89-markup-balance` | every Spectre markup string in the CLI is balanced (an unclosed tag throws while the console refreshes) |
 | `90-json-and-channels` | `forge test` as a CI gate (exit code + `--json` summary), and `forge add --vcpkg` / `--pkg-config` |
+| `91-modules-and-bench` | C++20 module interfaces in a `CXX_MODULES` file set (built and imported), and `bench --save/--compare/--fail-over` |
 
 ## Adding a scenario
 

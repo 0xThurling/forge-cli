@@ -40,6 +40,7 @@ public class ProjectTargetSection : CMakeSectionBase
     {
       sb.AppendLine("if(SOURCES)");
       sb.AppendLine($"  add_executable({config.Project.Name} ${{SOURCES}})");
+      AppendModuleFileSet(sb, config, config.Project.Name, ["src"]);
       if (pchLines is not null)
         sb.AppendLine(pchLines);
       sb.AppendLine("else()");
@@ -58,6 +59,7 @@ public class ProjectTargetSection : CMakeSectionBase
 
       sb.AppendLine("if(SOURCES)");
       sb.AppendLine($"  add_library({config.Project.Name} {linkage} ${{SOURCES}})");
+      AppendModuleFileSet(sb, config, config.Project.Name, ["src"]);
       if (pchLines is not null)
         sb.AppendLine(pchLines);
       if (config.Project.InstallHeaders)
@@ -102,6 +104,36 @@ public class ProjectTargetSection : CMakeSectionBase
 
     AppendExtraTargets(sb, context);
     return sb.ToString();
+  }
+
+  /// <summary>
+  /// Emits the <c>CXX_MODULES</c> file set for a target: module interface units
+  /// (<c>.cppm</c>, <c>.ixx</c>) must be listed there rather than as ordinary
+  /// sources — CMake rejects them otherwise ("provides the module but it is not
+  /// found in a FILE_SET of type CXX_MODULES"). Only emitted when the project
+  /// asks for modules, so nothing changes for a project that has none.
+  /// </summary>
+  public static void AppendModuleFileSet(
+    StringBuilder sb, ProjectConfig config, string target, IEnumerable<string> directories)
+  {
+    if (!config.Build.Modules)
+      return;
+
+    var roots = directories
+      .Select(directory => "${CMAKE_CURRENT_SOURCE_DIR}/" + directory.Replace('\\', '/').TrimEnd('/'))
+      .ToList();
+
+    var variable = new string(target
+      .Select(c => char.IsLetterOrDigit(c) ? char.ToUpperInvariant(c) : '_')
+      .ToArray()) + "_MODULES";
+
+    sb.AppendLine($"  file(GLOB_RECURSE {variable} " +
+                  string.Join(" ", roots.Select(root => $"\"{root}/*.cppm\" \"{root}/*.ixx\"")) + ")");
+    sb.AppendLine($"  if({variable})");
+    sb.AppendLine($"    target_sources({target} PRIVATE FILE_SET CXX_MODULES");
+    sb.AppendLine($"      BASE_DIRS {string.Join(" ", roots.Select(root => $"\"{root}\"") )}");
+    sb.AppendLine($"      FILES ${{{variable}}})");
+    sb.AppendLine("  endif()");
   }
 
   /// <summary>
@@ -167,6 +199,7 @@ public class ProjectTargetSection : CMakeSectionBase
         sb.AppendLine($"  add_executable({target.Name} ${{{variable}}})");
         if (pch is not null)
           sb.AppendLine($"  target_precompile_headers({target.Name} PRIVATE ${{PROJECT_SOURCE_DIR}}/{pch})");
+        AppendModuleFileSet(sb, config, target.Name, target.Sources.Where(Directory.Exists));
         if (targetLinks.Count > 0)
           sb.AppendLine($"  target_link_libraries({target.Name} PRIVATE {string.Join(" ", targetLinks)})");
       }

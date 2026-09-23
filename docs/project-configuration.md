@@ -256,10 +256,12 @@ build = {
   includes — but duplicate internal symbols across files now collide.
 - `pch` (string): a precompiled header applied to the project and test targets,
   e.g. `"src/pch.hpp"`. It is force-included, so it must be self-contained.
-- `modules` (boolean): enable C++20 module scanning
-  (`CMAKE_CXX_SCAN_FOR_MODULES`). CMake only supports this with Ninja or Visual
-  Studio 17.4+, so Forge selects **Ninja** when no generator is configured, and
-  warns when the configured generator cannot scan.
+- `modules` (boolean): compile C++20 modules. Interface units (`src/*.cppm`,
+  `src/*.ixx`) are put in a `CXX_MODULES` file set — CMake rejects them as plain
+  sources — and module scanning is enabled (`CMAKE_CXX_SCAN_FOR_MODULES`). CMake
+  only supports this with Ninja or Visual Studio 17.4+, so Forge selects
+  **Ninja** when no generator is configured, and warns when the configured
+  generator cannot scan.
 
 `forge build` also writes **`CMakePresets.json`** with the same cache variables,
 so IDEs (VS Code CMake Tools, CLion) and `cmake --preset forge` configure the

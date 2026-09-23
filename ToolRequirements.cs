@@ -166,6 +166,52 @@ public static class ToolRequirements
     _ => fallback
   };
 
+  /// <summary>
+  /// The steps that install an extra tool on this machine, in order. Empty when
+  /// there is no sensible package — Conan on Debian/Ubuntu, for instance, where
+  /// the archive package is still 1.x, so it goes through pipx instead.
+  /// </summary>
+  public static List<(string FileName, List<string> Arguments, bool NeedsSudo)> InstallStepsFor(
+    string name, string? manager)
+  {
+    if (name != "conan")
+      return [];
+
+    return manager switch
+    {
+      "pacman" => [("pacman", ["-S", "--noconfirm", "conan"], true)],
+      "apk" => [("apk", ["add", "--no-cache", "conan"], true)],
+      "dnf" => [("dnf", ["install", "-y", "conan"], true)],
+      "zypper" => [("zypper", ["install", "-y", "conan"], true)],
+      "brew" => [("brew", ["install", "conan"], false)],
+      "winget" => [("winget", ["install", "Conan.Conan"], false)],
+      "choco" => [("choco", ["install", "-y", "conan"], false)],
+      // Debian/Ubuntu: `conan` in the archive is 1.x, so install pipx and let it
+      // provide the current release.
+      "apt-get" =>
+      [
+        ("apt-get", ["install", "-y", "pipx"], true),
+        ("pipx", ["install", "conan"], false)
+      ],
+      _ => []
+    };
+  }
+
+  /// <summary>
+  /// Package names for arbitrary tools on this machine, skipping the ones that
+  /// are already present. Used for vcpkg's own prerequisites.
+  /// </summary>
+  public static List<string> PackageNamesFor(string owner, string? manager, IReadOnlyList<string> tools)
+  {
+    if (manager is null)
+      return [];
+
+    return tools
+      .Where(tool => ToolLocator.Find(tool) is null)
+      .Select(tool => Find(tool)?.PackageFor(manager) ?? tool)
+      .ToList();
+  }
+
   /// <summary>Finds a tool by name (case-insensitive), or null.</summary>
   public static ToolRequirement? Find(string name) =>
     All.FirstOrDefault(tool => string.Equals(tool.Name, name, StringComparison.OrdinalIgnoreCase));

@@ -135,6 +135,7 @@ public class TestingSection : CMakeSectionBase
     sb.AppendLine("list(FILTER APP_SOURCES EXCLUDE REGEX \".*main\\\\.cpp$\")");
     sb.AppendLine();
     sb.AppendLine("add_executable(${PROJECT_NAME}_tests ${TEST_SOURCES} ${APP_SOURCES})");
+    ProjectTargetSection.AppendModuleFileSet(sb, config, "${PROJECT_NAME}_tests", ["src", "test"]);
     sb.AppendLine("target_include_directories(${PROJECT_NAME}_tests PRIVATE");
     sb.AppendLine("  ${CMAKE_CURRENT_SOURCE_DIR}/src");
     sb.AppendLine("  ${CMAKE_CURRENT_SOURCE_DIR}/include");
@@ -156,6 +157,7 @@ public class TestingSection : CMakeSectionBase
     sb.AppendLine("file(GLOB_RECURSE BENCH_SOURCES \"${PROJECT_SOURCE_DIR}/bench/*.cpp\")");
     sb.AppendLine("if(BENCH_SOURCES)");
     sb.AppendLine("  add_executable(${PROJECT_NAME}_bench ${BENCH_SOURCES})");
+  ProjectTargetSection.AppendModuleFileSet(sb, config, "${PROJECT_NAME}_bench", ["src", "bench"]);
     sb.AppendLine("  target_link_libraries(${PROJECT_NAME}_bench PRIVATE benchmark::benchmark)");
     sb.AppendLine("  target_include_directories(${PROJECT_NAME}_bench PRIVATE");
     sb.AppendLine("    ${PROJECT_SOURCE_DIR}/src");

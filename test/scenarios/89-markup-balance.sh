@@ -20,7 +20,9 @@ styles = {
     "yellow", "blue", "magenta", "cyan", "white", "grey", "gray",
     "link", "slow", "rapid", "on", "not", "no",
 }
-tag = re.compile(r"\[(/?)([a-zA-Z#][a-zA-Z0-9 =_#-]*)?\]")
+# An interpolated style name (`[{colour}]`) counts as a tag; a collection
+# expression (`[{ "a": 1 }]`) does not, hence the identifier-only pattern.
+tag = re.compile(r"\[(/?)([a-zA-Z#][a-zA-Z0-9 =_#-]*|\{[A-Za-z_][A-Za-z0-9_]*\})?\]")
 
 def is_style(content):
     words = content.replace("#", " ").split()
@@ -31,7 +33,8 @@ for path in sorted(root.glob("Commands/**/*.cs")):
     statement = ""
     start = 0
     for number, line in enumerate(path.read_text().splitlines(), 1):
-        code = line.split("//", 1)[0]
+        # Strip comments, but not the `//` of a URL like https://…
+        code = re.split(r"(?<!:)//", line, maxsplit=1)[0]
         if not statement:
             start = number
         statement += " " + code
@@ -45,6 +48,10 @@ for path in sorted(root.glob("Commands/**/*.cs")):
         for close, content in tag.findall(statement):
             if close:
                 depth -= 1
+                continue
+            # `[{colour}]` is an interpolated style name: it opens a tag.
+            if content.startswith("{"):
+                depth += 1
                 continue
             # `[]` is an empty array, not a tag; `[main]` is not a style.
             if not content or not is_style(content):
