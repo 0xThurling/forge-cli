@@ -18,8 +18,16 @@ internal static class LinkTargets
 
     foreach (var dep in config.Dependencies)
     {
-      if (dep.Key != "googletest")
-        targets.Add(string.IsNullOrEmpty(dep.Value.Target) ? dep.Key : dep.Value.Target);
+      // Only what the generated CMake actually fetches can be linked: a
+      // dependency without a source would become `-l<name>` and fail at link
+      // time instead of being reported.
+      var hasSource = !string.IsNullOrWhiteSpace(dep.Value.Path) ||
+                      (!string.IsNullOrWhiteSpace(dep.Value.Git) &&
+                       !string.IsNullOrWhiteSpace(dep.Value.Tag));
+      if (dep.Key == "googletest" || !hasSource)
+        continue;
+
+      targets.Add(string.IsNullOrEmpty(dep.Value.Target) ? dep.Key : dep.Value.Target);
     }
 
     // From Conan

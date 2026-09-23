@@ -120,8 +120,12 @@ namespace forge.Commands
       if (!Task.Run(() => LuaBuilder.RunBuilderScripts(context)).GetAwaiter().GetResult())
         return 1;
 
+      // The configuration is decided here because the Conan install needs it:
+      // it writes the toolchain into a per-configuration directory.
+      var buildType = Debug && !Release ? "Debug" : "Release";
+
       var installPackages = new InstallCommand();
-      if (await installPackages.InstallForBuildAsync(context) != 0)
+      if (await installPackages.InstallForBuildAsync(context, buildType) != 0)
       {
         AnsiConsole.MarkupLine("[bold red]Error:[/] Conan dependencies could not be installed.");
         return 1;
@@ -236,7 +240,6 @@ namespace forge.Commands
 
           // Configure step
           EnsureBuildCacheMatchesProject("build");
-          var buildType = Debug && !Release ? "Debug" : "Release";
           var build = projectConfig!.Build;
           var generator = build.Generator;
 

@@ -9,6 +9,19 @@ public class LuaConfigLoader
 {
   private LuaState? _state;
 
+  /// <summary>
+  /// Warnings already printed in this process. The configuration is loaded more
+  /// than once per command (the build reloads it, the install step loads it
+  /// again), and repeating the same warning three times is noise.
+  /// </summary>
+  private static readonly HashSet<string> _warned = new(StringComparer.Ordinal);
+
+  private static void WarnOnce(string message)
+  {
+    if (_warned.Add(message))
+      AnsiConsole.MarkupLine($"[bold yellow]Warning:[/] {message}");
+  }
+
   public async Task<ProjectConfig?> LoadConfig(string path)
   {
     if (File.Exists(path))
@@ -291,11 +304,62 @@ public class LuaConfigLoader
       foreach (var kvp in directTable)
       {
         var name = kvp.Key.ToString();
+        if (!directTable[name].TryRead<LuaTable>(out var depTable))
+          continue;
 
-        if (directTable[name].TryRead<LuaTable>(out var depTable))
+        // An extra nesting level is the most common shape mistake, and it used
+        // to become a dependency literally named "direct" — which then failed
+        // at link time as `-ldirect`.
+        if (name is "direct" or "conan" or "vcpkg" or "pkgconfig")
         {
-          config.Dependencies[name] = ParseDependencyFromTable(depTable);
+          WarnOnce(
+            $"`dependencies.direct.{name}` looks like an extra nesting level — " +
+            $"dependencies belong directly under `direct`. Ignoring it.");
+          continue;
         }
+
+        var dependency = ParseDependencyFromTable(depTable);
+
+        // A dependency without a source cannot be fetched or linked; keeping it
+        // would put an unresolvable target on the link line.
+        if (string.IsNullOrWhiteSpace(dependency.Path) &&
+            (string.IsNullOrWhiteSpace(dependency.Git) || string.IsNullOrWhiteSpace(dependency.Tag)))
+        {
+          WarnOnce(
+            $"dependency `{name}` has no source — give it `git` with `tag`, or `path`. Ignoring it.");
+          continue;
+        }
+
+        config.Dependencies[name] = dependency;
+      }
+    }
+
+    if (table["pkgconfig"].TryRead<LuaTable>(out var pkgConfigTable))
+    {
+      config.PkgConfigDependencies = ReadStringList(pkgConfigTable);
+    }
+
+    if (table["vcpkg"].TryRead<LuaTable>(out var vcpkgTable))
+    {
+      foreach (var kvp in vcpkgTable)
+      {
+        var name = kvp.Key.ToString();
+        var dep = new VcpkgDependency();
+
+        if (kvp.Value.TryRead<LuaTable>(out var options))
+        {
+          if (options["target"] != LuaValue.Nil)
+            dep.Target = options["target"].ToString();
+          if (options["version"] != LuaValue.Nil)
+            dep.Version = options["version"].ToString();
+        }
+        else if (kvp.Value != LuaValue.Nil)
+        {
+          // Shorthand: `fmt = "fmt::fmt"`.
+          dep.Target = kvp.Value.ToString();
+        }
+
+        config.VcpkgDependencies[name] = dep;
       }
     }
 

@@ -208,6 +208,11 @@ a truncated file is never mistaken for a complete one.
 
 ---
 
+Without `--output`, the file name comes from the URL (`curl -O` style); a URL
+with no file name asks for one.
+
+---
+
 ### `extract`
 Extracts a `.zip`, `.tar`, `.tgz` or `.tar.gz` archive.
 

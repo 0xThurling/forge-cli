@@ -38,6 +38,19 @@ PY
     forge_in "$root" download "$url/repo-main/nested.txt" -o dl-opts.txt --timeout 30 --show-progress
   assert_contains "$root/dl-opts.txt" "payload" "the options do not affect the body"
 
+  # Without --output the URL's file name is used, like `curl -O`.
+  rm -f "$root/nested.txt"
+  assert_exit 0 "download defaults to the URL's file name" \
+    forge_in "$root" download "$url/repo-main/nested.txt"
+  assert_contains "$root/nested.txt" "payload" "the default file name is used"
+  local out
+  out="$(forge_in "$root" download "$url/" 2>&1 || true)"
+  if grep -qF "has no file name" <<<"$(flatten <<<"$out")"; then
+    pass "a URL without a file name asks for --output"
+  else
+    fail "a URL without a file name asks for --output"
+  fi
+
   # --- extract --------------------------------------------------------------
   assert_exit 0 "extract zip" forge_in "$root" extract "$srv/arch.zip" ex-zip
   assert_exists "$root/ex-zip/nested.txt" "zip strips one component by default"

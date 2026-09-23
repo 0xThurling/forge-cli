@@ -46,10 +46,11 @@ namespace forge.Commands.Conan
     /// <c>forge.lock</c> alone, so a build never needs the network for a
     /// dependency that is already declared.
     /// </summary>
-    public async Task<int> InstallForBuildAsync(BuildContext context) =>
-      await InstallAsync(lockDependencies: false, context: context);
+    public async Task<int> InstallForBuildAsync(BuildContext context, string buildType = "Release") =>
+      await InstallAsync(lockDependencies: false, context: context, buildType: buildType);
 
-    private async Task<int> InstallAsync(bool lockDependencies, BuildContext? context = null)
+    private async Task<int> InstallAsync(
+      bool lockDependencies, BuildContext? context = null, string buildType = "Release")
     {
       // A standalone `forge install` has no build to contribute to; its parsed
       // targets only matter to a build, which passes its own context.
@@ -86,7 +87,12 @@ namespace forge.Commands.Conan
 
       try
       {
-        var processInfo = new ProcessStartInfo("conan", $"install {conanfilePath} --output-folder=build --build=missing")
+        // The build type decides where Conan's cmake_layout puts the toolchain
+        // (build/build/<type>/generators), which is where the configure step
+        // looks for it — so it has to match the configuration being built.
+        var processInfo = new ProcessStartInfo(
+          "conan",
+          $"install {conanfilePath} --output-folder=build --build=missing -s build_type={buildType}")
         {
           UseShellExecute = false,
           RedirectStandardOutput = true,

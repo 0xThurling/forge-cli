@@ -9,7 +9,13 @@ FAILED=0
 SKIPPED=0
 
 pass() { printf '  \033[32mok\033[0m   %s\n' "$*"; PASSED=$((PASSED + 1)); }
-fail() { printf '  \033[31mFAIL\033[0m %s\n' "$*"; FAILED=$((FAILED + 1)); }
+fail() {
+  printf '  \033[31mFAIL\033[0m %s\n' "$*"
+  FAILED=$((FAILED + 1))
+  # Kept separately: the per-scenario lines scroll away, and a long run is
+  # usually read from its tail.
+  FAILURES+=("${CURRENT_SCENARIO:-?}: $*")
+}
 skip() { printf '  \033[2mskip\033[0m %s\n' "$*"; SKIPPED=$((SKIPPED + 1)); }
 
 # Strip ANSI escapes and collapse whitespace/newlines: Spectre wraps its output

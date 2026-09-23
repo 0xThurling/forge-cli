@@ -14,8 +14,8 @@ public class DownloadCommand
   [CliArgument(Description = "URL to download")]
   public string URL { get; set; } = null!;
   
-  [CliOption(Description = "Output file path")]
-  public string Output { get; set; } = null!;
+  [CliOption(Description = "Output file path (default: the URL's file name)", Required = false)]
+  public string? Output { get; set; }
   
   [CliOption(Description = "Timeout in seconds (default: 300)")]
   public int Timeout { get; set; } = 300;
@@ -28,6 +28,28 @@ public class DownloadCommand
 
   public async Task<int> RunAsync()
   {
+    // No --output: use the URL's file name, the way `curl -O` does. Resolved
+    // before the try so the failure path can remove a partial file.
+    var output = Output;
+    if (string.IsNullOrWhiteSpace(output))
+    {
+      try
+      {
+        output = Path.GetFileName(new Uri(URL).AbsolutePath);
+      }
+      catch (UriFormatException)
+      {
+        output = string.Empty;
+      }
+
+      if (string.IsNullOrWhiteSpace(output))
+      {
+        AnsiConsole.MarkupLine(
+          "[bold red]Error:[/] the URL has no file name — pass `--output <file>`.");
+        return 1;
+      }
+    }
+
     try
     {
       using var client = new HttpClient();
@@ -46,7 +68,7 @@ public class DownloadCommand
       // Scope the writer so the file is closed before the hash is computed:
       // the stream is write-only (and exclusive), so hashing it in place fails.
       await using (var contentStream = await response.Content.ReadAsStreamAsync())
-      await using (var fileStream = new FileStream(Output, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
+      await using (var fileStream = new FileStream(output, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
       {
         var buffer = new byte[8192];
         int bytesRead;
@@ -91,19 +113,19 @@ public class DownloadCommand
       // Verify SHA256 if provided
       if (!string.IsNullOrEmpty(Sha256))
       {
-        using var readStream = File.OpenRead(Output);
+        using var readStream = File.OpenRead(output);
         using var sha256 = System.Security.Cryptography.SHA256.Create();
         var hashBytes = await sha256.ComputeHashAsync(readStream);
         var hash = Convert.ToHexString(hashBytes).ToLowerInvariant();
         if (!hash.Equals(Sha256, StringComparison.InvariantCultureIgnoreCase))
         {
           AnsiConsole.MarkupLine($"[red]SHA256 verification failed! Expected: {Sha256}, Got: {hash}[/]");
-          File.Delete(Output);
+          File.Delete(output);
           return 1;
         }
         AnsiConsole.MarkupLine($"[green]SHA256 verification passed[/]");
       }
-      AnsiConsole.MarkupLine($"[green]Downloaded:[/] {Output} ({totalRead} bytes)");
+      AnsiConsole.MarkupLine($"[green]Downloaded:[/] {output} ({totalRead} bytes)");
       return 0;
     }
     catch (Exception ex)
@@ -115,8 +137,8 @@ public class DownloadCommand
       // report a mismatch instead of the real failure).
       try
       {
-        if (File.Exists(Output))
-          File.Delete(Output);
+        if (File.Exists(output))
+          File.Delete(output);
       }
       catch (IOException)
       {
