@@ -66,11 +66,11 @@ return {
 }
 ```
 
-Then download and build:
+Then pin and build:
 
 ```bash
-forge download
-forge build
+forge install    # resolve git dependencies into forge.lock
+forge build      # fetch, build, link
 ```
 
 ## Where to go next

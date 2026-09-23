@@ -57,6 +57,16 @@ scenario_78_docs_coverage() {
     fail "every nav entry has a page (missing:$entrymissing)"
   fi
 
+  # --- every option is documented ------------------------------------------
+  local option_out option_count
+  option_out="$(python3 "$REPO/test/lib/docs-options.py" "$REPO" 2>/dev/null || true)"
+  option_count="$(head -1 <<<"$option_out")"
+  if [[ "$option_count" == "0" ]]; then
+    pass "every CLI option appears in the CLI reference"
+  else
+    fail "undocumented options: $(flatten <<<"$(tail -n +2 <<<"$option_out")")"
+  fi
+
   # --- links resolve, including anchors ------------------------------------
   local link_out link_count
   link_out="$(python3 "$REPO/test/lib/docs-links.py" "$REPO" 2>/dev/null || true)"

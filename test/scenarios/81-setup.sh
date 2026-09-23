@@ -41,6 +41,64 @@ scenario_81_setup() {
     fail "setup --json names the package manager"
   fi
 
+  # --- paths ---------------------------------------------------------------
+  # A conan installed where the shell cannot see it is reported, with the fix.
+  local pathless="$WORK/81-setup/pathless"
+  local fake_home="$pathless/home"
+  mkdir -p "$pathless/src" "$fake_home/.local/bin"
+  make_plain_project "$pathless" demo_pathless
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$fake_home/.local/bin/conan"
+  chmod +x "$fake_home/.local/bin/conan"
+
+  out="$(HOME="$fake_home" forge_in "$pathless" setup 2>&1 || true)"
+  flat="$(flatten <<<"$out")"
+  if grep -qF "not on PATH" <<<"$flat" && grep -qF "pipx ensurepath" <<<"$flat"; then
+    pass "a tool off PATH is reported with its fix"
+  else
+    fail "a tool off PATH is reported with its fix (got '${flat:0:200}')"
+  fi
+
+  # `--install` writes the fix into the shell profile, once.
+  local installer="$WORK/81-setup/installer"
+  local installer_home="$installer/home"
+  mkdir -p "$installer/src" "$installer_home/.local/bin"
+  make_plain_project "$installer" demo_installer
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$installer_home/.local/bin/conan"
+  chmod +x "$installer_home/.local/bin/conan"
+
+  HOME="$installer_home" SHELL=/bin/bash forge_in "$installer" setup --install --yes --tools conan >/dev/null 2>&1 || true
+  if grep -qF '.local/bin:$PATH' "$installer_home/.bashrc" 2>/dev/null; then
+    pass "--install adds the missing PATH entry to the shell profile"
+  else
+    fail "--install adds the missing PATH entry to the shell profile"
+  fi
+
+  HOME="$installer_home" SHELL=/bin/bash forge_in "$installer" setup --install --yes --tools conan >/dev/null 2>&1 || true
+  local lines
+  lines="$(grep -c 'export PATH' "$installer_home/.bashrc" 2>/dev/null || true)"
+  if [[ "$lines" == "1" ]]; then
+    pass "the PATH entry is written once"
+  else
+    fail "the PATH entry is written once (found $lines)"
+  fi
+
+  # A link into another user's home looks installed and cannot run.
+  local broken_home="$WORK/81-setup/broken-home"
+  mkdir -p "$broken_home/.local/bin"
+  # A target that does not exist for *any* user (a link into root's home only
+  # looks broken to a normal user, not to root).
+  ln -sfn /nonexistent/pipx/venvs/conan/bin/conan "$broken_home/.local/bin/conan"
+  local broken_proj="$WORK/81-setup/broken-proj"
+  mkdir -p "$broken_proj/src"
+  make_plain_project "$broken_proj" demo_broken
+  out="$(HOME="$broken_home" forge_in "$broken_proj" setup 2>&1 || true)"
+  flat="$(flatten <<<"$out")"
+  if grep -qF "does not exist" <<<"$flat" && grep -qF "pipx install --force conan" <<<"$flat"; then
+    pass "a broken tool link is reported with its fix"
+  else
+    fail "a broken tool link is reported with its fix (got '${flat:0:200}')"
+  fi
+
   # --- doctor --json -------------------------------------------------------
   local root_json="$WORK/81-setup/json"
   mkdir -p "$root_json/src"
@@ -85,10 +143,20 @@ echo vcpkg-stub
   chmod +x "$withvcpkg/external/vcpkg/vcpkg"
   out="$(forge_in "$withvcpkg" setup --install --yes --tools vcpkg 2>&1 || true)"
   flat="$(flatten <<<"$out")"
-  if grep -qF "already present" <<<"$flat"; then
+  if grep -qF "already installed" <<<"$flat" && ! grep -qF "git clone" <<<"$flat"; then
     pass "a bootstrapped external/vcpkg is reused"
   else
     fail "a bootstrapped external/vcpkg is reused (got '${flat:0:200}')"
+  fi
+
+  # And the report sees it too: the project's own checkout counts as installed,
+  # not only a vcpkg on PATH.
+  out="$(forge_in "$withvcpkg" setup 2>&1 || true)"
+  flat="$(flatten <<<"$out")"
+  if grep -qE "ok vcpkg" <<<"$flat"; then
+    pass "a project-local vcpkg is reported as installed"
+  else
+    fail "a project-local vcpkg is reported as installed (got '${flat:0:200}')"
   fi
 
   # A checkout without the binary is bootstrapped rather than cloned again.
@@ -123,6 +191,42 @@ LUA
   else
     fail "a project's own vcpkg dependency is planned without --tools (got '${flat:0:200}')"
   fi
+
+  # Both ecosystems are offered even when the project declares neither: the
+  # point of a setup command is that the machine is ready for the next project.
+  local plain="$WORK/81-setup/plain"
+  mkdir -p "$plain/src"
+  make_plain_project "$plain" demo_plain_setup
+  out="$(forge_in "$plain" setup --install --dry-run 2>&1 || true)"
+  flat="$(flatten <<<"$out")"
+  if grep -qF "bootstrap-vcpkg" <<<"$flat" && grep -qF "conan" <<<"$flat"; then
+    pass "both ecosystems are offered without --tools"
+  else
+    fail "both ecosystems are offered without --tools (got '${flat:0:200}')"
+  fi
+
+  # Where the archive has no Conan 2 (Arch) or only 1.x (Debian/Ubuntu), the
+  # plan goes through pipx — verified against the detected package manager.
+  local manager
+  manager="$(forge setup --json --tools cmake 2>/dev/null |
+    python3 -c "import json,sys; print(json.load(sys.stdin)[0]['packageManager'])" 2>/dev/null || true)"
+  case "$manager" in
+    pacman | apt-get)
+      # An empty HOME hides a pipx-installed conan, so the plan is what a fresh
+      # machine would get.
+      local empty_home="$WORK/81-setup/empty-home"
+      mkdir -p "$empty_home"
+      out="$(HOME="$empty_home" forge setup --install --dry-run --tools conan 2>&1 || true)"
+      if grep -qF "pipx install conan" <<<"$(flatten <<<"$out")"; then
+        pass "conan goes through pipx on $manager"
+      else
+        fail "conan goes through pipx on $manager (got '$(flatten <<<"$out" | head -c 160)')"
+      fi
+      ;;
+    *)
+      skip "no pipx route expected for $manager"
+      ;;
+  esac
 
   # vcpkg's own prerequisites are part of the plan when one is missing.
   if ! command -v zip >/dev/null 2>&1; then

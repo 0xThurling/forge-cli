@@ -20,12 +20,14 @@ as a CI gate: `forge setup || forge setup --install --yes`.
 | Tool | Needed for | Notes |
 |---|---|---|
 | **Ninja** | `build.modules = true` | CMake can only scan for C++20 modules with Ninja or Visual Studio 17.4+. Forge selects Ninja automatically when no generator is configured |
+| **make** | the default generator | Ninja is preferred when present; one of the two is required |
 | **ccache** / **sccache** | faster rebuilds | Detected on `PATH` and used as the compiler launcher; `build.compiler_launcher = "none"` opts out |
+| **tar**, **unzip** | `forge extract`, `forge fetch` | Also needed by vcpkg's own bootstrap |
 | **clang-format** | `forge format` | `CLANG_FORMAT` selects a specific binary |
 | **clang-tidy** | `forge lint` | `CLANG_TIDY` selects a specific binary |
 | **cpack** | `forge publish` | Ships with CMake, so it is usually already there |
 | **python3** | the test suite's download scenarios | Only needed to run Forge's own end-to-end tests |
-| **Conan 2.x** | `dependencies.conan` | `forge setup --install --tools conan` (package manager, or `pipx` on Debian/Ubuntu) |
+| **Conan 2.x** | `dependencies.conan` | `forge setup --install --tools conan` (package manager, or `pipx` where the archive has no Conan 2 / only 1.x) |
 | **vcpkg** | `dependencies.vcpkg` | `forge setup --install --tools vcpkg` — clones and bootstraps into `external/vcpkg`, where Forge finds it without any environment variable |
 | **pkg-config** | `dependencies.pkgconfig` | Plus the `-dev`/`-devel` package of each module you use |
 

@@ -284,8 +284,9 @@ int main() { spdlog::info("hello from conan"); }
 | Conan's own lock | `build/build/<Configuration>/generators/conan.lock` |
 
 Requires the `conan` executable — `forge setup` reports it, and its hint is
-manager-aware (`pipx install conan` on Debian/Ubuntu, `pacman -S conan` on
-Arch). A missing binary is reported, not guessed at:
+manager-aware, and `forge setup --install --tools conan` installs it for you
+(`pipx` where the archive has no Conan 2 (Arch) or only 1.x (Debian/Ubuntu)). A
+missing binary is reported, not guessed at:
 
 ```
 Error: Conan is required by dependencies.conan but could not be run.
@@ -655,7 +656,7 @@ channel-specific setup steps (Conan, vcpkg, pkg-config).
 | `Warning: Dependency 'x' points at '…', which does not exist` | wrong relative path | the message shows the resolved path |
 | `Error: \`toolchain_file\` cannot be combined with Conan or vcpkg` | both set `CMAKE_TOOLCHAIN_FILE` | pick one channel per project |
 | `Error: vcpkg dependencies are declared but no vcpkg checkout was found` | `vcpkg_root`/`$VCPKG_ROOT` unset and `external/vcpkg` missing | set one, or clone vcpkg and bootstrap it |
-| `Error: Conan is required by dependencies.conan but could not be run` | `conan` not on `PATH` | `forge setup`, then `pipx install conan` (or `pacman -S conan`) |
+| `Error: Conan is required by dependencies.conan but could not be run` | `conan` not on `PATH` | `forge setup --install --tools conan` |
 | `cannot find -l<name>` after editing `forge.lua` | an entry with no source used to reach the link line | fixed: invalid entries are reported and skipped |
 | `find_package(<pkg>)` fails during configure | the dependency is declared but not installed for this channel | `forge install` (conan) / check `vcpkg_root` (vcpkg) |
 | A dependency's tests are being built | it is the top-level project, or the override is set | nothing to do; `-DFORGE_BUILD_DEPENDENCY_TESTS=ON` is the opt-in |
