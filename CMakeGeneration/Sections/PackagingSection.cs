@@ -43,6 +43,15 @@ public class PackagingSection : CMakeSectionBase
 
     body.AppendLine("set(CPACK_GENERATOR \"TGZ\")");
 
+    // Runtime dependencies: without these, a package installs but declares
+    // nothing it needs (CPack warns about exactly that).
+    var debDepends = config.Project.PackageDepends.Concat(config.Project.DebDepends).ToList();
+    var rpmDepends = config.Project.PackageDepends.Concat(config.Project.RpmDepends).ToList();
+    if (debDepends.Count > 0)
+      body.AppendLine($"set(CPACK_DEBIAN_PACKAGE_DEPENDS \"{string.Join(", ", debDepends)}\")");
+    if (rpmDepends.Count > 0)
+      body.AppendLine($"set(CPACK_RPM_PACKAGE_REQUIRES \"{string.Join(", ", rpmDepends)}\")");
+
     // Libraries install themselves (with their export set); an executable needs
     // a rule of its own or the package would be empty.
     if (config.Project.Type == "executable")

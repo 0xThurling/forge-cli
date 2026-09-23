@@ -129,6 +129,7 @@ scratch workspace path so the generated projects can be inspected.
 | `87-dependency-cache` | shared cache: reused checkout, `FETCHCONTENT_SOURCE_DIR`, branches not cached, offline build, `cache list/clear` |
 | `88-multi-target` | extra executables/libraries: sources, link lines, install rules, `run --bin`, config round-trip, validation |
 | `89-markup-balance` | every Spectre markup string in the CLI is balanced (an unclosed tag throws while the console refreshes) |
+| `90-json-and-channels` | `forge test` as a CI gate (exit code + `--json` summary), and `forge add --vcpkg` / `--pkg-config` |
 
 ## Adding a scenario
 

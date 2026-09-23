@@ -257,6 +257,30 @@ namespace forge
         sb.AppendLine("        version_from_git = true,");
       if (!string.IsNullOrWhiteSpace(config.Project.Description))
         sb.AppendLine($"        description = \"{config.Project.Description.Replace("\\", "\\\\").Replace("\"", "\\\"")}\",");
+      if (config.Project.PackageDepends.Count > 0 ||
+          config.Project.DebDepends.Count > 0 ||
+          config.Project.RpmDepends.Count > 0)
+      {
+        static string List(IEnumerable<string> values) =>
+          "{ " + string.Join(", ", values.Select(value => $"\"{value}\"")) + " }";
+
+        if (config.Project.DebDepends.Count == 0 && config.Project.RpmDepends.Count == 0)
+        {
+          sb.AppendLine($"        package_depends = {List(config.Project.PackageDepends)},");
+        }
+        else
+        {
+          sb.AppendLine("        package_depends = {");
+          if (config.Project.PackageDepends.Count > 0)
+            sb.AppendLine($"            {string.Join(", ", config.Project.PackageDepends.Select(v => $"\"{v}\""))},");
+          if (config.Project.DebDepends.Count > 0)
+            sb.AppendLine($"            deb = {List(config.Project.DebDepends)},");
+          if (config.Project.RpmDepends.Count > 0)
+            sb.AppendLine($"            rpm = {List(config.Project.RpmDepends)},");
+          sb.AppendLine("        },");
+        }
+      }
+
       if (!string.IsNullOrWhiteSpace(config.Project.Contact))
         sb.AppendLine($"        contact = \"{config.Project.Contact.Replace("\\", "\\\\").Replace("\"", "\\\"")}\",");
       if (!string.IsNullOrEmpty(config.Project.Linkage) &&

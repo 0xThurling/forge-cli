@@ -33,6 +33,7 @@ LUA
   assert_contains "$cmake" "CPACK_PACKAGE_DESCRIPTION_SUMMARY" "the description reaches CPack"
   assert_contains "$cmake" "CPACK_PACKAGE_CONTACT" "the contact reaches CPack"
 
+  # Runtime dependencies for the package formats.
   assert_exit 0 "publishing a library succeeds" forge_in "$lib" publish --format TGZ
 
   local tarball listing out
@@ -105,6 +106,30 @@ LUA
   else
     skip "ar is not installed"
   fi
+
+  # --- runtime dependencies of the packages ---------------------------------
+  # One line on purpose: `\n` in a sed replacement is a GNU extension.
+  sed_in_place 's/install_headers = true/install_headers = true, package_depends = { "libstdc++6", deb = { "libdemo (>= 1.0)" }, rpm = { "demo >= 1.0" } }/' \
+    "$lib/forge.lua"
+  assert_exit 0 "a package with runtime dependencies builds" forge_in "$lib" build
+  assert_contains "$lib/.config/cmake/CMakeLists.txt" \
+    'set(CPACK_DEBIAN_PACKAGE_DEPENDS "libstdc++6, libdemo (>= 1.0)")' \
+    "the DEB dependencies are emitted"
+  assert_contains "$lib/.config/cmake/CMakeLists.txt" \
+    'set(CPACK_RPM_PACKAGE_REQUIRES "libstdc++6, demo >= 1.0")' \
+    "the RPM dependencies are emitted"
+
+  local deb_out
+  deb_out="$(forge_in "$lib" publish --format DEB --output deb-deps --no-build 2>&1 || true)"
+  if grep -qF "CPACK_DEBIAN_PACKAGE_DEPENDS not set" <<<"$(flatten <<<"$deb_out")"; then
+    fail "CPack no longer warns about missing dependencies"
+  else
+    pass "CPack no longer warns about missing dependencies"
+  fi
+
+  # A config rewrite keeps them.
+  forge_in "$lib" add other --path ../plain >/dev/null 2>&1 || true
+  assert_contains "$lib/forge.lua" "package_depends" "a config rewrite keeps the package dependencies"
 
   # --- failure paths --------------------------------------------------------
   local plain="$base/plain"

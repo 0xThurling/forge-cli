@@ -231,17 +231,20 @@ Same extraction rules as `extract`; the archive type is taken from the URL.
 ### `add`
 Adds or updates a dependency in `forge.lua`.
 
-**Usage:** `forge add <name> (--git <url> --tag <ref> | --path <dir> | --conan <version>) [--target <cmake-target>]`
+**Usage:** `forge add <name> (--git <url> --tag <ref> | --path <dir> | --conan <version> | --vcpkg <target> | --pkg-config) [--target <cmake-target>]`
 
 ```bash
 forge add fmt --conan 10.2.1
 forge add sdl --git https://github.com/libsdl-org/SDL.git --tag release-2.32.10 --target SDL2::SDL2
 forge add forgefp --path ../fp --target forgefp
+forge add fmt --vcpkg fmt::fmt
+forge add zlib --pkg-config
 ```
 
-Re-adding a name switches its channel. Local paths are checked up front, and a
-git dependency without `--tag` is rejected. Run `forge install` afterwards to
-pin it in `forge.lock`.
+Re-adding a name switches its channel. Local paths are checked up front, a git
+dependency without `--tag` is rejected, and exactly one source must be given.
+Run `forge install` afterwards to pin a git dependency in `forge.lock` (the
+other channels are resolved by CMake during configure).
 
 ---
 
@@ -523,14 +526,19 @@ directory, so it does not land inside `build/`:
 
 ```bash
 forge test --junit reports/tests.xml
+forge test --json            # {"tests":…,"failures":…,"passed":…,"report":…}
 ```
+
+A failing suite exits non-zero (and a failing build exits before the tests run),
+so `forge test` works as a CI gate on its own. `--json` prints its summary as the
+last line of the output.
 
 ---
 
 ### `doctor`
 Checks the environment for missing dependencies (CMake, Conan, etc.).
 
-**Usage:** `forge doctor [--fix]`
+**Usage:** `forge doctor [--fix] [--json]`
 
 Reports, in order: the configuration, the directory layout, dependencies,
 conflicts, resources, scripts, features, whether the generated files are
@@ -539,3 +547,11 @@ install what is missing — see `forge setup`).
 
 `--fix` creates missing directories, appends missing `.gitignore` entries, and
 refreshes the Lua editor stubs in `.config/forge/definitions/`.
+
+`--json` prints the same checks machine-readably (project, layout, `.gitignore`,
+toolchain, dependency counts) as the *only* output, and exits non-zero when a
+required tool or directory is missing — so CI can gate on it:
+
+```bash
+forge doctor --json | python3 -m json.tool
+```

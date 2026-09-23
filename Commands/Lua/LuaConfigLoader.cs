@@ -476,6 +476,33 @@ public class LuaConfigLoader
     {
       config.Project.VersionFromGit = bool.TryParse(table["version_from_git"].ToString(), out var fromGit) && fromGit;
     }
+    // `package_depends = { "a", "b" }` applies to both package formats, while
+    // `package_depends = { deb = {…}, rpm = {…} }` is format-specific.
+    if (table["package_depends"].TryRead<LuaTable>(out var dependsTable))
+    {
+      foreach (var entry in dependsTable)
+      {
+        if (entry.Key.TryRead<double>(out _))
+        {
+          var value = entry.Value.ToString();
+          if (!string.IsNullOrWhiteSpace(value))
+            config.Project.PackageDepends.Add(value);
+          continue;
+        }
+
+        var format = entry.Key.ToString().ToLowerInvariant();
+        var values = ReadStringList(entry.Value);
+        if (format == "deb")
+          config.Project.DebDepends.AddRange(values);
+        else if (format == "rpm")
+          config.Project.RpmDepends.AddRange(values);
+      }
+    }
+    else if (table["package_depends"] != LuaValue.Nil)
+    {
+      config.Project.PackageDepends.AddRange(ReadStringList(table["package_depends"]));
+    }
+
     if (table["description"] != LuaValue.Nil)
     {
       config.Project.Description = table["description"].ToString();

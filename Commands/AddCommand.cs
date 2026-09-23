@@ -32,6 +32,12 @@ namespace forge.Commands
     [CliOption(Description = "Conan package version", Required = false)]
     public string? Conan { get; set; }
 
+    [CliOption(Description = "vcpkg package target (e.g. fmt::fmt)", Required = false)]
+    public string? Vcpkg { get; set; }
+
+    [CliOption(Description = "Add a pkg-config module (the name is the module)", Required = false)]
+    public bool PkgConfig { get; set; }
+
     [CliOption(Description = "CMake target to link (defaults to the name)", Required = false)]
     public string? Target { get; set; }
 
@@ -44,11 +50,13 @@ namespace forge.Commands
         return 1;
       }
 
-      var sources = new[] { Git is not null, Path is not null, Conan is not null }.Count(x => x);
+      var sources = new[] { Git is not null, Path is not null, Conan is not null, Vcpkg is not null, PkgConfig }
+        .Count(x => x);
       if (sources != 1)
       {
         AnsiConsole.MarkupLine(
-          "[bold red]Error:[/] choose exactly one source: `--git <url> --tag <ref>`, `--path <dir>` or `--conan <version>`.");
+          "[bold red]Error:[/] choose exactly one source: `--git <url> --tag <ref>`, `--path <dir>`, " +
+          "`--conan <version>`, `--vcpkg <target>` or `--pkg-config`.");
         return 1;
       }
 
@@ -64,16 +72,41 @@ namespace forge.Commands
         return 1;
       }
 
+      if (Vcpkg is not null)
+      {
+        // A vcpkg dependency is a target plus an optional minimum version; the
+        // package name is the part before "::".
+        config.VcpkgDependencies[Name] = new VcpkgDependency { Target = Vcpkg };
+        config.Dependencies.Remove(Name);
+        config.ConanDependencies.Remove(Name);
+        ProjectConfigManager.SaveConfig(config);
+        AnsiConsole.MarkupLine($"[green]Added[/] {Name} (vcpkg {Vcpkg})");
+        return 0;
+      }
+
+      if (PkgConfig)
+      {
+        if (!config.PkgConfigDependencies.Contains(Name, StringComparer.OrdinalIgnoreCase))
+          config.PkgConfigDependencies.Add(Name);
+        config.Dependencies.Remove(Name);
+        config.ConanDependencies.Remove(Name);
+        ProjectConfigManager.SaveConfig(config);
+        AnsiConsole.MarkupLine($"[green]Added[/] {Name} (pkg-config module)");
+        return 0;
+      }
+
       if (Conan is not null)
       {
         config.ConanDependencies[Name] = Conan;
         config.Dependencies.Remove(Name);
+        config.VcpkgDependencies.Remove(Name);
         ProjectConfigManager.SaveConfig(config);
         AnsiConsole.MarkupLine($"[green]Added[/] {Name} (conan {Conan})");
       }
       else
       {
         config.ConanDependencies.Remove(Name);
+        config.VcpkgDependencies.Remove(Name);
         config.Dependencies[Name] = new Dependency
         {
           Git = Git ?? string.Empty,

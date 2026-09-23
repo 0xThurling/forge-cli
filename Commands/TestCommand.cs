@@ -85,21 +85,8 @@ namespace forge.Commands
     [CliOption(Description = "Write a JUnit XML report to this path", Required = false)]
     public string? JUnit { get; set; }
 
-    /// <summary>Production preset (-O3 -DNDEBUG) regardless of forge.lua.</summary>
-    [CliOption(Description = "Build tests with the production preset regardless of config.")]
-    public bool Release { get; set; }
-
-    /// <summary>Debug preset (-O0 -g) regardless of forge.lua.</summary>
-    [CliOption(Description = "Build tests with the debug preset regardless of config.")]
-    public bool Debug { get; set; }
-
-    /// <summary>Extra presets for a quick build (comma-separated).</summary>
-    [CliOption(Description = "Add build presets for a quick build (comma-separated).", Required = false)]
-    public string? Preset { get; set; }
-
-    /// <summary>Ignore presets declared in forge.lua.</summary>
-    [CliOption(Description = "Ignore presets declared in forge.lua (use only CLI presets).")]
-    public bool NoConfigPresets { get; set; }
+    [CliOption(Description = "Print a JSON summary (the last line of the output)", Required = false)]
+    public bool Json { get; set; }
 
     /// <summary>
     /// Executes the test build and run pipeline.
@@ -131,7 +118,15 @@ namespace forge.Commands
         return 1; // Build failed
       }
 
-      AnsiConsole.Status().Start("Running Tests...", _ =>
+      // `--json` needs the report even when the caller did not ask for one:
+      // ctest's own output is the only place the counts exist.
+      var report = Json && string.IsNullOrWhiteSpace(JUnit)
+        ? Path.Combine(Path.GetTempPath(), $"forge-tests-{Environment.ProcessId}.xml")
+        : JUnit;
+      var testsRun = 0;
+      var testsFailed = 0;
+
+      var exitCode = AnsiConsole.Status().Start("Running Tests...", _ =>
       {
         // Prefer CTest: gtest_discover_tests registers the suite on configure,
         // and the test target is named `<project>_tests` (not `run_tests`).
@@ -142,11 +137,11 @@ namespace forge.Commands
         ctestArgs.Add("-j");
         ctestArgs.Add((Jobs is > 0 ? Jobs.Value : Environment.ProcessorCount).ToString());
 
-        if (!string.IsNullOrWhiteSpace(JUnit))
+        if (!string.IsNullOrWhiteSpace(report))
         {
           // ctest runs inside --test-dir, so a relative report path would land
           // in build/. Resolve it against the project directory instead.
-          var reportPath = Path.GetFullPath(JUnit);
+          var reportPath = Path.GetFullPath(report);
           var reportDirectory = Path.GetDirectoryName(reportPath);
           if (!string.IsNullOrEmpty(reportDirectory))
             Directory.CreateDirectory(reportDirectory);
@@ -167,6 +162,9 @@ namespace forge.Commands
         try
         {
           var ctest = RunProcess("ctest", ctestArgs);
+          if (report is not null)
+            (testsRun, testsFailed) = CountTests(report);
+
           if (ctest.HasValue)
           {
             if (ctest.Value != 0)
@@ -210,7 +208,46 @@ namespace forge.Commands
         return 0;
       });
 
-      return 0;
+      if (Json)
+      {
+        Console.WriteLine(
+          $"{{\"tests\":{testsRun},\"failures\":{testsFailed}," +
+          $"\"passed\":{JsonOutput.Bool(testsFailed == 0 && exitCode == 0)}," +
+          $"\"report\":{(report is null ? "null" : JsonOutput.Quote(report))}}}");
+      }
+
+      // The status callback's result is the command's result: a failing suite
+      // has to fail `forge test`, and therefore CI.
+      return exitCode;
+    }
+
+    /// <summary>
+    /// Counts the tests and failures in a ctest JUnit report. ctest writes one
+    /// <c>&lt;testsuite&gt;</c> per test, so the attributes are summed.
+    /// </summary>
+    private static (int Tests, int Failures) CountTests(string report)
+    {
+      try
+      {
+        if (!File.Exists(report))
+          return (0, 0);
+
+        var document = System.Xml.Linq.XDocument.Load(report);
+        var suites = document.Descendants("testsuite").ToList();
+        if (suites.Count == 0)
+          return (0, 0);
+
+        static int Attribute(System.Xml.Linq.XElement element, string name) =>
+          int.TryParse(element.Attribute(name)?.Value, out var value) ? value : 0;
+
+        return (
+          suites.Sum(suite => Attribute(suite, "tests")),
+          suites.Sum(suite => Attribute(suite, "failures") + Attribute(suite, "errors")));
+      }
+      catch (Exception)
+      {
+        return (0, 0); // an unreadable report must not fail the run
+      }
     }
 
     /// <summary>

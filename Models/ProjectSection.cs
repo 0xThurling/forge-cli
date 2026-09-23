@@ -39,6 +39,19 @@ namespace forge.Models
     /// </summary>
     public bool VersionFromGit { get; set; }
 
+    /// <summary>
+    /// Runtime dependencies of the packages Forge builds, written into both the
+    /// DEB and RPM metadata (<c>CPACK_DEBIAN_PACKAGE_DEPENDS</c>,
+    /// <c>CPACK_RPM_PACKAGE_REQUIRES</c>).
+    /// </summary>
+    public List<string> PackageDepends { get; set; } = [];
+
+    /// <summary>Runtime dependencies only the DEB metadata gets.</summary>
+    public List<string> DebDepends { get; set; } = [];
+
+    /// <summary>Runtime dependencies only the RPM metadata gets.</summary>
+    public List<string> RpmDepends { get; set; } = [];
+
     /// <summary>One-line summary, used in packages (`CPACK_PACKAGE_DESCRIPTION_SUMMARY`).</summary>
     public string Description { get; set; } = string.Empty;
 

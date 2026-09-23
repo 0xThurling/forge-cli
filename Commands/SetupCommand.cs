@@ -109,12 +109,17 @@ public class SetupCommand
 
     AnsiConsole.Write(table);
 
+    var missingExtras = new List<string>();
     foreach (var (name, purpose, hint) in ToolRequirements.ExtraSteps)
     {
       var present = ToolLocator.Find(name) is not null;
+      if (!present)
+        missingExtras.Add(name);
+
       AnsiConsole.MarkupLine(present
         ? $"   [green]ok[/] {name} [dim]({purpose})[/]"
-        : $"   [yellow]missing (optional)[/] {name} [dim]({purpose})[/] — {hint}");
+        : $"   [yellow]missing (optional)[/] {name} [dim]({purpose})[/] — " +
+          $"{ToolRequirements.HintFor(name, hint, manager)}");
     }
 
     AnsiConsole.WriteLine();
@@ -129,15 +134,24 @@ public class SetupCommand
 
     if (!Install)
     {
-      if (missing.Count == 0)
+      if (missing.Count == 0 && missingExtras.Count == 0)
       {
         AnsiConsole.MarkupLine("[green]Nothing to do.[/]");
       }
       else
       {
-        AnsiConsole.MarkupLine(
-          $"[yellow]{missing.Count} tool(s) missing[/] — run `forge setup --install` " +
-          "(or `--install --dry-run` to see the commands).");
+        var tools = missing.Count == 1 ? "1 tool" : $"{missing.Count} tools";
+        var extras = missingExtras.Count == 0
+          ? string.Empty
+          : missingExtras.Count == 1
+            ? $", plus the optional {missingExtras[0]}"
+            : $", plus the optional {string.Join(" and ", missingExtras)}";
+
+        AnsiConsole.MarkupLine(missing.Count > 0
+          ? $"[yellow]{tools} missing{extras}[/] — run `forge setup --install` " +
+            "(or `--install --dry-run` to see the commands)."
+          : $"[yellow]The optional {string.Join(" and ", missingExtras)} " +
+            $"{(missingExtras.Count == 1 ? "is" : "are")} missing[/] — see the commands above.");
       }
       return Task.FromResult(missingRequired.Count > 0 ? 1 : 0);
     }
@@ -164,6 +178,7 @@ public class SetupCommand
     if (DryRun)
     {
       AnsiConsole.MarkupLine("[dim]--dry-run: nothing was run.[/]");
+      ReportExtras(missingExtras, manager);
       return Task.FromResult(0);
     }
 
@@ -216,6 +231,8 @@ public class SetupCommand
       return Task.FromResult(1);
     }
 
+    ReportExtras(missingExtras, manager);
+
     // Report what changed, using the same detection as the check.
     AnsiConsole.WriteLine();
     var stillMissing = planned.Where(tool => tool.Detect() is null).ToList();
@@ -228,6 +245,24 @@ public class SetupCommand
     AnsiConsole.MarkupLine(
       $"[yellow]Still missing:[/] {string.Join(", ", stillMissing.Select(tool => tool.Name))}");
     return Task.FromResult(1);
+  }
+
+  /// <summary>
+  /// Reminds the user about the ecosystem tools that are not packages of the
+  /// table, with the command that installs each one on this machine.
+  /// </summary>
+  private static void ReportExtras(IReadOnlyList<string> missing, string? manager)
+  {
+    if (missing.Count == 0)
+      return;
+
+    AnsiConsole.MarkupLine(
+      "[dim]Not installed by this command (they are ecosystems, not single packages):[/]");
+    foreach (var (name, _, hint) in ToolRequirements.ExtraSteps)
+    {
+      if (missing.Contains(name))
+        AnsiConsole.MarkupLine($"   [dim]{name}: {ToolRequirements.HintFor(name, hint, manager)}[/]");
+    }
   }
 
   /// <summary>The tools to report on, or null when a name was unknown.</summary>

@@ -78,24 +78,9 @@ namespace forge.Commands
     [CliOption(Description = "Add build presets for a quick build (comma-separated), e.g. --preset simd,concurrency.", Required = false)]
     public string? Preset { get; set; }
 
-    /// <summary>Ignore presets declared in forge.lua (use only CLI presets).</summary>
+    /// <summary>Build only this CMake target (default: all of them).</summary>
     [CliOption(Description = "Build only this CMake target", Required = false)]
     public string? Target { get; set; }
-
-    [CliOption(Description = "Ignore presets declared in forge.lua (use only CLI presets).")]
-    public bool NoConfigPresets { get; set; }
-
-    /// <summary>Production preset (-O3 -DNDEBUG) regardless of forge.lua.</summary>
-    [CliOption(Description = "Build with the production preset (-O3 -DNDEBUG) regardless of config.")]
-    public bool Release { get; set; }
-
-    /// <summary>Debug preset (-O0 -g) regardless of forge.lua.</summary>
-    [CliOption(Description = "Build with the debug preset (-O0 -g) regardless of config.")]
-    public bool Debug { get; set; }
-
-    /// <summary>Extra presets for a quick build (comma-separated).</summary>
-    [CliOption(Description = "Add build presets for a quick build (comma-separated), e.g. --preset simd,concurrency.", Required = false)]
-    public string? Preset { get; set; }
 
     /// <summary>Ignore presets declared in forge.lua (use only CLI presets).</summary>
     [CliOption(Description = "Ignore presets declared in forge.lua (use only CLI presets).")]

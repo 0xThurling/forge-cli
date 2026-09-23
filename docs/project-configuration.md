@@ -49,6 +49,19 @@ Contains metadata about your project.
   Git tag instead of `version` — `2.5.0` on the tag, `2.5.0.3` three commits
   later, so it stays numeric for `project(... VERSION ...)` and `SOVERSION`. The
   declared `version` is kept when the repository has no version-like tag.
+- `package_depends` (list or table): Runtime dependencies of the packages Forge
+  builds, written to both `CPACK_DEBIAN_PACKAGE_DEPENDS` and
+  `CPACK_RPM_PACKAGE_REQUIRES`. A plain list applies to both formats; the table
+  form carries format-specific values (each format has its own syntax):
+
+  ```lua
+  package_depends = {
+      "libstdc++6",                          -- both formats
+      deb = { "libsdl2-2.0-0 (>= 2.0.20)" }, -- Debian syntax
+      rpm = { "SDL2 >= 2.0.20" },            -- RPM syntax
+  }
+  ```
+
 - `description` (string): (Optional) One-line summary, used as `CPACK_PACKAGE_DESCRIPTION_SUMMARY` when packaging.
 - `contact` (string): (Optional) Maintainer contact (`CPACK_PACKAGE_CONTACT`). Required by the DEB and RPM package formats.
 

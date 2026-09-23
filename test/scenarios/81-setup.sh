@@ -20,6 +20,13 @@ scenario_81_setup() {
     fi
   done
 
+  # --- the ecosystem hints name an installer -------------------------------
+  if grep -qE "conan.*(pacman|apt-get|dnf|zypper|apk|brew|winget|choco|pipx)" <<<"$flat"; then
+    pass "the conan hint names an installer for this machine"
+  else
+    fail "the conan hint names an installer for this machine (got '${flat:0:200}')"
+  fi
+
   # --- json ----------------------------------------------------------------
   out="$(forge setup --json --tools cmake,git 2>&1 || true)"
   flat="$(flatten <<<"$out")"
@@ -32,6 +39,22 @@ scenario_81_setup() {
     pass "setup --json names the package manager"
   else
     fail "setup --json names the package manager"
+  fi
+
+  # --- doctor --json -------------------------------------------------------
+  local root_json="$WORK/81-setup/json"
+  mkdir -p "$root_json/src"
+  make_plain_project "$root_json" demo_json
+  out="$(forge_in "$root_json" doctor --json 2>&1 || true)"
+  if python3 -c "import json,sys; d=json.loads(sys.argv[1]); sys.exit(0 if 'toolchain' in d and 'layout' in d else 1)" "$out" 2>/dev/null; then
+    pass "doctor --json is valid JSON"
+  else
+    fail "doctor --json is valid JSON (got '${out:0:120}')"
+  fi
+  if [[ "$out" == "{"* ]]; then
+    pass "doctor --json prints nothing else"
+  else
+    fail "doctor --json prints nothing else"
   fi
 
   # --- an unknown tool ------------------------------------------------------

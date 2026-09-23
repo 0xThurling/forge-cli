@@ -28,10 +28,21 @@ def is_style(content):
 
 offenders = []
 for path in sorted(root.glob("Commands/**/*.cs")):
+    statement = ""
+    start = 0
     for number, line in enumerate(path.read_text().splitlines(), 1):
         code = line.split("//", 1)[0]
+        if not statement:
+            start = number
+        statement += " " + code
+
+        # A markup string may be concatenated across lines: keep collecting
+        # until the expression is complete, then check it as a whole.
+        if code.rstrip().endswith("+"):
+            continue
+
         depth = 0
-        for close, content in tag.findall(code):
+        for close, content in tag.findall(statement):
             if close:
                 depth -= 1
                 continue
@@ -39,8 +50,10 @@ for path in sorted(root.glob("Commands/**/*.cs")):
             if not content or not is_style(content):
                 continue
             depth += 1
+
         if depth != 0:
-            offenders.append(f"{path.relative_to(root)}:{number} (depth {depth})")
+            offenders.append(f"{path.relative_to(root)}:{start} (depth {depth})")
+        statement = ""
 
 print(len(offenders))
 for offender in offenders:

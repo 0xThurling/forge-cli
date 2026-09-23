@@ -10,12 +10,33 @@ public class DoctorCommand
 {
   private readonly ConanDependencyChecker _conanChecker = new();
 
+  /// <summary>
+  /// The layout Forge expects, shared by the human report and the JSON one so
+  /// they cannot disagree about what is missing.
+  /// </summary>
+  private static readonly (string Path, bool Required, string Note)[] LayoutEntries =
+  [
+    ("src", false, "Source files"),
+    ("external", false, "External dependencies"),
+    ("assets", false, "Resource files"),
+    (".config/forge", true, "Forge configuration"),
+    (".config/forge/build", false, "Build scripts"),
+  ];
+
+  /// <summary>Print a machine-readable report instead of the human one.</summary>
+  [CliOption(Description = "Print JSON (and exit non-zero when unhealthy)", Required = false)]
+  public bool Json { get; set; }
+
   /// <summary>Create what is missing instead of only reporting it.</summary>
   [CliOption(Description = "Create missing directories and files", Required = false)]
   public bool Fix { get; set; }
 
   public async Task<int> RunAsync()
   {
+    // JSON first: a consumer parsing stdout must not have to skip a banner.
+    if (Json)
+      return await RunJsonAsync();
+
     AnsiConsole.MarkupLine("[bold cyan]🔍 Running Forge Doctor...[/]");
     AnsiConsole.WriteLine();
 
@@ -282,5 +303,79 @@ public class DoctorCommand
       AnsiConsole.MarkupLine($"   [yellow]⚠️  Found {issues} issue(s) to address[/]");
     }
     return 0;
+  }
+
+  /// <summary>
+  /// The same checks as the human report, as JSON. Kept deliberately separate:
+  /// the human path is a long narrative, and threading a serializer through it
+  /// would make both harder to change. The facts are shared — the layout table,
+  /// the ignore entries and the tool table.
+  /// </summary>
+  private async Task<int> RunJsonAsync()
+  {
+    var config = await ProjectConfigManager.LoadConfigAsync();
+
+    var missingRequired = LayoutEntries
+      .Where(entry => entry.Required && !Directory.Exists(entry.Path))
+      .Select(entry => entry.Path)
+      .ToList();
+    var missingOptional = LayoutEntries
+      .Where(entry => !entry.Required && !Directory.Exists(entry.Path))
+      .Select(entry => entry.Path)
+      .ToList();
+
+    var ignoreLines = File.Exists(".gitignore")
+      ? File.ReadAllLines(".gitignore").Select(line => line.Trim()).ToHashSet(StringComparer.Ordinal)
+      : new HashSet<string>(StringComparer.Ordinal);
+    var missingIgnores = SourceFiles.GeneratedIgnoreEntries
+      .Where(entry => !ignoreLines.Contains(entry))
+      .ToList();
+
+    var toolchain = ToolRequirements.All
+      .Select(tool =>
+      {
+        var version = tool.Detect();
+        return (Tool: tool, Version: version, Ok: tool.IsVersionAcceptable(version));
+      })
+      .ToList();
+    var missingRequiredTools = toolchain.Count(entry => entry.Tool.Required && !entry.Ok);
+    var issues = missingRequired.Count + missingRequiredTools;
+
+    var sb = new System.Text.StringBuilder();
+    sb.Append('{');
+    sb.Append($"\"healthy\":{JsonOutput.Bool(issues == 0)},");
+    sb.Append($"\"issues\":{issues},");
+    sb.Append("\"project\":{");
+    sb.Append($"\"name\":{JsonOutput.Quote(config?.Project.Name ?? string.Empty)},");
+    sb.Append($"\"type\":{JsonOutput.Quote(config?.Project.Type ?? string.Empty)},");
+    sb.Append($"\"standard\":{JsonOutput.Quote(config?.Project.Standard ?? string.Empty)}}},");
+    sb.Append("\"layout\":{");
+    sb.Append($"\"missingRequired\":[{string.Join(",", missingRequired.Select(JsonOutput.Quote))}],");
+    sb.Append($"\"missingOptional\":[{string.Join(",", missingOptional.Select(JsonOutput.Quote))}]}},");
+    sb.Append($"\"gitignore\":{{\"missing\":[{string.Join(",", missingIgnores.Select(JsonOutput.Quote))}]}},");
+    sb.Append("\"toolchain\":[");
+    for (var i = 0; i < toolchain.Count; i++)
+    {
+      if (i > 0)
+        sb.Append(',');
+      var (tool, version, ok) = toolchain[i];
+      sb.Append('{');
+      sb.Append($"\"tool\":{JsonOutput.Quote(tool.Name)},");
+      sb.Append($"\"installed\":{JsonOutput.Bool(version is not null)},");
+      sb.Append($"\"version\":{JsonOutput.Quote(version ?? string.Empty)},");
+      sb.Append($"\"required\":{JsonOutput.Bool(tool.Required)},");
+      sb.Append($"\"ok\":{JsonOutput.Bool(ok)}");
+      sb.Append('}');
+    }
+    sb.Append("],");
+    sb.Append("\"dependencies\":{");
+    sb.Append($"\"git\":{config?.Dependencies.Count ?? 0},");
+    sb.Append($"\"conan\":{config?.ConanDependencies.Count ?? 0},");
+    sb.Append($"\"vcpkg\":{config?.VcpkgDependencies.Count ?? 0},");
+    sb.Append($"\"pkgconfig\":{config?.PkgConfigDependencies.Count ?? 0}");
+    sb.Append("}}");
+    Console.WriteLine(sb.ToString());
+
+    return issues == 0 ? 0 : 1;
   }
 }

@@ -149,6 +149,23 @@ public static class ToolRequirements
     ("vcpkg", "vcpkg packages (`dependencies.vcpkg`)", "set VCPKG_ROOT, or clone vcpkg and bootstrap it")
   ];
 
+  /// <summary>
+  /// The command that installs an extra tool on this machine. The table's
+  /// fallback is used when the manager has no sensible package for it — Conan
+  /// on Debian/Ubuntu, for instance, where the archive package is still 1.x.
+  /// </summary>
+  public static string HintFor(string name, string fallback, string? manager) => (name, manager) switch
+  {
+    ("conan", "pacman") => "sudo pacman -S conan",
+    ("conan", "apk") => "sudo apk add conan",
+    ("conan", "dnf") => "sudo dnf install conan",
+    ("conan", "zypper") => "sudo zypper install conan",
+    ("conan", "brew") => "brew install conan",
+    ("conan", "winget") => "winget install Conan.Conan",
+    ("conan", "choco") => "choco install conan",
+    _ => fallback
+  };
+
   /// <summary>Finds a tool by name (case-insensitive), or null.</summary>
   public static ToolRequirement? Find(string name) =>
     All.FirstOrDefault(tool => string.Equals(tool.Name, name, StringComparison.OrdinalIgnoreCase));
