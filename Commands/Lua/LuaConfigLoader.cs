@@ -363,35 +363,6 @@ public class LuaConfigLoader
       }
     }
 
-    if (table["pkgconfig"].TryRead<LuaTable>(out var pkgConfigTable))
-    {
-      config.PkgConfigDependencies = ReadStringList(pkgConfigTable);
-    }
-
-    if (table["vcpkg"].TryRead<LuaTable>(out var vcpkgTable))
-    {
-      foreach (var kvp in vcpkgTable)
-      {
-        var name = kvp.Key.ToString();
-        var dep = new VcpkgDependency();
-
-        if (kvp.Value.TryRead<LuaTable>(out var options))
-        {
-          if (options["target"] != LuaValue.Nil)
-            dep.Target = options["target"].ToString();
-          if (options["version"] != LuaValue.Nil)
-            dep.Version = options["version"].ToString();
-        }
-        else if (kvp.Value != LuaValue.Nil)
-        {
-          // Shorthand: `fmt = "fmt::fmt"`.
-          dep.Target = kvp.Value.ToString();
-        }
-
-        config.VcpkgDependencies[name] = dep;
-      }
-    }
-
     if (table["conan"].TryRead<LuaTable>(out var conanTable))
     {
       foreach (var kvp in conanTable)

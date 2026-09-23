@@ -289,10 +289,34 @@ it cannot fix. `--header-filter <regex>` overrides that, and a project that sets
 ### `bench`
 Builds and runs the project's benchmark target (`<project>_bench`).
 
-**Usage:** `forge bench [--no-build] [benchmark arguments...]`
+**Usage:** `forge bench [--no-build] [--save <file>] [--compare <file>] [--fail-over <percent>] [--json] [benchmark arguments...]`
 
 Requires `testing = { benchmark = true }` and sources in `bench/`; extra
-arguments are passed through (e.g. `--benchmark_filter=my_case`).
+arguments are passed through to the binary (e.g. `--benchmark_filter=my_case`),
+so Google Benchmark's own flags work as they are.
+
+`--save` records the run as JSON (a baseline), `--compare` reports the deltas
+against one, and `--fail-over` turns a regression into a failure — which is what
+makes this usable as a performance gate in CI:
+
+```bash
+forge bench --save bench/base.json                     # record a baseline
+forge bench --compare bench/base.json                  # what changed?
+forge bench --compare bench/base.json --fail-over 10   # fail on >10% slower
+forge bench --compare bench/base.json --json
+```
+
+```
+         vs bench/base.json
+┌───────────┬──────────┬───────┬────────┐
+│ Benchmark │ Baseline │ Now   │ Change │
+├───────────┼──────────┼───────┼────────┤
+│ BM_Work   │ 100 ns   │ 90 ns │ -10.0% │
+└───────────┴──────────┴───────┴────────┘
+```
+
+Times are normalised to a common unit before comparing, and benchmarks that only
+exist in one of the two runs are listed as new or gone.
 
 ---
 
@@ -474,6 +498,29 @@ forge setup --install                # install the missing tools
 forge setup --install --dry-run      # just show the commands
 forge setup --tools cmake,ninja
 ```
+
+The ecosystem tools are not packages, so they have steps of their own — select
+them with `--tools` and `--install` runs them (asking first, `--yes` to skip):
+
+```bash
+forge setup --tools conan,vcpkg
+forge setup --install --yes --tools conan,vcpkg
+```
+
+- **conan** — installed with the machine's package manager (`pacman -S conan`,
+  `brew install conan`, …), or through `pipx` on Debian/Ubuntu where the archive
+  package is still Conan 1.x.
+- **vcpkg** — its own prerequisites first (`curl`, `zip`, `unzip`, `tar`), then
+  cloned and bootstrapped into `external/vcpkg` when run inside a project (which
+  is where Forge looks for it, no environment variable needed), or into
+  `~/.local/share/forge/vcpkg` otherwise, printing the `VCPKG_ROOT` export to
+  use it. A checkout that exists but is not bootstrapped is bootstrapped rather
+  than cloned again.
+
+Without `--tools`, `--install` also covers the ecosystems the project declares:
+a `forge.lua` with `dependencies.vcpkg` gets vcpkg bootstrapped, one with
+`dependencies.conan` gets Conan — so `forge setup --install` on a fresh machine
+is enough to build.
 
 `forge doctor` reports the same table, and `forge ci` uses it to write the
 install steps of the workflow it generates.

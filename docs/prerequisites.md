@@ -25,8 +25,8 @@ as a CI gate: `forge setup || forge setup --install --yes`.
 | **clang-tidy** | `forge lint` | `CLANG_TIDY` selects a specific binary |
 | **cpack** | `forge publish` | Ships with CMake, so it is usually already there |
 | **python3** | the test suite's download scenarios | Only needed to run Forge's own end-to-end tests |
-| **Conan 2.x** | `dependencies.conan` | `pipx install conan` |
-| **vcpkg** | `dependencies.vcpkg` | Set `VCPKG_ROOT`, or clone vcpkg and bootstrap it |
+| **Conan 2.x** | `dependencies.conan` | `forge setup --install --tools conan` (package manager, or `pipx` on Debian/Ubuntu) |
+| **vcpkg** | `dependencies.vcpkg` | `forge setup --install --tools vcpkg` — clones and bootstraps into `external/vcpkg`, where Forge finds it without any environment variable |
 | **pkg-config** | `dependencies.pkgconfig` | Plus the `-dev`/`-devel` package of each module you use |
 
 ## Checking and installing
@@ -36,6 +36,7 @@ forge setup                      # table: tool, status, version, purpose
 forge setup --install            # install what is missing (asks first)
 forge setup --install --dry-run  # print the commands, change nothing
 forge setup --tools cmake,ninja  # only these
+forge setup --install --tools conan,vcpkg   # the ecosystem tools too
 ```
 
 `--install` uses your machine's own package manager — apt-get, dnf, zypper, apk,

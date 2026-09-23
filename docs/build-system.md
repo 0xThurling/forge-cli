@@ -58,7 +58,8 @@ default where they can be:
   build, but CMake is only re-run when they (or the cache variables) changed.
 
 Unity builds and precompiled headers cut compile time further — see
-[Modern build features](#modern-build-features).
+[Modern build features](#modern-build-features). For tracking what a change
+costs, `forge bench --save`/`--compare` records baselines and reports deltas.
 
 ## Several targets in one project
 
@@ -113,7 +114,9 @@ build = {
 `unity` is the cheapest win for small projects and the strictest check that
 every file includes what it uses. `pch` pays off when a heavy header (a
 standard library umbrella, a framework header) is included nearly everywhere.
-`modules` changes the generator when needed, because CMake can only scan for
+`modules` compiles C++20 module interface units (`src/*.cppm`, `src/*.ixx`) —
+they go into a `CXX_MODULES` file set, since CMake rejects them as ordinary
+sources — and changes the generator when needed, because CMake can only scan for
 modules with Ninja or Visual Studio 17.4+.
 
 ## Packaging

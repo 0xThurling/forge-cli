@@ -39,11 +39,43 @@ public class SetupCommand
   [CliOption(Description = "Print JSON (implies a check)", Required = false)]
   public bool Json { get; set; }
 
+  /// <summary>
+  /// Adds the ecosystem tools the project declares, so `forge setup --install`
+  /// bootstraps everything a build needs.
+  /// </summary>
+  private async Task AddExtrasTheProjectUsesAsync()
+  {
+    var config = await ProjectConfigManager.LoadConfigAsync();
+    if (config == null)
+      return;
+
+    var needed = new List<string>();
+    if (config.ConanDependencies.Count > 0)
+      needed.Add("conan");
+    if (config.VcpkgDependencies.Count > 0)
+      needed.Add("vcpkg");
+
+    foreach (var (name, purpose, hint) in ToolRequirements.ExtraSteps)
+    {
+      if (!needed.Contains(name) || _selectedExtras.Any(extra => extra.Name == name))
+        continue;
+      _selectedExtras.Add((name, purpose, hint));
+    }
+  }
+
+  /// <summary>Ecosystem tools selected with <c>--tools</c> (conan, vcpkg).</summary>
+  private readonly List<(string Name, string Purpose, string Hint)> _selectedExtras = [];
+
   public Task<int> RunAsync()
   {
     var selected = Select();
     if (selected is null)
       return Task.FromResult(1);
+
+    // `--install` without `--tools` covers what this project actually uses: a
+    // project with Conan packages should not need to ask for Conan separately.
+    if (Install && string.IsNullOrWhiteSpace(Tools))
+      AddExtrasTheProjectUsesAsync().GetAwaiter().GetResult();
 
     var manager = ToolRequirements.DetectPackageManager();
     var statuses = selected
@@ -132,6 +164,25 @@ public class SetupCommand
 
     AnsiConsole.MarkupLine($"[dim]Package manager:[/] {manager}");
 
+    // The ecosystem tools are handled before the table's early return, so
+    // `--tools conan` works on its own.
+    if (Install)
+    {
+      foreach (var extra in _selectedExtras)
+      {
+        if (ToolLocator.Find(extra.Name) is not null)
+        {
+          AnsiConsole.MarkupLine($"[green]{extra.Name} is already installed.[/]");
+          continue;
+        }
+
+        if (extra.Name == "conan")
+          InstallConan(manager, DryRun);
+        else if (extra.Name == "vcpkg")
+          InstallVcpkg(manager, DryRun);
+      }
+    }
+
     if (!Install)
     {
       if (missing.Count == 0 && missingExtras.Count == 0)
@@ -162,7 +213,10 @@ public class SetupCommand
 
     if (planned.Count == 0)
     {
-      AnsiConsole.MarkupLine("[green]Nothing to install.[/]");
+      // Not when an ecosystem tool was just handled: the output would claim
+      // nothing happened right after installing something.
+      if (_selectedExtras.Count == 0)
+        AnsiConsole.MarkupLine("[green]Nothing to install.[/]");
       return Task.FromResult(0);
     }
 
@@ -178,7 +232,7 @@ public class SetupCommand
     if (DryRun)
     {
       AnsiConsole.MarkupLine("[dim]--dry-run: nothing was run.[/]");
-      ReportExtras(missingExtras, manager);
+      ReportExtras(NotHandledExtras(missingExtras), manager);
       return Task.FromResult(0);
     }
 
@@ -231,7 +285,7 @@ public class SetupCommand
       return Task.FromResult(1);
     }
 
-    ReportExtras(missingExtras, manager);
+    ReportExtras(NotHandledExtras(missingExtras), manager);
 
     // Report what changed, using the same detection as the check.
     AnsiConsole.WriteLine();
@@ -246,6 +300,206 @@ public class SetupCommand
       $"[yellow]Still missing:[/] {string.Join(", ", stillMissing.Select(tool => tool.Name))}");
     return Task.FromResult(1);
   }
+
+  /// <summary>
+  /// Installs Conan with the machine's package manager, falling back to pipx
+  /// where the archive package is still 1.x (Debian/Ubuntu).
+  /// </summary>
+  private bool InstallConan(string? manager, bool dryRun)
+  {
+    var steps = ToolRequirements.InstallStepsFor("conan", manager);
+    if (steps.Count == 0)
+    {
+      AnsiConsole.MarkupLine(
+        "[yellow]No known way to install conan here[/] — see https://conan.io.");
+      return false;
+    }
+
+    AnsiConsole.WriteLine();
+    AnsiConsole.MarkupLine("[bold]Conan[/]");
+    foreach (var (fileName, arguments, needsSudo) in steps)
+    {
+      var commandLine = (needsSudo ? "sudo " : "") + fileName + " " + string.Join(" ", arguments);
+      AnsiConsole.MarkupLine($"   [dim]{commandLine}[/]");
+      if (dryRun)
+        continue;
+
+      if (!Confirm($"Run it?"))
+        return false;
+
+      if (RunProcess(needsSudo ? "sudo" : fileName,
+            needsSudo ? [fileName, .. arguments] : arguments) != 0)
+      {
+        AnsiConsole.MarkupLine($"[bold red]`{commandLine}` failed.[/]");
+        return false;
+      }
+    }
+
+    if (!dryRun)
+      AnsiConsole.MarkupLine("[green]Conan installed.[/]");
+    return true;
+  }
+
+  /// <summary>
+  /// Clones and bootstraps vcpkg into the project (<c>external/vcpkg</c>, which
+  /// Forge looks for) or into the user's data directory, where it needs
+  /// <c>VCPKG_ROOT</c>.
+  /// </summary>
+  private bool InstallVcpkg(string? manager, bool dryRun)
+  {
+    var inProject = File.Exists("forge.lua");
+    var target = inProject
+      ? Path.Combine("external", "vcpkg")
+      : Path.Combine(
+          Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+          "forge", "vcpkg");
+
+    var bootstrapped = OperatingSystem.IsWindows()
+      ? Path.Combine(target, "vcpkg.exe")
+      : Path.Combine(target, "vcpkg");
+
+    AnsiConsole.WriteLine();
+    AnsiConsole.MarkupLine("[bold]vcpkg[/]");
+
+    if (File.Exists(bootstrapped))
+    {
+      AnsiConsole.MarkupLine($"   [green]already present[/] at {target}");
+      return true;
+    }
+
+    // vcpkg's bootstrap needs these; without them it stops halfway through.
+    var prerequisites = ToolRequirements.PackageNamesFor(
+      "vcpkg", manager, ["curl", "zip", "unzip", "tar"]);
+
+    var checkout = Directory.Exists(target);
+    var bootstrap = OperatingSystem.IsWindows() ? "bootstrap-vcpkg.bat" : "bootstrap-vcpkg.sh";
+    if (!checkout)
+    {
+      AnsiConsole.MarkupLine($"   [dim]git clone --depth 1 https://github.com/microsoft/vcpkg {target}[/]");
+    }
+    AnsiConsole.MarkupLine($"   [dim]cd {target} && {bootstrap}[/]");
+
+    if (prerequisites.Count > 0)
+      AnsiConsole.MarkupLine($"   [dim]needs: {string.Join(", ", prerequisites)}[/]");
+
+    if (dryRun)
+      return true;
+
+    if (prerequisites.Count > 0)
+    {
+      if (manager is null)
+      {
+        AnsiConsole.MarkupLine(
+          "[yellow]Install these first:[/] " + string.Join(", ", prerequisites));
+        return false;
+      }
+
+      var (file, arguments, needsSudo) = ToolRequirements.InstallCommand(manager, prerequisites);
+      var commandLine = (needsSudo ? "sudo " : "") + file + " " + string.Join(" ", arguments);
+      AnsiConsole.MarkupLine($"   [dim]{commandLine}[/]");
+
+      if (!Confirm("Install vcpkg's prerequisites?"))
+        return false;
+
+      if (RunProcess(needsSudo ? "sudo" : file, needsSudo ? [file, .. arguments] : arguments) != 0)
+      {
+        AnsiConsole.MarkupLine($"[bold red]`{commandLine}` failed.[/]");
+        return false;
+      }
+    }
+
+    if (!Confirm(checkout
+          ? $"Bootstrap the existing checkout at {target}?"
+          : $"Clone and bootstrap vcpkg into {target}?"))
+    {
+      return false;
+    }
+
+    if (!checkout &&
+        RunProcess("git", ["clone", "--depth", "1", "https://github.com/microsoft/vcpkg", target]) != 0)
+    {
+      AnsiConsole.MarkupLine("[bold red]Could not clone vcpkg.[/]");
+      return false;
+    }
+
+    // Run it through the shell: a relative "./bootstrap-vcpkg.sh" is resolved
+    // against the *current* directory, not the working directory.
+    var (interpreter, scriptArguments) = OperatingSystem.IsWindows()
+      ? ("cmd", new List<string> { "/c", bootstrap })
+      : ("bash", new List<string> { bootstrap });
+
+    if (RunProcess(interpreter, scriptArguments, target) != 0)
+    {
+      // vcpkg's own bootstrap lists what it needs (curl, zip, unzip, tar);
+      // translate that into the command for this machine.
+      AnsiConsole.MarkupLine("[bold red]Could not bootstrap vcpkg.[/]");
+      var stillMissing = ToolRequirements.PackageNamesFor("vcpkg", manager, ["curl", "zip", "unzip", "tar"]);
+      if (stillMissing.Count > 0)
+      {
+        var (file, arguments, needsSudo) = ToolRequirements.InstallCommand(manager!, stillMissing);
+        AnsiConsole.MarkupLine(
+          "[dim]vcpkg's bootstrap needs curl, zip, unzip and tar — try:[/] " +
+          (needsSudo ? "sudo " : "") + file + " " + string.Join(" ", arguments));
+      }
+      return false;
+    }
+
+    AnsiConsole.MarkupLine($"[green]vcpkg installed at {target}.[/]");
+    if (!inProject)
+    {
+      AnsiConsole.MarkupLine(
+        "[yellow]Set it up for Forge with:[/] export VCPKG_ROOT=" + Path.GetFullPath(target));
+    }
+
+    return true;
+  }
+
+  /// <summary>Asks before doing something heavy; `--yes` and non-interactive runs skip it.</summary>
+  private bool Confirm(string question)
+  {
+    if (Yes)
+      return true;
+
+    if (Console.IsInputRedirected)
+    {
+      AnsiConsole.MarkupLine("[yellow]Not a terminal[/] — re-run with `--yes` to install non-interactively.");
+      return false;
+    }
+
+    return AnsiConsole.Confirm(question, defaultValue: false);
+  }
+
+  /// <summary>Runs a command, optionally in a working directory.</summary>
+  private static int RunProcess(string fileName, IReadOnlyList<string> arguments, string? workingDirectory = null)
+  {
+    try
+    {
+      var startInfo = new ProcessStartInfo(fileName)
+      {
+        UseShellExecute = false,
+        CreateNoWindow = true,
+      };
+      if (workingDirectory is not null)
+        startInfo.WorkingDirectory = Path.GetFullPath(workingDirectory);
+      foreach (var argument in arguments)
+        startInfo.ArgumentList.Add(argument);
+
+      using var process = Process.Start(startInfo);
+      if (process == null)
+        return 1;
+      process.WaitForExit();
+      return process.ExitCode;
+    }
+    catch (Exception exception)
+    {
+      AnsiConsole.MarkupLine($"[bold red]Error:[/] {exception.Message}");
+      return 1;
+    }
+  }
+
+  /// <summary>The extras this run did not handle, so the closing note stays honest.</summary>
+  private List<string> NotHandledExtras(List<string> missing) =>
+    missing.Where(name => _selectedExtras.All(extra => extra.Name != name)).ToList();
 
   /// <summary>
   /// Reminds the user about the ecosystem tools that are not packages of the
@@ -277,9 +531,20 @@ public class SetupCommand
       var tool = ToolRequirements.Find(name);
       if (tool is null)
       {
+        // The ecosystem tools are not packages of the table, but they can be
+        // selected (and installed) the same way.
+        var extra = ToolRequirements.ExtraSteps.FirstOrDefault(step =>
+          string.Equals(step.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (extra.Name is not null)
+        {
+          _selectedExtras.Add(extra);
+          continue;
+        }
+
         AnsiConsole.MarkupLine(
           $"[bold red]Error:[/] unknown tool `{name}`. Known: " +
-          $"{string.Join(", ", ToolRequirements.All.Select(t => t.Name))}.");
+          $"{string.Join(", ", ToolRequirements.All.Select(t => t.Name))}, " +
+          $"{string.Join(", ", ToolRequirements.ExtraSteps.Select(step => step.Name))}.");
         return null;
       }
       selected.Add(tool);

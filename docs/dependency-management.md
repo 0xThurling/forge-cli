@@ -359,6 +359,19 @@ target_link_libraries(app PRIVATE SDL2::SDL2)
 int main() { SDL_Init(SDL_INIT_VIDEO); SDL_Quit(); }
 ```
 
+If you do not have a checkout yet, let `forge setup` do it:
+
+```bash
+forge setup --install --tools vcpkg
+# git clone --depth 1 https://github.com/microsoft/vcpkg external/vcpkg
+# cd external/vcpkg && ./bootstrap-vcpkg.sh
+```
+
+It lands in `external/vcpkg` when run inside the project, which is exactly where
+Forge looks, so no environment variable is needed. vcpkg's bootstrap needs
+`curl`, `zip`, `unzip` and `tar`; when one is missing, the failure names the
+command that installs it for your machine.
+
 The toolchain is handed to CMake (`CMAKE_TOOLCHAIN_FILE` → vcpkg's), and
 `vcpkg_triplet` becomes `VCPKG_TARGET_TRIPLET` in the cache, so dependencies are
 built for that platform. A missing checkout is reported with the three ways to
