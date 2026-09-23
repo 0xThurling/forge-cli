@@ -78,7 +78,7 @@ public class ConanDependencyChecker
       foreach (var conanDep in config.ConanDependencies.Keys)
       {
         var version = config.ConanDependencies[conanDep];
-        
+
         // Generate a conanfile.txt with just this one dependency
         var conanfile = new StringBuilder();
         conanfile.AppendLine("[requires]");

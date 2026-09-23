@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using forge.CMakeGeneration.Sections;
 using forge.Models;
 using Spectre.Console;
@@ -56,6 +56,16 @@ public class CMakeRegistry
   public void ApplyLuaSections(BuildContext context)
   {
     Initialize();
+
+    // Sections from a previous build must not survive: a script that stops
+    // registering one (an edit while `forge watch` runs) would otherwise keep
+    // it in the generated file for the rest of the process.
+    foreach (var name in _sections.Keys
+               .Where(key => key.StartsWith("lua:", StringComparison.Ordinal))
+               .ToList())
+    {
+      _sections.Remove(name);
+    }
 
     foreach (var section in context.LuaSections)
       Register(new LuaSection(section, ResolvePriority(section)));

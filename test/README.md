@@ -133,6 +133,7 @@ lines have scrolled away by the time a long run is read from its tail.
 | `89-markup-balance` | every Spectre markup string in the CLI is balanced (an unclosed tag throws while the console refreshes) |
 | `90-json-and-channels` | `forge test` as a CI gate (exit code + `--json` summary), and `forge add --vcpkg` / `--pkg-config` |
 | `91-modules-and-bench` | C++20 module interfaces in a `CXX_MODULES` file set (built and imported), and `bench --save/--compare/--fail-over` |
+| `92-code-format` | `dotnet format --verify-no-changes` over the CLI's own sources |
 
 ## Adding a scenario
 
@@ -152,4 +153,6 @@ Conventions:
   pass/fail counters work;
 - use `$WORK` for scratch files and `$REPO` for the checkout;
 - prefer the `assert_*` helpers (they record the result and print diagnostics);
-- call `skip "<why>"` when a prerequisite is missing instead of failing.
+- call `skip "<why>"` when a prerequisite is missing instead of failing;
+- use `stub_tool <dir> <name> [log]` for a tool that should just exit 0 (add the
+  directory to `PATH`), rather than writing the three-line stub by hand.

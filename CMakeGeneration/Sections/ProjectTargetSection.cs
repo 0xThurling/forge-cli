@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using forge.Models;
 using Spectre.Console;
 
@@ -131,7 +131,7 @@ public class ProjectTargetSection : CMakeSectionBase
                   string.Join(" ", roots.Select(root => $"\"{root}/*.cppm\" \"{root}/*.ixx\"")) + ")");
     sb.AppendLine($"  if({variable})");
     sb.AppendLine($"    target_sources({target} PRIVATE FILE_SET CXX_MODULES");
-    sb.AppendLine($"      BASE_DIRS {string.Join(" ", roots.Select(root => $"\"{root}\"") )}");
+    sb.AppendLine($"      BASE_DIRS {string.Join(" ", roots.Select(root => $"\"{root}\""))}");
     sb.AppendLine($"      FILES ${{{variable}}})");
     sb.AppendLine("  endif()");
   }

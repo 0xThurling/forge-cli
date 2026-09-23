@@ -111,9 +111,7 @@ LUA
   # Build the dependency's generated CMake (a stub keeps this offline), then
   # the consumer for real.
   local bin="$base/bin"
-  mkdir -p "$bin"
-  printf '#!/usr/bin/env bash\nexit 0\n' >"$bin/cmake"
-  chmod +x "$bin/cmake"
+  stub_tool "$bin" cmake
   local old_path="$PATH"
   export PATH="$bin:$PATH"
   forge_in "$noisy" build >/dev/null 2>&1 || true

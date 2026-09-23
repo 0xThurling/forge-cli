@@ -1,0 +1,33 @@
+# Style for the Forge CLI itself. `dotnet format` and editors read this.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.cs]
+# Matches the existing style: braces on their own line, 2-space indent,
+# expression bodies where they read better, and `var` when the type is obvious.
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+csharp_indent_case_contents = true
+csharp_prefer_braces = when_multiline:silent
+csharp_style_var_for_built_in_types = false:silent
+csharp_style_var_when_type_is_apparent = true:silent
+csharp_style_expression_bodied_methods = when_on_single_line:silent
+csharp_style_expression_bodied_properties = true:silent
+dotnet_sort_system_directives_first = true
+dotnet_style_qualification_for_field = false:silent
+dotnet_style_qualification_for_property = false:silent
+dotnet_style_qualification_for_method = false:silent
+dotnet_style_readonly_field = true:suggestion
+dotnet_diagnostic.IDE0055.severity = suggestion
+
+[*.{json,yml,yaml,md}]
+indent_size = 2

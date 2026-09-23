@@ -22,5 +22,5 @@ namespace forge.Commands
   /// </code>
   /// </example>
   [CliCommand(Name = "project", Description = "Commands for managing the project.", Parent = typeof(RootCommand))]
-  public class ProjectCommand {}
+  public class ProjectCommand { }
 }

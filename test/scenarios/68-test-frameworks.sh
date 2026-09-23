@@ -73,11 +73,7 @@ LUA
   local bin="$doctest/bin"
   mkdir -p "$bin" "$doctest/src" "$doctest/test"
   make_plain_project "$doctest" demo_doctest
-  cat >"$bin/cmake" <<'STUB'
-#!/usr/bin/env bash
-exit 0
-STUB
-  chmod +x "$bin/cmake"
+  stub_tool "$bin" cmake
   cat >"$doctest/forge.lua" <<'LUA'
 return {
   project = { name = "demo_doctest", type = "executable", standard = "20" },
@@ -104,11 +100,7 @@ LUA
   local bbin="$bench/bin"
   mkdir -p "$bbin" "$bench/src" "$bench/bench"
   make_plain_project "$bench" demo_bench
-  cat >"$bbin/cmake" <<'STUB'
-#!/usr/bin/env bash
-exit 0
-STUB
-  chmod +x "$bbin/cmake"
+  stub_tool "$bbin" cmake
   cat >"$bench/forge.lua" <<'LUA'
 return {
   project = { name = "demo_bench", type = "executable", standard = "20" },

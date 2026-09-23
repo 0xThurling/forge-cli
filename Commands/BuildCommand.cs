@@ -343,6 +343,7 @@ namespace forge.Commands
           // Mirror the same settings for IDEs and `cmake --preset forge`.
           CMakePresetsManager.Write(generator, cacheVariables);
 
+          var configureTimer = Stopwatch.StartNew();
           var cmakeConfigureCommand = new ProcessStartInfo("cmake")
           {
             RedirectStandardOutput = !Verbose,
@@ -368,6 +369,8 @@ namespace forge.Commands
               return 1;
             }
           }
+
+          configureTimer.Stop();
 
           // Create a symlink in the root for the LSP
           var compileCommandsPath = Path.Combine("build", "compile_commands.json");
@@ -404,6 +407,7 @@ namespace forge.Commands
           if (Verbose)
             buildArguments.Add("--verbose");
 
+          var buildTimer = Stopwatch.StartNew();
           var cmakeBuildCommand = new ProcessStartInfo("cmake")
           {
             RedirectStandardOutput = !Verbose,
@@ -430,12 +434,18 @@ namespace forge.Commands
             }
           }
 
+          buildTimer.Stop();
+
           if (projectConfig.Project.Type == "library")
           {
             return HandleLibraryBuild(projectConfig);
           }
 
           AnsiConsole.MarkupLine("[bold green]Build finished successfully.[/]");
+          // Where the time went, so a slow build is immediately attributable.
+          AnsiConsole.MarkupLine(
+            $"[dim]configure {configureTimer.Elapsed.TotalSeconds:0.0}s · " +
+            $"build {buildTimer.Elapsed.TotalSeconds:0.0}s[/]");
           return 0;
         }
         catch (FileNotFoundException)

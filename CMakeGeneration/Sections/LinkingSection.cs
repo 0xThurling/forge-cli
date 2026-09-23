@@ -1,4 +1,4 @@
-﻿using forge.Models;
+using forge.Models;
 
 namespace forge.CMakeGeneration.Sections;
 

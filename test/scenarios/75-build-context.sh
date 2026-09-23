@@ -55,10 +55,8 @@ LUA
   # `forge test` builds a second time in the same process (and adds the test
   # framework). The Lua contributions must still appear exactly once.
   local bin="$root/bin"
-  mkdir -p "$bin"
-  printf '#!/usr/bin/env bash\nexit 0\n' >"$bin/cmake"
-  printf '#!/usr/bin/env bash\nexit 0\n' >"$bin/ctest"
-  chmod +x "$bin/cmake" "$bin/ctest"
+  stub_tool "$bin" cmake
+  stub_tool "$bin" ctest
   local old_path="$PATH"
   export PATH="$bin:$PATH"
   forge_in "$root" test >/dev/null 2>&1 || true
