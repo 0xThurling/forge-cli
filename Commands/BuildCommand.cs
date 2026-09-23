@@ -85,6 +85,22 @@ namespace forge.Commands
     [CliOption(Description = "Ignore presets declared in forge.lua (use only CLI presets).")]
     public bool NoConfigPresets { get; set; }
 
+    /// <summary>Production preset (-O3 -DNDEBUG) regardless of forge.lua.</summary>
+    [CliOption(Description = "Build with the production preset (-O3 -DNDEBUG) regardless of config.")]
+    public bool Release { get; set; }
+
+    /// <summary>Debug preset (-O0 -g) regardless of forge.lua.</summary>
+    [CliOption(Description = "Build with the debug preset (-O0 -g) regardless of config.")]
+    public bool Debug { get; set; }
+
+    /// <summary>Extra presets for a quick build (comma-separated).</summary>
+    [CliOption(Description = "Add build presets for a quick build (comma-separated), e.g. --preset simd,concurrency.", Required = false)]
+    public string? Preset { get; set; }
+
+    /// <summary>Ignore presets declared in forge.lua (use only CLI presets).</summary>
+    [CliOption(Description = "Ignore presets declared in forge.lua (use only CLI presets).")]
+    public bool NoConfigPresets { get; set; }
+
     /// <summary>
     /// Executes the full build pipeline including CMake generation and compilation.
     /// </summary>
@@ -147,6 +163,21 @@ namespace forge.Commands
         var build = projectConfig.Build;
         if (!string.IsNullOrWhiteSpace(Standard))
           projectConfig.Project.Standard = Standard;
+        if (NoConfigPresets)
+          build.Presets.Clear();
+        if (Release)
+          build.Presets.Add("production");
+        if (Debug)
+          build.Presets.Add("debug");
+        if (!string.IsNullOrWhiteSpace(Preset))
+          build.Presets.AddRange(
+            Preset.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+      }
+
+      // Apply CLI flag overrides (quick builds without editing forge.lua)
+      if (projectConfig != null)
+      {
+        var build = projectConfig.Build;
         if (NoConfigPresets)
           build.Presets.Clear();
         if (Release)
