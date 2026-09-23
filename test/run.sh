@@ -121,10 +121,12 @@ fi
 printf 'forge e2e — %d scenario(s), workspace %s\n' "${#SELECTED[@]}" "$WORK"
 
 SUMMARY=()
+FAILURES=()
 for id in "${SELECTED[@]}"; do
   fn="scenario_${id//-/_}"
   before_passed=$PASSED
   before_failed=$FAILED
+  CURRENT_SCENARIO="$id"
 
   printf '\n== %s ==\n' "$id"
   # A scenario that returned early may have left its local HTTP server or stub
@@ -141,5 +143,13 @@ done
 
 printf '\n--- summary ---\n'
 for line in "${SUMMARY[@]}"; do echo "$line"; done
+
+# Repeat the failures at the end: a long run is read from the tail, and the
+# per-scenario lines have scrolled away by then.
+if [[ "$FAILED" -gt 0 ]]; then
+  printf '\n--- failures ---\n'
+  for line in "${FAILURES[@]}"; do printf '  %s\n' "$line"; done
+fi
+
 printf '\n%d passed, %d failed, %d skipped\n' "$PASSED" "$FAILED" "$SKIPPED"
 [[ "$FAILED" -eq 0 ]]

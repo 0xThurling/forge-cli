@@ -21,7 +21,9 @@ test/run.sh --verbose      # show the build summary
 ```
 
 The exit code is non-zero if any assertion fails. A failing run prints the
-scratch workspace path so the generated projects can be inspected.
+scratch workspace path so the generated projects can be inspected, and repeats
+every failure in a `--- failures ---` block after the summary — the per-scenario
+lines have scrolled away by the time a long run is read from its tail.
 
 ## Scenarios
 
