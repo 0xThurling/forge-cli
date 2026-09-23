@@ -18,7 +18,14 @@ scenario_36_conan() {
 # CMakeDeps config per package, and the stdout/stderr lines Forge parses.
 echo "conan $*" >>"${CONAN_STUB_LOG:-/dev/null}"
 
-out="build/build/Release/generators"
+# Honor `-s build_type=`, like Conan's cmake_layout does.
+build_type="Release"
+for arg in "$@"; do
+  case "$arg" in
+    build_type=*) build_type="${arg#build_type=}" ;;
+  esac
+done
+out="build/build/$build_type/generators"
 mkdir -p "$out"
 cat >"$out/conan_toolchain.cmake" <<CMAKE
 set(CONAN_STUB_TOOLCHAIN ON CACHE BOOL "stub toolchain marker" FORCE)
@@ -68,7 +75,7 @@ LUA
   fi
 
   assert_contains "$root/conan-calls.log" \
-    "install .config/conanfile.txt --output-folder=build --build=missing" \
+    "install .config/conanfile.txt --output-folder=build --build=missing -s build_type=Release" \
     "conan is invoked with the expected arguments"
 
   local conanfile="$root/.config/conanfile.txt"
@@ -97,6 +104,18 @@ LUA
   assert_contains "$root/build/CMakeCache.txt" "CONAN_STUB_TOOLCHAIN:BOOL=ON" \
     "conan toolchain actually read by CMake"
   assert_runs "$root/build/demo_conan" "conan-ok" "binary links against the conan targets"
+
+  # A debug build installs Conan for Debug, so the toolchain the configure step
+  # looks for is the one Conan wrote (build/build/Debug/generators).
+  if ! forge_in "$root" build --debug >/dev/null 2>&1; then
+    fail "a debug build installs conan for Debug"
+  else
+    pass "a debug build installs conan for Debug"
+  fi
+  assert_contains "$root/conan-calls.log" "-s build_type=Debug" \
+    "the build type is forwarded to conan"
+  assert_contains "$root/build/CMakeCache.txt" "build/build/Debug/generators/conan_toolchain.cmake" \
+    "the Debug toolchain is the one passed to CMake"
 
   # --- a failing conan ------------------------------------------------------
   export CONAN_STUB_EXIT=1

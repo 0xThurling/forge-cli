@@ -57,6 +57,16 @@ scenario_78_docs_coverage() {
     fail "every nav entry has a page (missing:$entrymissing)"
   fi
 
+  # --- links resolve, including anchors ------------------------------------
+  local link_out link_count
+  link_out="$(python3 "$REPO/test/lib/docs-links.py" "$REPO" 2>/dev/null || true)"
+  link_count="$(head -1 <<<"$link_out")"
+  if [[ "$link_count" == "0" ]]; then
+    pass "every documentation link and anchor resolves"
+  else
+    fail "broken documentation links: $(flatten <<<"$(tail -n +2 <<<"$link_out")")"
+  fi
+
   # --- the features of recent work are described somewhere ------------------
   local feature
   for feature in \
