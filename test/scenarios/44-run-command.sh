@@ -3,6 +3,17 @@
 scenario_44_run_command() {
   local exe="$WORK/44-run-command/exe"
   make_plain_project "$exe" demo_run
+  # The program keeps its original output and reports the arguments it was
+  # given, so pass-through is observable.
+  cat >"$exe/src/main.cpp" <<'CPP'
+#include <cstdio>
+int main(int argc, char** argv) {
+  std::printf("hello from demo_run\n");
+  for (int i = 1; i < argc; ++i) std::printf("[%s]", argv[i]);
+  if (argc > 1) std::printf("\n");
+  return 0;
+}
+CPP
 
   local out flat
   if ! out="$(forge_in "$exe" run 2>&1)"; then
@@ -53,4 +64,26 @@ LUA
   else
     fail "the unknown script is named"
   fi
+
+  # Arguments after `--` reach the program.
+  assert_exit 0 "program arguments are passed through" \
+    forge_in "$exe" run --no-build -- --alpha --beta=2
+  flat="$(forge_in "$exe" run --no-build -- --alpha 2>&1 | flatten)"
+  if grep -qF "[--alpha]" <<<"$flat"; then
+    pass "the program sees its arguments"
+  else
+    fail "the program sees its arguments (got '${flat:0:120}')"
+  fi
+
+  # A script receives extra words as positional parameters ($1, $2, …).
+  sed_in_place 's/scripts = {}/scripts = { greet = "echo hello $1" }/' "$exe/forge.lua"
+  flat="$(forge_in "$exe" run greet world 2>&1 | flatten)"
+  if grep -qF "hello world" <<<"$flat"; then
+    pass "script arguments become positional parameters"
+  else
+    fail "script arguments become positional parameters (got '${flat:0:120}')"
+  fi
+
+  # Build flags are accepted, so a release binary can be run without a detour.
+  assert_exit 0 "run accepts build flags" forge_in "$exe" run --release
 }

@@ -75,7 +75,15 @@ public class TestingSection : CMakeSectionBase
       if (!string.IsNullOrWhiteSpace(googleTest.Git) && !string.IsNullOrWhiteSpace(googleTest.Tag))
       {
         var locked = LockfileManager.LockedCommitFor("googletest", googleTest);
+
+        // The framework is a fetched dependency like any other, so it uses the
+        // shared cache too: without it, every project re-clones GoogleTest.
+        var cached = DependencyCache.Enabled(config.Build.Cache)
+          ? DependencyCache.CMakeVariableFor("googletest", googleTest.Git, googleTest.Tag, locked)
+          : string.Empty;
+
         return "include(FetchContent)\n" +
+               (cached.Length > 0 ? cached + "\n" : string.Empty) +
                $"FetchContent_Declare(googletest GIT_REPOSITORY \"{googleTest.Git}\" GIT_TAG \"{locked ?? googleTest.Tag}\")\n" +
                "FetchContent_MakeAvailable(googletest)\ninclude(GoogleTest)";
       }
@@ -110,6 +118,11 @@ public class TestingSection : CMakeSectionBase
         testDeps.Add(string.IsNullOrEmpty(dep.Value.Target) ? dep.Key : dep.Value.Target);
     }
     testDeps.AddRange(context.LinkDependencies);
+
+    // Extra libraries of the project are part of it, so the tests link them too
+    // (extra executables are programs, not libraries).
+    foreach (var target in config.Targets.Where(target => target.Type == "library"))
+      testDeps.Add(target.Name);
 
     sb.AppendLine("enable_testing()");
     sb.AppendLine(wiring);

@@ -35,6 +35,44 @@ namespace forge.Commands
     public string? ScriptName { get; set; }
 
     /// <summary>
+    /// Arguments for the script, or — with `forge run -- …` — for the program.
+    /// </summary>
+    [CliArgument(Description = "Arguments for the script or program.", Required = false)]
+    public string[] Arguments { get; set; } = [];
+
+    /// <summary>Which executable target to run (default: the project's own).</summary>
+    [CliOption(Description = "Executable target to run (default: the project's)", Required = false)]
+    public string? Bin { get; set; }
+
+    /// <summary>Run the existing binary instead of building first.</summary>
+    [CliOption(Description = "Skip the build and run the existing binary", Required = false)]
+    public bool NoBuild { get; set; }
+
+    /// <summary>Production preset (-O3 -DNDEBUG) regardless of forge.lua.</summary>
+    [CliOption(Description = "Build with the production preset regardless of config.")]
+    public bool Release { get; set; }
+
+    /// <summary>Debug preset (-O0 -g) regardless of forge.lua.</summary>
+    [CliOption(Description = "Build with the debug preset regardless of config.")]
+    public bool Debug { get; set; }
+
+    /// <summary>Parallel build jobs (default: all cores).</summary>
+    [CliOption(Description = "Parallel build jobs (default: all cores)", Required = false)]
+    public int? Jobs { get; set; }
+
+    /// <summary>Overrides the project's C++ standard for this invocation.</summary>
+    [CliOption(Description = "C++ standard to use (e.g., 11, 14, 17, 20). Defaults to the configured standard.", Required = false)]
+    public string? Standard { get; set; }
+
+    /// <summary>Extra presets for a quick build (comma-separated).</summary>
+    [CliOption(Description = "Add build presets for a quick build (comma-separated).", Required = false)]
+    public string? Preset { get; set; }
+
+    /// <summary>Ignore presets declared in forge.lua.</summary>
+    [CliOption(Description = "Ignore presets declared in forge.lua (use only CLI presets).")]
+    public bool NoConfigPresets { get; set; }
+
+    /// <summary>
     /// Executes the project executable or a named script.
     /// </summary>
     /// <returns>
@@ -44,41 +82,69 @@ namespace forge.Commands
     {
       var config = await ProjectConfigManager.LoadConfigAsync();
 
-      if (string.IsNullOrEmpty(ScriptName))
+      var startCommand = new StartCommand
       {
-        var startCommand = new StartCommand();
+        Bin = Bin,
+        Arguments = Arguments,
+        NoBuild = NoBuild,
+        Release = Release,
+        Debug = Debug,
+        Jobs = Jobs,
+        Standard = Standard,
+        Preset = Preset,
+        NoConfigPresets = NoConfigPresets,
+      };
+
+      // No name: build and run the project's executable.
+      if (string.IsNullOrEmpty(ScriptName))
+        return await startCommand.RunAsync();
+
+      // A first positional that is not a script name is a program argument
+      // (`forge run -- --flag`, and flags DotMake already recognised).
+      var isScript = config!.Scripts.ContainsKey(ScriptName!) ||
+                     ProjectCommands.CommandFor(ScriptName!) is not null;
+      if (!isScript && ScriptName!.StartsWith('-'))
+      {
+        startCommand.Arguments = [ScriptName, .. Arguments];
         return await startCommand.RunAsync();
       }
 
       // The status callback's result carries the script's exit code: a failing
       // script must fail `forge run` too.
-      return AnsiConsole.Status().Start(
-        ScriptName != null ? $"Running {ScriptName}" : "Running project...", _ =>
+      var scriptName = ScriptName!;
+      var scriptArguments = Arguments;
+      return AnsiConsole.Status().Start($"Running {scriptName}", _ =>
       {
         // forge.lua scripts win; otherwise a script file in
         // .config/forge/commands/ of the same name is used.
-        if (!config!.Scripts.TryGetValue(ScriptName!, out var scriptCommand))
+        if (!config.Scripts.TryGetValue(scriptName, out var scriptCommand))
         {
-          scriptCommand = ProjectCommands.CommandFor(ScriptName!);
+          scriptCommand = ProjectCommands.CommandFor(scriptName);
         }
 
         if (scriptCommand is null)
         {
           AnsiConsole.MarkupLine(
-            $"[bold red]Error:[/] Script '[bold]{ScriptName}[/]' not found in forge.lua or .config/forge/commands/.");
+            $"[bold red]Error:[/] Script '[bold]{scriptName}[/]' not found in forge.lua or .config/forge/commands/.");
           return 1;
         }
 
         try
         {
-
-          var processStartInfo = new ProcessStartInfo("bash", $"-c \"{scriptCommand}\"")
+          // The script is passed as a single argument to bash, with extra
+          // arguments as positional parameters ($1, $2, …) — no re-quoting.
+          var processStartInfo = new ProcessStartInfo("bash")
           {
             UseShellExecute = false,
             RedirectStandardOutput = false,
             RedirectStandardError = false,
             CreateNoWindow = true,
           };
+          processStartInfo.ArgumentList.Add("-c");
+          processStartInfo.ArgumentList.Add(scriptCommand);
+          processStartInfo.ArgumentList.Add("bash");
+          foreach (var argument in scriptArguments)
+            processStartInfo.ArgumentList.Add(argument);
 
           using var process = Process.Start(processStartInfo) ?? throw new Exception("Failed to start script process.");
           process.WaitForExit();

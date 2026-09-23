@@ -9,6 +9,9 @@ namespace forge.Commands;
 [CliCommand(Name = "list", Description = "List the workspace projects in build order.", Parent = typeof(WorkspaceCommand))]
 public class WorkspaceListCommand
 {
+  [CliOption(Description = "Print JSON", Required = false)]
+  public bool Json { get; set; }
+
   public async Task<int> RunAsync()
   {
     var root = Workspace.FindRoot();
@@ -24,6 +27,33 @@ public class WorkspaceListCommand
       AnsiConsole.MarkupLine(
         $"[bold red]Error:[/] No Forge projects found in `{root}`. Add a `forge.workspace.lua` listing them.");
       return 1;
+    }
+
+    if (Json)
+    {
+      var sb = new System.Text.StringBuilder("[");
+      for (var i = 0; i < projects.Count; i++)
+      {
+        var project = projects[i];
+        if (i > 0)
+          sb.Append(',');
+        sb.Append('{');
+        sb.Append($"\"name\":{JsonOutput.Quote(project.Name)},");
+        sb.Append($"\"type\":{JsonOutput.Quote(project.Type)},");
+        sb.Append($"\"version\":{JsonOutput.Quote(project.Version)},");
+        sb.Append($"\"path\":{JsonOutput.Quote(Path.GetRelativePath(root, project.Directory))},");
+        sb.Append("\"dependsOn\":[");
+        for (var d = 0; d < project.DependsOn.Count; d++)
+        {
+          if (d > 0)
+            sb.Append(',');
+          sb.Append(JsonOutput.Quote(project.DependsOn[d]));
+        }
+        sb.Append("]}");
+      }
+      sb.Append(']');
+      Console.WriteLine(sb.ToString());
+      return 0;
     }
 
     var table = new Table().Title($"[bold]{Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar))}[/]");

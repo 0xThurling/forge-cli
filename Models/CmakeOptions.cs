@@ -30,6 +30,13 @@ namespace forge.Models
     /// <summary>Emitted as <c>set(NAME "value")</c>.</summary>
     public Dictionary<string, string> Variables { get; } = new();
 
+    /// <summary>
+    /// Emitted as <c>set(NAME "value" CACHE STRING "" FORCE)</c>. Use these for
+    /// settings a toolchain or a dependency's <c>option()</c> reads, which a
+    /// plain <c>set()</c> is too late for.
+    /// </summary>
+    public Dictionary<string, string> CacheVariables { get; } = [];
+
     /// <summary>Emitted as <c>find_package(NAME REQUIRED)</c>.</summary>
     public List<string> FindPackages { get; } = [];
 
@@ -53,7 +60,7 @@ namespace forge.Models
 
     /// <summary>True when no script contributed anything.</summary>
     public bool IsEmpty =>
-      Variables.Count == 0 && FindPackages.Count == 0 &&
+      Variables.Count == 0 && CacheVariables.Count == 0 && FindPackages.Count == 0 &&
       IncludeDirectories.Count == 0 && LinkDirectories.Count == 0 &&
       Definitions.Count == 0 && CompileOptions.Count == 0 &&
       LinkLibraries.Count == 0 && Subdirectories.Count == 0;

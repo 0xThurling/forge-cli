@@ -33,6 +33,17 @@ compilers, toolchain file, prefix path). That lets IDEs and
 `cmake --preset forge` reproduce Forge's configuration without going through
 the CLI. A `CMakePresets.json` that Forge did not generate is left untouched.
 
+## The edit-build loop
+
+```bash
+forge watch                # rebuild whenever a source file changes
+forge watch --command test # or re-run the tests
+```
+
+It scans `src`, `include`, `test` and `bench` (override with `--paths`), so a
+save is followed by a build without a manual step. `--iterations 1` builds once
+and exits, for scripts.
+
 ## Build speed
 
 Three things happen before a single file is compiled, and all three are on by
@@ -48,6 +59,23 @@ default where they can be:
 
 Unity builds and precompiled headers cut compile time further — see
 [Modern build features](#modern-build-features).
+
+## Several targets in one project
+
+A project can build more than one target — an application plus a tools binary,
+or a library its application links — through the `targets` table:
+
+```lua
+targets = {
+    { name = "tools",  sources = { "tools" } },
+    { name = "shared", type = "library", sources = { "lib/shared" } },
+}
+```
+
+Each target globs its own directory, links the project's dependencies and its
+extra libraries, and (for libraries) gets install rules. `forge run --bin tools`
+runs a chosen executable. The project's own target keeps its name, version and
+export rules, so consumers see no difference.
 
 ## Installing and consuming a library
 

@@ -82,7 +82,34 @@ namespace forge
       if (config is null || string.IsNullOrWhiteSpace(config.Project.Name))
         return null;
 
+      // Resolve the version from Git once, here, so every consumer of the config
+      // (project(), SOVERSION, CPack, vcpkg.json) agrees on it.
+      if (config.Project.VersionFromGit)
+        ResolveVersionFromGit(config, root);
+
       return config;
+    }
+
+    /// <summary>
+    /// Replaces <see cref="ProjectSection.Version"/> with the version derived
+    /// from the newest Git tag: <c>1.4.2</c> on a tag, <c>1.4.2.7</c> seven
+    /// commits later. The declared version is kept when Git has nothing to say
+    /// (no repository, no version-like tag).
+    /// </summary>
+    private static void ResolveVersionFromGit(ProjectConfig config, string projectRoot)
+    {
+      var (version, commits) = ForgeEngine.CoreUtils.GitInfo.DescribeVersion(projectRoot);
+      if (string.IsNullOrWhiteSpace(version))
+      {
+        AnsiConsole.MarkupLine(
+          "[yellow]Warning:[/] `version_from_git` is set but no version-like tag (v1.2.3) was found" +
+          (string.IsNullOrWhiteSpace(config.Project.Version)
+            ? "."
+            : $"; keeping version = \"{config.Project.Version}\"."));
+        return;
+      }
+
+      config.Project.Version = commits > 0 ? $"{version}.{commits}" : version;
     }
 
     /// <summary>
@@ -226,6 +253,8 @@ namespace forge
       sb.AppendLine($"        name = \"{config.Project.Name}\",");
       sb.AppendLine($"        type = \"{config.Project.Type}\",");
       sb.AppendLine($"        standard = \"{config.Project.Standard}\",");
+      if (config.Project.VersionFromGit)
+        sb.AppendLine("        version_from_git = true,");
       if (!string.IsNullOrWhiteSpace(config.Project.Description))
         sb.AppendLine($"        description = \"{config.Project.Description.Replace("\\", "\\\\").Replace("\"", "\\\"")}\",");
       if (!string.IsNullOrWhiteSpace(config.Project.Contact))
@@ -249,6 +278,27 @@ namespace forge
       }
       sb.AppendLine("    },");
       // Dependencies section - always output structure
+      if (config.Targets.Count > 0)
+      {
+        sb.AppendLine("    targets = {");
+        foreach (var target in config.Targets)
+        {
+          var sources = target.Sources.Count > 0
+            ? "{ " + string.Join(", ", target.Sources.Select(source => $"\"{source}\"")) + " }"
+            : "{}";
+          sb.AppendLine("        {");
+          sb.AppendLine($"            name = \"{target.Name}\",");
+          sb.AppendLine($"            type = \"{target.Type}\",");
+          if (target.Type == "library" && target.Linkage != "static")
+            sb.AppendLine($"            linkage = \"{target.Linkage}\",");
+          sb.AppendLine($"            sources = {sources},");
+          if (target.Install.HasValue)
+            sb.AppendLine($"            install = {target.Install.Value.ToString().ToLowerInvariant()},");
+          sb.AppendLine("        },");
+        }
+        sb.AppendLine("    },");
+      }
+
       if (config.TestFramework != "gtest" || config.Benchmark)
       {
         sb.AppendLine("    testing = {");
@@ -286,6 +336,13 @@ namespace forge
           }
           if (!string.IsNullOrEmpty(dep.Value.Target))
             sb.AppendLine($"                target = \"{dep.Value.Target}\",");
+          if (dep.Value.Options.Count > 0)
+          {
+            sb.AppendLine("                options = {");
+            foreach (var (optionKey, optionValue) in dep.Value.Options)
+              sb.AppendLine($"                    {optionKey} = \"{optionValue}\",");
+            sb.AppendLine("                },");
+          }
           sb.AppendLine("            },");
         }
         sb.AppendLine("        },");
@@ -335,6 +392,8 @@ namespace forge
       if (config.Build.HasAny)
       {
         sb.AppendLine("    build = {");
+        if (config.Build.Cache != "shared")
+          sb.AppendLine($"        cache = \"{config.Build.Cache}\",");
         if (config.Build.Unity)
           sb.AppendLine("        unity = true,");
         if (config.Build.Pch.Length > 0)

@@ -52,4 +52,11 @@ scenario_20_scaffold() {
   else
     fail "scaffolded library builds"
   fi
+
+  # A scaffolded project ignores what Forge and the build generate, so it does
+  # not start out dirty.
+  assert_contains "$root/demo/.gitignore" "CMakePresets.json" \
+    "the scaffold ignores CMakePresets.json"
+  assert_contains "$root/demo/.gitignore" "compile_commands.json" \
+    "the scaffold ignores the compile database"
 }

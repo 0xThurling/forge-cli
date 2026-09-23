@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using DotMake.CommandLine;
 using Spectre.Console;
@@ -43,7 +42,7 @@ public class OutdatedCommand
       }
 
       checkedCount++;
-      var latest = await LatestTagAsync(dependency.Git);
+      var latest = await GitTags.LatestVersionTagAsync(dependency.Git);
       if (latest is not null && latest != dependency.Tag)
         outdated.Add((name, dependency.Tag, latest));
     }
@@ -88,60 +87,4 @@ public class OutdatedCommand
     return 0;
   }
 
-  /// <summary>The newest semver-like tag in a repository, or null.</summary>
-  private static async Task<string?> LatestTagAsync(string repository)
-  {
-    try
-    {
-      var psi = new ProcessStartInfo("git", $"ls-remote --tags \"{repository}\"")
-      {
-        UseShellExecute = false,
-        RedirectStandardOutput = true,
-        RedirectStandardError = true,
-        CreateNoWindow = true
-      };
-
-      using var process = Process.Start(psi);
-      if (process == null)
-        return null;
-
-      var output = await process.StandardOutput.ReadToEndAsync();
-      await process.WaitForExitAsync();
-      if (process.ExitCode != 0)
-        return null;
-
-      var tags = output
-        .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-        .Select(line => line.Split('\t'))
-        .Where(parts => parts.Length == 2 && parts[1].StartsWith("refs/tags/", StringComparison.Ordinal))
-        .Select(parts => parts[1]["refs/tags/".Length..].Trim())
-        .Where(tag => !tag.EndsWith("^{}", StringComparison.Ordinal))
-        .Where(IsVersionLike)
-        .ToList();
-
-      return tags.Count == 0 ? null : tags.OrderBy(tag => tag, VersionComparer).Last();
-    }
-    catch (Exception)
-    {
-      return null;
-    }
-  }
-
-  private static bool IsVersionLike(string tag) =>
-    tag.TrimStart('v', 'V').Split('.').All(part => part.Length > 0 && part.All(char.IsAsciiDigit));
-
-  /// <summary>Compares version-like tags numerically (v1.10 &gt; v1.9).</summary>
-  private static readonly IComparer<string> VersionComparer = Comparer<string>.Create((a, b) =>
-  {
-    var left = a.TrimStart('v', 'V').Split('.').Select(int.Parse).ToArray();
-    var right = b.TrimStart('v', 'V').Split('.').Select(int.Parse).ToArray();
-    for (var i = 0; i < Math.Max(left.Length, right.Length); i++)
-    {
-      var l = i < left.Length ? left[i] : 0;
-      var r = i < right.Length ? right[i] : 0;
-      if (l != r)
-        return l.CompareTo(r);
-    }
-    return 0;
-  });
 }

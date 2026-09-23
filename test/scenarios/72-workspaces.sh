@@ -67,6 +67,15 @@ LUA
     fail "local dependencies are detected"
   fi
 
+  # --json gives the same information to a tool.
+  out="$(forge_in "$ws" workspace list --json 2>&1 || true)"
+  flat="$(flatten <<<"$out")"
+  if grep -qF '"name":"forgefp"' <<<"$flat" && grep -qF '"dependsOn":["forgefp"]' <<<"$flat"; then
+    pass "workspace list --json includes the graph"
+  else
+    fail "workspace list --json includes the graph (got '${flat:0:160}')"
+  fi
+
   # The same workspace is found from inside a member project.
   out="$(forge_in "$ws/ml" workspace list 2>&1 || true)"
   assert_order "$(flatten <<<"$out")" "the workspace is found from a member project" \

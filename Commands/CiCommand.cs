@@ -155,11 +155,24 @@ public class CiCommand
     sb.AppendLine("      - name: Install Forge");
     sb.AppendLine("        run: curl -sSL https://raw.githubusercontent.com/0xThurling/forge-cli/refs/heads/main/install.sh | bash");
     sb.AppendLine();
+    // The install steps come from the same tool table `forge setup` and
+    // `forge doctor` use, so a project's CI cannot drift from them.
+    var linuxPackages = string.Join(" ", new[] { "cmake", "ninja", "c++", "clang-format", "clang-tidy" }
+      .Select(name => ToolRequirements.Find(name)?.PackageFor("apt-get") ?? name)
+      .Distinct());
+    var brewPackages = string.Join(" ", new[] { "cmake", "ninja" }
+      .Select(name => ToolRequirements.Find(name)?.PackageFor("brew") ?? name)
+      .Distinct());
+
     sb.AppendLine("      - name: Toolchain");
     sb.AppendLine("        if: runner.os == 'Linux'");
     sb.AppendLine("        run: |");
     sb.AppendLine("          sudo apt-get update");
-    sb.AppendLine("          sudo apt-get install -y cmake ninja-build g++ clang-format clang-tidy");
+    sb.AppendLine($"          sudo apt-get install -y {linuxPackages}");
+    sb.AppendLine();
+    sb.AppendLine("      - name: Toolchain (macOS)");
+    sb.AppendLine("        if: runner.os == 'macOS'");
+    sb.AppendLine($"        run: brew install {brewPackages}");
 
     if (HasConan(config))
     {

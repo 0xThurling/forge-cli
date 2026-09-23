@@ -90,7 +90,8 @@ namespace forge.Commands.Lua
 
       var modules = new LuaFunctionModule[]
       {
-        new CoreFunctionModule(_context ?? new BuildContext())
+        new CoreFunctionModule(_context ?? new BuildContext()),
+        new LuaWorkflowModule()
       };
 
       foreach (var module in modules)
@@ -149,20 +150,26 @@ namespace forge.Commands.Lua
     }
 
     /// <summary>
-    /// Generates and saves environment definitions for a new project.
+    /// Writes the editor definitions for a project: the Lua stubs that make
+    /// `forge.*` autocomplete and type-check in an editor (lua_ls).
     /// </summary>
-    /// <param name="projectName">The name of the project.</param>
+    /// <param name="projectDirectory">
+    /// The project root, relative to the current directory (a new project's
+    /// name, or "." for the project in the current directory).
+    /// </param>
     /// <remarks>
-    /// Creates a definitions.lua file in .config/forge/definitions/ with
-    /// current environment information for the new project.
+    /// Always replaced, never appended: the stubs must match the installed CLI,
+    /// and a project that was created by an older Forge should get the current
+    /// API after `forge doctor --fix`.
     /// </remarks>
-    public static void SetEnvironmentDefinitions(string projectName)
+    public static void WriteEnvironmentDefinitions(string projectDirectory)
     {
-      var definitionsFilePath = Path.Combine(Directory.GetCurrentDirectory(), projectName, ".config", "forge", "definitions");
-
-      var definitions = LuaDefinitionGenerator.GenerateDefinitions();
-
-      File.AppendAllBytes(Path.Combine(definitionsFilePath, "definitions.lua"), Encoding.UTF8.GetBytes(definitions));
+      var directory = Path.Combine(projectDirectory, ".config", "forge", "definitions");
+      Directory.CreateDirectory(directory);
+      File.WriteAllText(
+        Path.Combine(directory, "definitions.lua"),
+        LuaDefinitionGenerator.GenerateDefinitions(),
+        Encoding.UTF8);
     }
 
     public static async Task SetConfigValue(string key, string value)

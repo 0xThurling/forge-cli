@@ -8,9 +8,10 @@ namespace forge.Commands;
 /// <c>path</c> dependencies, so the project builds without network access.
 /// </summary>
 /// <remarks>
-/// The sources come from FetchContent's checkout in <c>build/_deps/&lt;name&gt;-src</c>,
-/// so run <c>forge build</c> (or <c>forge install</c>) first. The lock entries
-/// for vendored dependencies are dropped — they are local now.
+/// The sources come from FetchContent's checkout in <c>build/_deps/&lt;name&gt;-src</c>
+/// or, when the shared dependency cache served the build, from that cache — so
+/// run <c>forge build</c> (or <c>forge install</c>) first. The lock entries for
+/// vendored dependencies are dropped — they are local now.
 /// </remarks>
 [CliCommand(Name = "vendor", Description = "Copy fetched git dependencies into external/ for offline builds.", Parent = typeof(RootCommand))]
 public class VendorCommand
@@ -41,8 +42,20 @@ public class VendorCommand
       var source = Path.Combine("build", "_deps", name + "-src");
       if (!System.IO.Directory.Exists(source))
       {
+        // When the shared cache served this dependency, FetchContent never
+        // created build/_deps/<name>-src: the checkout is in the cache.
+        var locked = LockfileManager.LockedCommitFor(name, dependency);
+        var reference = string.IsNullOrWhiteSpace(locked) ? dependency.Tag : locked!;
+        var cached = DependencyCache.PathFor(name, dependency.Git, reference);
+        if (System.IO.Directory.Exists(cached))
+          source = cached;
+      }
+
+      if (!System.IO.Directory.Exists(source))
+      {
         AnsiConsole.MarkupLine(
-          $"[yellow]Skipping[/] {name}: {source} not found — run `forge build` first.");
+          $"[yellow]Skipping[/] {name}: no checkout found (neither {source} nor the cache) — " +
+          "run `forge build` first.");
         missing++;
         continue;
       }

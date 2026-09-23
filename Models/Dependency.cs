@@ -49,5 +49,16 @@ namespace forge.Models
     /// the dependency key name from the configuration.
     /// </value>
     public string Target { get; set; } = string.Empty; // Optional, defaults to key name
+
+    /// <summary>
+    /// CMake cache variables set before the dependency is configured, e.g.
+    /// <c>{ SDL_TEST = "OFF" }</c> to skip a dependency's own tests and examples.
+    /// </summary>
+    /// <remarks>
+    /// Emitted as <c>set(&lt;key&gt; &lt;value&gt; CACHE STRING "" FORCE)</c> right
+    /// before <c>FetchContent_MakeAvailable</c>, so the fetched project sees them
+    /// as its own options.
+    /// </remarks>
+    public Dictionary<string, string> Options { get; set; } = [];
   }
 }

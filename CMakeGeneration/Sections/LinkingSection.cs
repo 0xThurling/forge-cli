@@ -11,28 +11,12 @@ public class LinkingSection : CMakeSectionBase
   public override string Generate(BuildContext context)
   {
     var config = context.Config;
-    var linkTargets = new List<string>();
+    var linkTargets = LinkTargets.For(config, context);
 
-    foreach (var dep in config.Dependencies)
-    {
-      if (dep.Key != "googletest")
-      {
-        var target = string.IsNullOrEmpty(dep.Value.Target) ? dep.Key : dep.Value.Target;
-        linkTargets.Add(target);
-      }
-    }
-
-    // From Conan
-    linkTargets.AddRange(context.LinkDependencies);
-
-    // From pkg-config: the imported target pkg_check_modules creates.
-    foreach (var module in config.PkgConfigDependencies)
-      linkTargets.Add(PkgConfigSection.TargetFor(module));
-
-    // From vcpkg: the declared target (vcpkg cannot be queried for them
-    // without running it, so they are explicit).
-    foreach (var (name, dependency) in config.VcpkgDependencies)
-      linkTargets.Add(dependency.Target.Length > 0 ? dependency.Target : name);
+    // The project's own extra libraries are part of it, so its targets link
+    // them: an application plus the library it is built from.
+    foreach (var target in config.Targets.Where(target => target.Type == "library"))
+      linkTargets.Add(target.Name);
 
     if (linkTargets.Count == 0) return string.Empty;
 

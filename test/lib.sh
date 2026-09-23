@@ -36,6 +36,14 @@ forge_in() { # <dir> [args...]
   (cd "$dir" && "${FORGE_CMD[@]}" "$@")
 }
 
+# Like forge_in, but bounded: a command that hangs (a watch loop, a stuck
+# download) fails the scenario instead of hanging the whole suite.
+forge_in_timeout() { # <seconds> <dir> [args...]
+  local seconds="$1" dir="$2"
+  shift 2
+  (cd "$dir" && timeout "$seconds" "${FORGE_CMD[@]}" "$@")
+}
+
 # --- assertions --------------------------------------------------------------
 
 assert_contains() { # <file> <needle> <label>
@@ -66,12 +74,14 @@ assert_runs() { # <binary> <expected output> <label>
 assert_exit() { # <expected code> <label> <command...>
   local want="$1" label="$2"
   shift 2
-  local got=0
-  "$@" >/dev/null 2>&1 || got=$?
+  local got=0 output
+  # Keep the output: when the exit code is unexpected, the reason is almost
+  # always in there, and a bare "exit 1, wanted 0" costs a debugging session.
+  output="$("$@" 2>&1)" || got=$?
   if [[ "$got" == "$want" ]]; then
     pass "$label"
   else
-    fail "$label (exit $got, wanted $want)"
+    fail "$label (exit $got, wanted $want): $(flatten <<<"$output" | tail -c 200)"
   fi
 }
 

@@ -84,8 +84,22 @@ scenario_78_docs_coverage() {
     "forge.lock" \
     "pkg-config" \
     "CPACK_PACKAGE_CONTACT" \
-    "HeaderFilterRegex"; do
-    if grep -rqF "$feature" "$docs" 2>/dev/null; then
+    "HeaderFilterRegex" \
+    "forge cache" \
+    "forge init" \
+    "forge why" \
+    "forge watch" \
+    "forge upgrade" \
+    "forge setup" \
+    "version_from_git" \
+    "FORGE_CACHE_DIR" \
+    "FORGE_NO_CACHE" \
+    "FETCHCONTENT_SOURCE_DIR" \
+    "cacheVariables" \
+    "--junit" \
+    "targets = {"; do
+    # `--` so a feature name starting with a dash is not read as an option.
+    if grep -rqF -- "$feature" "$docs" 2>/dev/null; then
       pass "documented: $feature"
     else
       fail "documented: $feature"

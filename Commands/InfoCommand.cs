@@ -45,6 +45,17 @@ namespace forge.Commands
         json.Append($"\"linkage\":{JsonOutput.Quote(config.Project.Linkage)},");
         json.Append($"\"installHeaders\":{JsonOutput.Bool(config.Project.InstallHeaders)},");
         json.Append($"\"cmakePolicyVersion\":{JsonOutput.Quote(config.Project.CmakePolicyVersion)},");
+        json.Append("\"targets\":[");
+        for (var i = 0; i < config.Targets.Count; i++)
+        {
+          if (i > 0)
+            json.Append(',');
+          json.Append('{');
+          json.Append($"\"name\":{JsonOutput.Quote(config.Targets[i].Name)},");
+          json.Append($"\"type\":{JsonOutput.Quote(config.Targets[i].Type)}");
+          json.Append('}');
+        }
+        json.Append("],");
         json.Append($"\"testing\":{JsonOutput.Bool(config.Testing)},");
         json.Append($"\"dependencies\":{config.Dependencies.Count},");
         json.Append($"\"conanDependencies\":{config.ConanDependencies.Count},");

@@ -20,9 +20,10 @@ namespace forge.Commands
 
     private static readonly string[] RootCommands =
     [
-      "add", "bench", "build", "clean", "completions", "config", "create",
-      "doctor", "download", "embed", "extract", "fetch", "format", "install",
-      "lint", "new", "outdated", "project", "remove", "run", "test", "vendor",
+      "add", "bench", "build", "cache", "ci", "clean", "completions", "config",
+      "create", "doctor", "download", "embed", "extract", "fetch", "format",
+      "init", "install", "lint", "new", "outdated", "project", "publish",
+      "remove", "run", "setup", "test", "upgrade", "vendor", "watch", "why",
       "workspace"
     ];
 

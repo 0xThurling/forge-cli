@@ -45,6 +45,10 @@ Contains metadata about your project.
 - `version` (string): Project version, used by `project(... VERSION ...)`,
   `SOVERSION`, and `vcpkg.json`.
 - `install_headers` (boolean): For libraries, if true, generates installation rules for the mirrored headers under `include/`. Defaults to `true` for libraries.
+- `version_from_git` (boolean): (Optional) Derive the version from the newest
+  Git tag instead of `version` — `2.5.0` on the tag, `2.5.0.3` three commits
+  later, so it stays numeric for `project(... VERSION ...)` and `SOVERSION`. The
+  declared `version` is kept when the repository has no version-like tag.
 - `description` (string): (Optional) One-line summary, used as `CPACK_PACKAGE_DESCRIPTION_SUMMARY` when packaging.
 - `contact` (string): (Optional) Maintainer contact (`CPACK_PACKAGE_CONTACT`). Required by the DEB and RPM package formats.
 
@@ -85,6 +89,20 @@ dependencies = {
 }
 ```
 
+Per-dependency CMake options:
+
+```lua
+direct = {
+    sdl = { git = "https://github.com/libsdl-org/SDL.git", tag = "release-2.32.10",
+            target = "SDL2::SDL2", options = { SDL_TEST = "OFF" } }
+}
+```
+
+`options` are emitted as cache variables before the dependency is configured,
+which is the only point where a fetched project's own `option()` calls can still
+see them — useful to switch off a dependency's tests, examples or extra
+backends.
+
 #### `dependencies.vcpkg`
 Packages resolved by [vcpkg](dependency-management.md#vcpkg-manifest-mode) in
 manifest mode.
@@ -98,6 +116,32 @@ manifest mode.
   `VCPKG_TARGET_TRIPLET` so the toolchain builds dependencies for that platform
   (e.g. `x64-mingw-static`). Leave it empty to use vcpkg's default for the host.
 - vcpkg and Conan both own `CMAKE_TOOLCHAIN_FILE`, so pick one per project.
+
+### `targets`
+Extra build targets beside the project's own one — a tools binary, a second
+library, a plugin. The project's own target (`project.name`) is unchanged.
+
+```lua
+targets = {
+    { name = "tools",  type = "executable", sources = { "tools" } },
+    { name = "shared", type = "library", sources = { "lib/shared" }, linkage = "static" },
+    { name = "plugin", type = "library", sources = { "plugins/a.cpp" }, install = true },
+}
+```
+
+- `name` (string, required): the CMake target name. Letters, digits, `_` and `-`
+  only; it must not repeat the project name or another target.
+- `type`: `executable` (default) or `library`.
+- `sources` (list): directories to glob for `.cpp` files, or individual files.
+  Defaults to a directory named after the target (`tools/` for `tools`).
+- `linkage`: `static` (default) or `shared`, for libraries.
+- `install` (boolean): whether the target gets install rules. Defaults to true
+  for libraries and false for executables.
+
+Each target links the project's dependencies, and — like the test target — the
+project's own extra libraries. A library's `sources` directory is added to its
+public include path, so the project and its other targets can include its
+headers. `forge run --bin <name>` runs a specific executable target.
 
 ### `resources`
 Configures binary assets to be embedded into the executable.
@@ -191,6 +235,9 @@ build = {
   Multi-config generators (Visual Studio, Xcode, Ninja Multi-Config) are
   detected and built with `--config` instead of `CMAKE_BUILD_TYPE`.
 - `jobs` (number): default parallel job count; `--jobs` overrides it.
+- `cache` (string): `"shared"` (default) reuses fetched git dependencies between
+  projects and CI runs; `"off"` fetches them per project. The `FORGE_NO_CACHE`
+  environment variable disables the cache too.
 - `unity` (boolean): merge sources into one translation unit per target
   (`CMAKE_UNITY_BUILD`). Faster to compile, and a good way to catch missing
   includes — but duplicate internal symbols across files now collide.

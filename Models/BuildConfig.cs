@@ -55,6 +55,13 @@ namespace forge.Models
   /// <summary>Default parallel job count; `--jobs` overrides it.</summary>
   public int Jobs { get; set; }
 
+  /// <summary>
+  /// Shared dependency cache: <c>"shared"</c> (default) reuses fetched git
+  /// checkouts between projects, <c>"off"</c> fetches per project. The
+  /// <c>FORGE_NO_CACHE</c> environment variable disables it too.
+  /// </summary>
+  public string Cache { get; set; } = "shared";
+
   /// <summary>Build the project as a single translation unit (`CMAKE_UNITY_BUILD`).</summary>
   public bool Unity { get; set; }
 

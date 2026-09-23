@@ -62,6 +62,12 @@ public class LuaConfigLoader
       ParseDependencies(ref config, dependenciesTable);
     }
 
+    // Parse extra build targets
+    if (table["targets"].TryRead<LuaTable>(out var targetsTable))
+    {
+      config.Targets = ParseTargets(targetsTable, config.Project.Name);
+    }
+
     // Parse Resources 
     if (table["resources"].TryRead<LuaTable>(out var resourcesTable))
     {
@@ -209,6 +215,9 @@ public class LuaConfigLoader
     if (table["jobs"] != LuaValue.Nil && int.TryParse(table["jobs"].ToString(), out var jobs))
       config.Build.Jobs = jobs;
 
+    if (table["cache"] != LuaValue.Nil)
+      config.Build.Cache = table["cache"].ToString();
+
     if (table["unity"] != LuaValue.Nil)
       config.Build.Unity = bool.TryParse(table["unity"].ToString(), out var unity) && unity;
     if (table["pch"] != LuaValue.Nil)
@@ -331,6 +340,73 @@ public class LuaConfigLoader
     }
   }
 
+  /// <summary>
+  /// Reads the <c>targets</c> array. Entries without a usable name, or that
+  /// duplicate the project or each other, are reported and skipped rather than
+  /// producing a broken CMake file.
+  /// </summary>
+  private static List<ProjectTarget> ParseTargets(LuaTable table, string projectName)
+  {
+    var targets = new List<ProjectTarget>();
+    var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { projectName };
+
+    foreach (var entry in table)
+    {
+      if (!entry.Value.TryRead<LuaTable>(out var targetTable))
+        continue;
+
+      var name = targetTable["name"] != LuaValue.Nil ? targetTable["name"].ToString() : string.Empty;
+      if (string.IsNullOrWhiteSpace(name) ||
+          !name.All(c => char.IsLetterOrDigit(c) || c is '_' or '-'))
+      {
+        AnsiConsole.MarkupLine(
+          $"[bold yellow]Warning:[/] skipping a target with an unusable name `{name}` " +
+          "(letters, digits, `_` and `-` only).");
+        continue;
+      }
+
+      if (!seen.Add(name))
+      {
+        AnsiConsole.MarkupLine(
+          $"[bold yellow]Warning:[/] skipping target `{name}`: the name is already used.");
+        continue;
+      }
+
+      var target = new ProjectTarget { Name = name };
+
+      if (targetTable["type"] != LuaValue.Nil)
+        target.Type = targetTable["type"].ToString().ToLowerInvariant();
+      if (target.Type is not ("executable" or "library"))
+      {
+        AnsiConsole.MarkupLine(
+          $"[bold yellow]Warning:[/] target `{name}`: unknown type `{target.Type}` — using `executable`.");
+        target.Type = "executable";
+      }
+
+      if (targetTable["linkage"] != LuaValue.Nil)
+        target.Linkage = targetTable["linkage"].ToString().ToLowerInvariant();
+
+      if (targetTable["sources"].TryRead<LuaTable>(out var sourcesTable))
+        target.Sources = ReadStringList(sourcesTable);
+      else if (targetTable["sources"] != LuaValue.Nil)
+        target.Sources = ReadStringList(targetTable["sources"]);
+
+      // Default: a directory named after the target.
+      if (target.Sources.Count == 0)
+        target.Sources = [name];
+
+      if (targetTable["install"] != LuaValue.Nil &&
+          bool.TryParse(targetTable["install"].ToString(), out var install))
+      {
+        target.Install = install;
+      }
+
+      targets.Add(target);
+    }
+
+    return targets;
+  }
+
   private static Dependency ParseDependencyFromTable(LuaTable table)
   {
     var dep = new Dependency();
@@ -353,6 +429,17 @@ public class LuaConfigLoader
     if (table["target"] != LuaValue.Nil)
     {
       dep.Target = table["target"].ToString();
+    }
+
+    if (table.TryGetValue("options", out var optionsValue) &&
+        optionsValue.TryRead<LuaTable>(out var optionsTable))
+    {
+      foreach (var (key, value) in optionsTable)
+      {
+        var name = key.ToString();
+        if (!string.IsNullOrWhiteSpace(name) && value != LuaValue.Nil)
+          dep.Options[name] = value.ToString();
+      }
     }
 
     return dep;
@@ -384,6 +471,10 @@ public class LuaConfigLoader
     if (table["version"] != LuaValue.Nil)
     {
       config.Project.Version = table["version"].ToString();
+    }
+    if (table["version_from_git"] != LuaValue.Nil)
+    {
+      config.Project.VersionFromGit = bool.TryParse(table["version_from_git"].ToString(), out var fromGit) && fromGit;
     }
     if (table["description"] != LuaValue.Nil)
     {

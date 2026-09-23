@@ -35,4 +35,23 @@ scenario_40_doctor_layout() {
   else
     fail "optional directory reported as optional"
   fi
+
+  # Generated files that are not ignored are reported, and --fix adds them.
+  local out
+  out="$(forge_in "$bare" doctor 2>&1 || true)"
+  if grep -qF ".gitignore does not ignore" <<<"$(flatten <<<"$out")"; then
+    pass "unignored generated files are reported"
+  else
+    fail "unignored generated files are reported"
+  fi
+
+  forge_in "$bare" doctor --fix >/dev/null 2>&1 || true
+  assert_contains "$bare/.gitignore" "CMakePresets.json" "doctor --fix writes the missing entries"
+
+  out="$(forge_in "$bare" doctor 2>&1 || true)"
+  if grep -qF ".gitignore covers the generated files" <<<"$(flatten <<<"$out")"; then
+    pass "the repaired .gitignore is accepted"
+  else
+    fail "the repaired .gitignore is accepted"
+  fi
 }

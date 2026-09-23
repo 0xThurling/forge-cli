@@ -1,4 +1,5 @@
 ﻿using DotMake.CommandLine;
+using forge.Commands.Lua;
 using forge.Commands.Conan;
 using Spectre.Console;
 
@@ -196,6 +197,77 @@ public class DoctorCommand
     else
     {
       AnsiConsole.MarkupLine("   [dim]No features configured[/]");
+    }
+    AnsiConsole.WriteLine();
+
+    // 8. Generated files vs .gitignore
+    AnsiConsole.MarkupLine("[bold]8. Generated files:[/]");
+    var ignorePath = ".gitignore";
+    var ignoreText = File.Exists(ignorePath) ? File.ReadAllText(ignorePath) : string.Empty;
+    var ignoreLines = ignoreText
+      .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+      .Select(line => line.Trim())
+      .ToHashSet(StringComparer.Ordinal);
+    var missingIgnores = SourceFiles.GeneratedIgnoreEntries
+      .Where(entry => !ignoreLines.Contains(entry))
+      .ToList();
+
+    if (missingIgnores.Count == 0)
+    {
+      AnsiConsole.MarkupLine("   [green]✅[/] .gitignore covers the generated files");
+    }
+    else
+    {
+      AnsiConsole.MarkupLine(
+        $"   [yellow]⚠️[/] .gitignore does not ignore: {string.Join(", ", missingIgnores)}");
+
+      if (Fix)
+      {
+        if (!File.Exists(ignorePath))
+          File.WriteAllText(ignorePath, SourceFiles.DefaultGitIgnore());
+        else
+          File.AppendAllText(
+            ignorePath,
+            (ignoreText.EndsWith('\n') || ignoreText.Length == 0 ? string.Empty : "\n") +
+            string.Join("\n", missingIgnores) + "\n");
+        AnsiConsole.MarkupLine("   [green]✅[/] added the missing entries");
+
+        // The editor stubs track the installed CLI, so refresh them here too.
+        LuaEngine.WriteEnvironmentDefinitions(".");
+        AnsiConsole.MarkupLine("   [green]✅[/] refreshed .config/forge/definitions/definitions.lua");
+      }
+      else
+      {
+        AnsiConsole.MarkupLine("   [dim]Run `forge doctor --fix` to add them.[/]");
+      }
+    }
+    AnsiConsole.WriteLine();
+
+    // 9. Toolchain
+    AnsiConsole.MarkupLine("[bold]9. Toolchain:[/]");
+    var missingTools = new List<string>();
+    foreach (var tool in ToolRequirements.All)
+    {
+      var version = tool.Detect();
+      var acceptable = tool.IsVersionAcceptable(version);
+      if (!acceptable)
+      {
+        missingTools.Add(tool.Name);
+        if (tool.Required)
+          issues++;
+      }
+
+      var icon = acceptable ? "[green]✅[/]" : (tool.Required ? "[red]❌[/]" : "[yellow]⚠️[/]");
+      var detail = version ?? "not found";
+      if (version is not null && !acceptable)
+        detail = $"{version} (needs {tool.MinimumVersion})";
+      AnsiConsole.MarkupLine($"   {icon} {tool.Name} - {detail}");
+    }
+
+    if (missingTools.Count > 0)
+    {
+      AnsiConsole.MarkupLine(
+        $"[dim]Run `forge setup` to see how to install: {string.Join(", ", missingTools)}[/]");
     }
     AnsiConsole.WriteLine();
 

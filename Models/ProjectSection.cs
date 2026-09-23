@@ -32,6 +32,13 @@ namespace forge.Models
     /// <summary>Project version (used by vcpkg.json and the CMake export).</summary>
     public string Version { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Derive the version from the newest Git tag instead of <see cref="Version"/>
+    /// (<c>version_from_git = true</c>). Commits after the tag are appended as a
+    /// fourth number, so the version stays numeric for `project(... VERSION ...)`.
+    /// </summary>
+    public bool VersionFromGit { get; set; }
+
     /// <summary>One-line summary, used in packages (`CPACK_PACKAGE_DESCRIPTION_SUMMARY`).</summary>
     public string Description { get; set; } = string.Empty;
 

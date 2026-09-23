@@ -61,12 +61,18 @@ public class DownloadCommand
           }
         });
 
-        if (ShowProgress && totalBytes > 0)
+        // A live progress display needs a terminal. When the output is
+        // captured (CI, a pipe, a test) it is noise at best — and the live
+        // display is the only part of a download that behaves differently
+        // there, so it is skipped instead of risking the download.
+        if (ShowProgress && totalBytes > 0 && AnsiConsole.Profile.Capabilities.Interactive)
         {
           AnsiConsole.Progress()
               .Start(ctx =>
               {
-                var task = ctx.AddTask("[cyan]Downloading", maxValue: totalBytes);
+                // The description is markup: an unclosed tag throws while the
+                // progress display refreshes (and truncates the download).
+                var task = ctx.AddTask("[cyan]Downloading[/]", maxValue: totalBytes);
                 while (!downloadTask.IsCompleted)
                 {
                   task.Value = totalRead;
@@ -75,10 +81,11 @@ public class DownloadCommand
                 task.Value = totalRead;
               });
         }
-        else
-        {
-          await downloadTask;
-        }
+
+        // Always await the task, progress or not: otherwise a failure inside it
+        // (a locked output file, a dropped connection) is never observed and
+        // the command reports success for a truncated file.
+        await downloadTask;
       }
 
       // Verify SHA256 if provided
@@ -102,6 +109,20 @@ public class DownloadCommand
     catch (Exception ex)
     {
       AnsiConsole.MarkupLine($"[red]Download failed:[/] {ex.Message}");
+
+      // Never leave a truncated file behind: it looks like a completed
+      // download to every later step (and to `--sha-256`, which would then
+      // report a mismatch instead of the real failure).
+      try
+      {
+        if (File.Exists(Output))
+          File.Delete(Output);
+      }
+      catch (IOException)
+      {
+        // Nothing more to do; the failure above is the message that matters.
+      }
+
       return 1;
     }
   }

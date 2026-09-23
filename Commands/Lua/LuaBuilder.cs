@@ -89,6 +89,7 @@ namespace forge.Commands.Lua
         switch (key.ToString())
         {
           case "variables": ReadMap(value, target.Variables); break;
+          case "cacheVariables": ReadMap(value, target.CacheVariables); break;
           case "findPackages": ReadList(value, target.FindPackages); break;
           case "includeDirs": ReadList(value, target.IncludeDirectories); break;
           case "linkDirs": ReadList(value, target.LinkDirectories); break;

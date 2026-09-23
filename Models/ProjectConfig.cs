@@ -28,6 +28,12 @@ namespace forge.Models
     public ProjectSection Project { get; set; } = new();
 
     /// <summary>
+    /// Extra build targets beside the project's own one (<c>targets</c> in
+    /// <c>forge.lua</c>): a tools binary, a second library, a plugin.
+    /// </summary>
+    public List<ProjectTarget> Targets { get; set; } = [];
+
+    /// <summary>
     /// Gets or sets the collection of Git-based dependencies managed via CMake FetchContent.
     /// </summary>
     /// <value>

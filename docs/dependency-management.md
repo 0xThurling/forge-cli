@@ -75,6 +75,24 @@ fetch, or tag round-trip. Edits to the dependency are picked up on the next
 
 ---
 
+## Dependency options
+
+A dependency can be configured with CMake cache variables, which is how you
+turn off the parts of it you do not need:
+
+```lua
+direct = {
+    fmt = { git = "https://github.com/fmtlib/fmt.git", tag = "10.2.1",
+            target = "fmt::fmt", options = { FMT_TEST = "OFF" } },
+    sdl = { git = "https://github.com/libsdl-org/SDL.git", tag = "release-2.32.10",
+            target = "SDL2::SDL2", options = { SDL_TEST = "OFF", SDL_EXAMPLES = "OFF" } }
+}
+```
+
+They are emitted as `set(<NAME> "<value>" CACHE STRING "" FORCE)` immediately
+before `FetchContent_MakeAvailable`, so the dependency's own `option()` calls
+see them. (A plain `set()` would run after those calls and be ignored.)
+
 ## Dependencies and their own tests
 
 A dependency is built for the consumer, but it does not drag its test suite
@@ -86,6 +104,15 @@ too, so consuming a tested library does not download GoogleTest.
 Set `-DFORGE_BUILD_DEPENDENCY_TESTS=ON` to override this (for example when
 building a dependency's tests on purpose). Packaging is guarded the same way: a
 dependency's CPack configuration never leaks into the consumer's build.
+
+## The shared cache
+
+A fetched git dependency is cloned into a shared cache (keyed by repository and
+reference) and handed to CMake as `FETCHCONTENT_SOURCE_DIR_<NAME>`, so a second
+project — or a second CI run — skips the download. It also means a build works
+offline once the cache is warm. `forge cache list` and `forge cache clear` manage
+it; `build.cache = "off"` (or `FORGE_NO_CACHE=1`) turns it off. Branches are
+never cached, because a cached copy would freeze a moving reference.
 
 ## Locking (`forge.lock`)
 

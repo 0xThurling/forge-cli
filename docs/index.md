@@ -4,12 +4,13 @@
 
 ## Key Features
 
-- **🚀 Quick Scaffolding**: Create new projects, classes, structs, and headers with a single command.
+- **🚀 Quick Scaffolding**: Create new projects (`forge create`), adopt an existing directory (`forge init`), and add classes, structs, headers or sources with a single command.
 - **📜 Lua Configuration**: Use `forge.lua` for a clean, human-readable project configuration.
-- **📦 Dependency Management**: Git, local `path` checkouts, Conan, vcpkg and pkg-config, with `forge.lock` pinning, `forge outdated` and `forge vendor` for offline builds.
-- **⚙️ CMake Integration**: Automatically generates and manages `CMakeLists.txt`, with parallel builds, ccache/sccache, toolchain and generator selection, unity builds, precompiled headers and C++20 module scanning.
+- **📦 Dependency Management**: Git, local `path` checkouts, Conan, vcpkg and pkg-config, with `forge.lock` pinning, a shared dependency cache, `forge outdated`/`forge upgrade`, and `forge vendor` for offline builds.
+- **⚙️ CMake Integration**: Automatically generates and manages `CMakeLists.txt`, with several targets per project, parallel builds, ccache/sccache, toolchain and generator selection, unity builds, precompiled headers and C++20 module scanning.
 - **🧪 Testing and Benchmarks**: GoogleTest, Catch2 or doctest, plus Google Benchmark (`forge bench`).
 - **🧹 Quality Tooling**: `forge format` and `forge lint` (clang-format/clang-tidy), and `forge doctor --fix`.
+- **🧰 Toolchain Setup**: `forge setup` reports the tools Forge uses (and installs what is missing), `forge doctor` checks the environment, and `forge ci` writes the same steps into the workflow it generates.
 - **📦 Packaging**: `forge publish` builds a CPack archive (TGZ, ZIP, DEB, RPM) from a versioned project.
 - **🤖 CI Generation**: `forge ci` writes a GitHub Actions workflow or GitLab pipeline that matches the configuration.
 - **🗂️ Workspaces**: Build and test a directory of sibling projects in dependency order (`forge workspace`).

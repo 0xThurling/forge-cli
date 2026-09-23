@@ -118,6 +118,17 @@ scratch workspace path so the generated projects can be inspected.
 | `76-ci` | `forge ci`: generated workflow content, reproducibility (`--check`), `--force`, GitLab provider |
 | `77-dependency-isolation` | a dependency's tests, test framework fetch and CPack config stop at the dependency |
 | `78-docs-coverage` | docs stay in step: every command/subcommand is in the CLI reference, the nav matches the pages, recent features are described |
+| `79-dependency-options` | per-dependency CMake options reach the cache the dependency's `option()` reads |
+| `80-lua-workflow` | `forge.exec` output capture, file/template helpers, `forge.git.*`, `cacheVariables`, refreshed editor stubs |
+| `81-setup` | `forge setup` report, `--json`, unknown-tool rejection, install plan, `doctor`'s toolchain section |
+| `82-version-from-git` | `version_from_git`: tag → version, commits → fourth component, no tag → declared version |
+| `83-upgrade` | `forge upgrade`: report, `--json`, unknown dependency, `--apply` rewrites the tag and re-pins the lock |
+| `84-watch` | `forge watch`: build once and exit, rebuild on a real file change, command/watch-list validation |
+| `85-init` | `forge init`: adopts a directory with existing sources, layout/ignore/stubs, refuses a Forge project, input validation |
+| `86-why` | `forge why`: every direct channel, a transitive conan package via the graph, `--json`, unknown names |
+| `87-dependency-cache` | shared cache: reused checkout, `FETCHCONTENT_SOURCE_DIR`, branches not cached, offline build, `cache list/clear` |
+| `88-multi-target` | extra executables/libraries: sources, link lines, install rules, `run --bin`, config round-trip, validation |
+| `89-markup-balance` | every Spectre markup string in the CLI is balanced (an unclosed tag throws while the console refreshes) |
 
 ## Adding a scenario
 

@@ -77,6 +77,51 @@ Extracts a ZIP or TAR archive.
 
 ---
 
+## Running programs and files
+
+These helpers exist because the embedded Lua runtime has no `io.popen`: a script
+can run a command with `os.execute`, but cannot read what it printed. They are
+relative to the project root, and create the directories they need.
+
+### `forge.exec(command)`
+Runs a command through the shell and captures its output.
+- `command`: The command line to run.
+- Returns: the exit code, then the combined stdout+stderr.
+
+```lua
+local code, output = forge.exec("glslangValidator -V shader.vert")
+if code ~= 0 then error("shader compilation failed:\n" .. output) end
+```
+
+### `forge.read_file(path)`
+Returns the file's contents, or `nil` when it does not exist.
+
+### `forge.write_file(path, contents)`
+Writes a file, creating parent directories. Returns the path.
+
+### `forge.copy_file(source, destination)`
+Copies a file, creating parent directories. Returns the destination.
+
+### `forge.mkdir(path)`
+Creates a directory and its parents. Returns the path.
+
+### `forge.template(source, destination, values)`
+Reads a template and replaces `@KEY@` placeholders with the values table.
+Returns the destination.
+
+```lua
+forge.template("templates/version.h.in", "generated/version.h", {
+  VERSION = forge.git.describe() or "unknown",
+})
+```
+
+### `forge.git.describe()` / `rev()` / `tag()` / `branch()` / `dirty()`
+Read the project's Git state: the newest tag with distance and dirty flag, the
+abbreviated commit, the exact tag at HEAD, the branch, and whether the working
+tree has uncommitted changes. Each returns `nil` (or `false` for `dirty`) when
+git is missing or the directory is not a repository, so a script can fall back
+with `or "unknown"`.
+
 ## Build System Integration
 
 ### `build` section
@@ -133,6 +178,16 @@ Adds a custom CMake snippet directly into the generated `CMakeLists.txt`.
 Build scripts can also describe their contribution declaratively with the
 `cmakeOptions` table they return — see
 [Custom Setup Scripts](custom-setup.md).
+
+### `cmakeOptions.cacheVariables`
+Like `variables`, but emitted as
+`set(NAME "value" CACHE STRING "" FORCE)`. Use it for settings a toolchain file
+or a dependency's `option()` reads — a plain `set()` happens too late for
+those.
+
+```lua
+return { cmakeOptions = { cacheVariables = { WEBGPU_BACKEND = "d3d12" } } }
+```
 
 ### `forge.add_section(name, position, content)`
 Registers a named CMake section, placed relative to the built-in ones. Unlike

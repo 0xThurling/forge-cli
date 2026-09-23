@@ -12,5 +12,12 @@ scenario_25_clean() {
   fi
   assert_missing "$root/build" "build directory removed"
 
+  # The compile-database symlink points into build/, so it goes too.
+  if [[ -L "$root/compile_commands.json" ]]; then
+    fail "the compile database symlink is removed"
+  else
+    pass "the compile database symlink is removed"
+  fi
+
   assert_exit 0 "clean is idempotent" forge_in "$root" clean
 }

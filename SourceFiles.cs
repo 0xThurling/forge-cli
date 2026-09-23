@@ -106,6 +106,17 @@ internal static class SourceFiles
     return files;
   }
 
+  /// <summary>
+  /// The entries a project's `.gitignore` needs for files Forge and the build
+  /// generate. Committing them only produces churn (and the paths differ per
+  /// machine for the compile database).
+  /// </summary>
+  public static readonly string[] GeneratedIgnoreEntries =
+    ["build/", "lib/", "compile_commands.json", "CMakePresets.json", "conanfile.txt"];
+
+  /// <summary>The `.gitignore` written by `forge create`.</summary>
+  public static string DefaultGitIgnore() => string.Join("\n", GeneratedIgnoreEntries) + "\n";
+
   /// <summary>Writes a conservative `.clang-format` when the project has none.</summary>
   public static void EnsureClangFormat()
   {

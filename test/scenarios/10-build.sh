@@ -28,4 +28,7 @@ scenario_10_build() {
 
   # A rebuild of an unchanged project is still a success.
   assert_exit 0 "rebuild is clean" forge_in "$root" build
+
+  # `--target` builds one target instead of everything.
+  assert_exit 0 "build --target builds a single target"     forge_in "$root" build --target demo_build
 }

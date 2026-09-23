@@ -42,8 +42,14 @@ scenario_69_doctor_fix_completions() {
   else
     fail "the bash completion script is valid"
   fi
-  if [[ "$out" == *"complete -F _forge forge"* && "$out" == *"build clean"* &&
-    "$out" == *"project"* && "$out" == *"struct"* ]]; then
+  # The command list is space-separated, so check for the words rather than for
+  # any particular adjacency (which changes whenever the list is reordered).
+  local completions_ok=1 word
+  for word in "complete -F _forge forge" " build " " clean " " project" " struct" " workspace" " init " " why "; do
+    [[ "$out" == *"$word"* ]] || completions_ok=0
+  done
+
+  if [[ "$completions_ok" == "1" ]]; then
     pass "the bash script covers commands and subcommands"
   else
     fail "the bash script covers commands and subcommands"

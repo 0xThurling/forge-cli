@@ -1,54 +1,56 @@
 # Prerequisites
 
-To use **Forge** effectively, you need to have several tools installed and configured on your system. Forge acts as an orchestrator for these tools to simplify your C++ development workflow.
+Forge orchestrates the tools a C++ project already uses. Nothing here is
+bundled with Forge, and nothing is installed silently — run `forge setup` to see
+what your machine has, and `forge setup --install` to install what is missing.
 
-## Essential Tools
+## Required
 
-### 1. C++ Compiler
-You need a modern C++ compiler that supports at least C++11, though C++20 is recommended as it is the Forge default.
-- **Linux**: GCC or Clang
-- **macOS**: Clang (via Xcode Command Line Tools)
-- **Windows**: MSVC (via Visual Studio) or MinGW/GCC
+| Tool | Version | Why |
+|---|---|---|
+| **C++ compiler** | C++20 | GCC, Clang or MSVC (`g++`/`clang++`/`cl`) |
+| **CMake** | 3.23 or newer | Configures and builds the project (3.28+ for `modules = true`) |
+| **Git** | any | Fetches dependencies and reads version information |
 
-### 2. CMake (v3.23 or higher; 3.28+ for `modules = true`)
-Forge generates CMake files and uses the `cmake` executable to configure and build your project.
-- **Verification**: `cmake --version`
-- **Installation**: [cmake.org/download](https://cmake.org/download/) or your system's package manager.
+`forge setup` exits non-zero when one of these is missing, which makes it usable
+as a CI gate: `forge setup || forge setup --install --yes`.
 
-### 3. Git
-Used for managing direct dependencies via CMake `FetchContent` and for Forge's `pull_repo` and `fetch` functions.
-- **Verification**: `git --version`
-- **Installation**: [git-scm.com](https://git-scm.com/)
+## Optional, per feature
 
----
+| Tool | Needed for | Notes |
+|---|---|---|
+| **Ninja** | `build.modules = true` | CMake can only scan for C++20 modules with Ninja or Visual Studio 17.4+. Forge selects Ninja automatically when no generator is configured |
+| **ccache** / **sccache** | faster rebuilds | Detected on `PATH` and used as the compiler launcher; `build.compiler_launcher = "none"` opts out |
+| **clang-format** | `forge format` | `CLANG_FORMAT` selects a specific binary |
+| **clang-tidy** | `forge lint` | `CLANG_TIDY` selects a specific binary |
+| **cpack** | `forge publish` | Ships with CMake, so it is usually already there |
+| **python3** | the test suite's download scenarios | Only needed to run Forge's own end-to-end tests |
+| **Conan 2.x** | `dependencies.conan` | `pipx install conan` |
+| **vcpkg** | `dependencies.vcpkg` | Set `VCPKG_ROOT`, or clone vcpkg and bootstrap it |
+| **pkg-config** | `dependencies.pkgconfig` | Plus the `-dev`/`-devel` package of each module you use |
 
-## Optional (but Recommended) Tools
-
-### 4. Conan (v2.x)
-Required if you want to use Conan packages for dependency management.
-- **Verification**: `conan --version`
-- **Installation**: `pip install conan`
-
-### 5. .NET Runtime (v8.0)
-Forge is built using C# and .NET. You will need the .NET 8.0 runtime (or SDK) to run the `forge` executable.
-- **Verification**: `dotnet --list-runtimes`
-- **Installation**: [dotnet.microsoft.com/download](https://dotnet.microsoft.com/download/dotnet/8.0)
-
----
-
-## Environment Check
-
-You can use the built-in "doctor" command to check if your project environment is correctly set up:
+## Checking and installing
 
 ```bash
-forge doctor
+forge setup                      # table: tool, status, version, purpose
+forge setup --install            # install what is missing (asks first)
+forge setup --install --dry-run  # print the commands, change nothing
+forge setup --tools cmake,ninja  # only these
 ```
 
-While `forge doctor` primarily checks your `forge.lua` and project structure, it is a good first step to ensure everything is in order.
+`--install` uses your machine's own package manager — apt-get, dnf, zypper, apk,
+pacman, brew, winget or choco — prints the exact command, and lets the system's
+`sudo` prompt for the password: Forge never handles it. Without a terminal
+(for example in a script) it refuses to install unless `--yes` is passed.
 
-## Summary Checklist
-- [ ] C++ Compiler (GCC/Clang/MSVC)
-- [ ] CMake 3.23+
-- [ ] Git
-- [ ] Conan (optional)
-- [ ] .NET 8.0 Runtime
+`install.sh` runs `forge setup` after installing the binary, so a fresh install
+tells you what is still missing.
+
+## Environment check
+
+`forge doctor` verifies the project environment: the configuration, the
+directory layout, dependencies and conflicts, resources, scripts, features,
+whether the generated files are ignored by git, and the toolchain (the same
+table as `forge setup`, with versions). `forge doctor --fix` repairs what it
+can — missing directories, missing `.gitignore` entries, and the Lua editor
+stubs in `.config/forge/definitions/`.

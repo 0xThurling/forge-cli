@@ -79,6 +79,9 @@ namespace forge.Commands
     public string? Preset { get; set; }
 
     /// <summary>Ignore presets declared in forge.lua (use only CLI presets).</summary>
+    [CliOption(Description = "Build only this CMake target", Required = false)]
+    public string? Target { get; set; }
+
     [CliOption(Description = "Ignore presets declared in forge.lua (use only CLI presets).")]
     public bool NoConfigPresets { get; set; }
 
@@ -369,6 +372,11 @@ namespace forge.Commands
           var buildArguments = new List<string> { "--build", "build", "--parallel" };
           if (jobCount > 0)
             buildArguments.Add(jobCount.ToString());
+          if (!string.IsNullOrWhiteSpace(Target))
+          {
+            buildArguments.Add("--target");
+            buildArguments.Add(Target);
+          }
           if (multiConfig)
           {
             buildArguments.Add("--config");

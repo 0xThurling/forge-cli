@@ -1,5 +1,6 @@
 ﻿using System.Text;
 using forge.Models;
+using Spectre.Console;
 
 namespace forge.CMakeGeneration.Sections;
 
@@ -99,6 +100,99 @@ public class ProjectTargetSection : CMakeSectionBase
       sb.AppendLine("endif()");
     }
 
+    AppendExtraTargets(sb, context);
     return sb.ToString();
+  }
+
+  /// <summary>
+  /// Emits one block per extra target (<c>targets</c> in <c>forge.lua</c>).
+  /// Each has its own source glob, the same dependencies the main target links,
+  /// and — for libraries — install rules. The project's own target above is
+  /// untouched by this.
+  /// </summary>
+  private static void AppendExtraTargets(StringBuilder sb, BuildContext context)
+  {
+    var config = context.Config;
+    var links = LinkTargets.For(config, context);
+    var pch = config.Build.Pch.Length > 0 ? config.Build.Pch : null;
+
+    // The project's own libraries are part of it: every target links them
+    // (a library links its siblings, not itself).
+    var libraries = config.Targets
+      .Where(target => target.Type == "library")
+      .Select(target => target.Name)
+      .ToList();
+
+    foreach (var target in config.Targets)
+    {
+      var targetLinks = new List<string>(links);
+      targetLinks.AddRange(libraries.Where(library =>
+        !string.Equals(library, target.Name, StringComparison.OrdinalIgnoreCase)));
+      var variable = new string(target.Name
+        .Select(c => char.IsLetterOrDigit(c) ? char.ToUpperInvariant(c) : '_')
+        .ToArray()) + "_SOURCES";
+
+      sb.AppendLine();
+      sb.AppendLine($"# --- Target: {target.Name} ({target.Type}) ---");
+
+      // Each entry is a directory to glob or a single file.
+      var patterns = new List<string>();
+      string? includeDirectory = null;
+      foreach (var source in target.Sources)
+      {
+        var normalized = source.Replace('\\', '/').TrimEnd('/');
+        if (File.Exists(source))
+        {
+          patterns.Add($"${{PROJECT_SOURCE_DIR}}/{normalized}");
+          continue;
+        }
+
+        if (!Directory.Exists(source))
+        {
+          AnsiConsole.MarkupLine(
+            $"[bold yellow]Warning:[/] target '{target.Name}' lists '{source}', which does not exist.");
+        }
+
+        patterns.Add($"${{PROJECT_SOURCE_DIR}}/{normalized}/*.cpp");
+        includeDirectory ??= normalized;
+      }
+
+      sb.AppendLine(
+        $"file(GLOB_RECURSE {variable} RELATIVE ${{PROJECT_SOURCE_DIR}} {string.Join(" ", patterns)})");
+      sb.AppendLine($"list(FILTER {variable} EXCLUDE REGEX \"/(build|build-[^/]*|CMakeFiles)/\")");
+      sb.AppendLine($"if({variable})");
+
+      if (target.Type == "executable")
+      {
+        sb.AppendLine($"  add_executable({target.Name} ${{{variable}}})");
+        if (pch is not null)
+          sb.AppendLine($"  target_precompile_headers({target.Name} PRIVATE ${{PROJECT_SOURCE_DIR}}/{pch})");
+        if (targetLinks.Count > 0)
+          sb.AppendLine($"  target_link_libraries({target.Name} PRIVATE {string.Join(" ", targetLinks)})");
+      }
+      else
+      {
+        var linkage = target.Linkage.Equals("shared", StringComparison.OrdinalIgnoreCase) ? "SHARED" : "STATIC";
+        sb.AppendLine($"  add_library({target.Name} {linkage} ${{{variable}}})");
+        if (pch is not null)
+          sb.AppendLine($"  target_precompile_headers({target.Name} PRIVATE ${{PROJECT_SOURCE_DIR}}/{pch})");
+        if (includeDirectory is not null)
+          sb.AppendLine($"  target_include_directories({target.Name} PUBLIC ${{PROJECT_SOURCE_DIR}}/{includeDirectory})");
+        if (targetLinks.Count > 0)
+          sb.AppendLine($"  target_link_libraries({target.Name} PUBLIC {string.Join(" ", targetLinks)})");
+
+        if (target.Installs)
+        {
+          sb.AppendLine($"  install(TARGETS {target.Name}");
+          sb.AppendLine("    ARCHIVE DESTINATION lib");
+          sb.AppendLine("    LIBRARY DESTINATION lib");
+          sb.AppendLine("    RUNTIME DESTINATION bin)");
+        }
+      }
+
+      sb.AppendLine("else()");
+      sb.AppendLine($"  message(WARNING \"No source files found for target '{target.Name}'. It was not created.\")");
+      sb.AppendLine("endif()");
+    }
   }
 }

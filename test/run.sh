@@ -47,6 +47,11 @@ FORGE_CMD=(dotnet "$FORGE_DLL")
 # Reset to the baseline before every scenario.
 BASELINE_PATH="$PATH"
 
+# Keep the shared dependency cache out of the user's home and inside the
+# scratch workspace, so scenarios are deterministic and nothing leaks between
+# runs. A scenario may override it (and must restore it).
+export FORGE_CACHE_DIR="$WORK/.dependency-cache"
+
 cleanup() {
   stop_http_server
   if [[ "$KEEP" -eq 1 || "$FAILED" -gt 0 ]]; then

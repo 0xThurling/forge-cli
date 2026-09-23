@@ -48,8 +48,10 @@ LUA
   # The filter reaches ctest; without one, no -R is passed.
   : >"$root/tools.log"
   forge_in "$root" test --filter 'MySuite.*' >/dev/null 2>&1 || true
-  assert_contains "$root/tools.log" "ctest --test-dir build --output-on-failure -R MySuite.*" \
-    "the filter is handed to ctest"
+  assert_contains "$root/tools.log" "ctest --test-dir build --output-on-failure" \
+    "ctest is invoked as expected"
+  assert_contains "$root/tools.log" " -j " "tests run in parallel"
+  assert_contains "$root/tools.log" " -R MySuite.*" "the filter is handed to ctest"
 
   : >"$root/tools.log"
   forge_in "$root" test >/dev/null 2>&1 || true
@@ -61,4 +63,15 @@ LUA
     "--no-config-presets applies to forge test"
 
   export PATH="$old_path"
+
+  # ctest runs the suite in parallel and can write a JUnit report where asked
+  # (not inside build/, where ctest's --test-dir would put a relative path).
+  if command -v ctest >/dev/null 2>&1; then
+    assert_exit 0 "forge test --junit passes" \
+      forge_in "$root" test --junit reports/out.xml -j 2
+    assert_exists "$root/reports/out.xml" "the JUnit report lands where asked"
+    assert_contains "$root/reports/out.xml" "testsuite" "the report is JUnit XML"
+  else
+    skip "ctest is not installed"
+  fi
 }

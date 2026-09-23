@@ -32,6 +32,17 @@ namespace forge.Commands
         try
         {
           Directory.Delete(buildDir, true);
+
+          // The compile database is a symlink into build/: leaving it behind
+          // means a dangling link that editors keep trying to read.
+          var compileCommands = "compile_commands.json";
+          if (File.Exists(compileCommands) &&
+              new FileInfo(compileCommands).LinkTarget is not null)
+          {
+            File.Delete(compileCommands);
+            AnsiConsole.MarkupLine($"[dim]Removed the {compileCommands} symlink.[/]");
+          }
+
           AnsiConsole.MarkupLine("[bold green]Project cleaned.[/]");
         }
         catch (Exception ex)

@@ -33,6 +33,13 @@ LUA
   assert_contains "$root/app/.config/cmake/CMakeLists.txt" \
     "FetchContent_Declare(demo GIT_REPOSITORY \"file://$root/lib\" GIT_TAG \"v1\")" \
     "emits GIT_REPOSITORY/GIT_TAG"
-  assert_exists "$root/app/build/_deps/demo-src" "fetches the repository"
+  # The checkout comes either from build/_deps (a plain fetch) or from the
+  # shared cache, which is what FetchContent is pointed at when it is warm.
+  if [[ -d "$root/app/build/_deps/demo-src" ]] ||
+    find "${FORGE_CACHE_DIR:-$HOME/.cache/forge/deps}" -maxdepth 1 -name "demo-*" 2>/dev/null | grep -q .; then
+    pass "fetches the repository"
+  else
+    fail "fetches the repository"
+  fi
   assert_runs "$root/app/build/demo_app" "demo_value=42" "runs against the fetched library"
 }

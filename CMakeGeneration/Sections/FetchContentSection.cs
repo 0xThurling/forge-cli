@@ -64,6 +64,7 @@ public class FetchContentSection : CMakeSectionBase
           : "${CMAKE_CURRENT_SOURCE_DIR}/" + local.Replace('\\', '/');
 
         sb.AppendLine($"FetchContent_Declare({name} SOURCE_DIR \"{emitted}\")");
+        AppendOptions(sb, details);
         sb.AppendLine($"FetchContent_MakeAvailable({name})");
         continue;
       }
@@ -78,10 +79,37 @@ public class FetchContentSection : CMakeSectionBase
       // a reproducible build should not.
       var lockedCommit = LockfileManager.LockedCommitFor(name, details);
       var gitTag = lockedCommit ?? details.Tag;
+
+      // A cached checkout (shared between projects and CI runs) lets
+      // FetchContent skip the download; the variable is how CMake says "the
+      // sources are already here".
+      if (DependencyCache.Enabled(config.Build.Cache))
+      {
+        var cachedLine = DependencyCache.CMakeVariableFor(name, details.Git, details.Tag, lockedCommit);
+        if (cachedLine.Length > 0)
+          sb.AppendLine(cachedLine);
+      }
+
       sb.AppendLine($"FetchContent_Declare({name} GIT_REPOSITORY \"{details.Git}\" GIT_TAG \"{gitTag}\")");
+      AppendOptions(sb, details);
       sb.AppendLine($"FetchContent_MakeAvailable({name})");
     }
 
     return sb.ToString();
+  }
+
+  /// <summary>
+  /// Emits the dependency's CMake options as cache variables. They must be set
+  /// before <c>FetchContent_MakeAvailable</c>, otherwise the fetched project's
+  /// own <c>option()</c> calls have already run and the value is ignored.
+  /// </summary>
+  private static void AppendOptions(StringBuilder sb, Dependency dependency)
+  {
+    foreach (var (key, value) in dependency.Options)
+    {
+      if (string.IsNullOrWhiteSpace(key))
+        continue;
+      sb.AppendLine($"set({key} \"{value.Replace("\"", "\\\"")}\" CACHE STRING \"\" FORCE)");
+    }
   }
 }

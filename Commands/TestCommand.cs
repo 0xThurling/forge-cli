@@ -79,6 +79,13 @@ namespace forge.Commands
     public bool NoConfigPresets { get; set; }
 
     /// <summary>
+    /// Writes a JUnit XML report (ctest --output-junit), which CI test reporters
+    /// and IDEs understand.
+    /// </summary>
+    [CliOption(Description = "Write a JUnit XML report to this path", Required = false)]
+    public string? JUnit { get; set; }
+
+    /// <summary>
     /// Executes the test build and run pipeline.
     /// </summary>
     /// <returns>
@@ -113,6 +120,23 @@ namespace forge.Commands
         // Prefer CTest: gtest_discover_tests registers the suite on configure,
         // and the test target is named `<project>_tests` (not `run_tests`).
         var ctestArgs = new List<string> { "--test-dir", "build", "--output-on-failure" };
+
+        // Tests run in parallel, like the build: for a large suite the tests,
+        // not the compile, are the slow part of `forge test`.
+        ctestArgs.Add("-j");
+        ctestArgs.Add((Jobs is > 0 ? Jobs.Value : Environment.ProcessorCount).ToString());
+
+        if (!string.IsNullOrWhiteSpace(JUnit))
+        {
+          // ctest runs inside --test-dir, so a relative report path would land
+          // in build/. Resolve it against the project directory instead.
+          var reportPath = Path.GetFullPath(JUnit);
+          var reportDirectory = Path.GetDirectoryName(reportPath);
+          if (!string.IsNullOrEmpty(reportDirectory))
+            Directory.CreateDirectory(reportDirectory);
+          ctestArgs.Add("--output-junit");
+          ctestArgs.Add(reportPath);
+        }
         var gtestFilter = Filter;
         if (string.IsNullOrEmpty(gtestFilter) && !string.IsNullOrEmpty(TestSuiteName))
         {

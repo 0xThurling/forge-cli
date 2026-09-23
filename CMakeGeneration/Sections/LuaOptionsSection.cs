@@ -59,6 +59,11 @@ public partial class LuaOptionsSection : CMakeSectionBase
     foreach (var (key, value) in options.Variables)
       sb.AppendLine($"set({key} {Quote(value)})");
 
+    // Cache variables carry a type and force their value, so they are visible to
+    // toolchain files and to a dependency's option() calls.
+    foreach (var (key, value) in options.CacheVariables)
+      sb.AppendLine($"set({key} {Quote(value)} CACHE STRING \"\" FORCE)");
+
     foreach (var package in options.FindPackages)
       sb.AppendLine($"find_package({package} REQUIRED)");
 
