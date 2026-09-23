@@ -8,21 +8,15 @@ public class LinkingSection : CMakeSectionBase
 
   public override int Priority => 40;
 
-  public override string Generate(ProjectConfig config)
+  public override string Generate(BuildContext context)
   {
-    var linkTargets = new List<string>();
+    var config = context.Config;
+    var linkTargets = LinkTargets.For(config, context);
 
-    foreach (var dep in config.Dependencies)
-    {
-      if (dep.Key != "googletest")
-      {
-        var target = string.IsNullOrEmpty(dep.Value.Target) ? dep.Key : dep.Value.Target;
-        linkTargets.Add(target);
-      }
-    }
-
-    // From Conan
-    linkTargets.AddRange(ProjectBuildManager.LinkDependencies);
+    // The project's own extra libraries are part of it, so its targets link
+    // them: an application plus the library it is built from.
+    foreach (var target in config.Targets.Where(target => target.Type == "library"))
+      linkTargets.Add(target.Name);
 
     if (linkTargets.Count == 0) return string.Empty;
 

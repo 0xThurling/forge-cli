@@ -5,3 +5,6 @@ bin
 obj
 
 appsettings.json
+build/
+compile_commands.json
+CMakePresets.json

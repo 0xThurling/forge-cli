@@ -35,6 +35,163 @@ dependencies = {
 
 ---
 
+## Local Path Dependencies
+
+When the dependency lives beside your project — a workspace of sibling
+checkouts — point at it directly instead of going through Git:
+
+```lua
+dependencies = {
+    direct = {
+        ["forgefp"] = {
+            path = "../fp",       -- relative to the project directory
+            target = "forgefp"    -- the CMake target to link
+        }
+    }
+}
+```
+
+Forge emits
+`FetchContent_Declare(forgefp SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../fp")`,
+so the dependency is configured and built from that directory with no clone,
+fetch, or tag round-trip. Edits to the dependency are picked up on the next
+`forge build`.
+
+- Relative paths resolve against the project directory; absolute paths are
+  used as-is.
+- The emitted path is relative to the project, so the generated CMake stays
+  portable across machines that share the layout.
+- A missing directory is reported at generation time, with the resolved path,
+  instead of surfacing later as a confusing CMake error.
+- A path dependency that has **never been built** is reported too: Forge writes
+  a project's `CMakeLists.txt` when that project is built, and CMake silently
+  skips a subdirectory without one. Run `forge build` in the dependency first,
+  or let [`forge workspace build`](workspaces.md) order it for you.
+- `path` and `git`/`tag` are interchangeable per dependency: use `path` while
+  developing side by side, and `git`/`tag` for CI or for consumers that don't
+  share the layout.
+- The dependency **key** is the `FetchContent` name while `target` is what gets
+  linked, so they may differ (a key of `myfoo` linking a target `foo`).
+
+---
+
+## Dependency options
+
+A dependency can be configured with CMake cache variables, which is how you
+turn off the parts of it you do not need:
+
+```lua
+direct = {
+    fmt = { git = "https://github.com/fmtlib/fmt.git", tag = "10.2.1",
+            target = "fmt::fmt", options = { FMT_TEST = "OFF" } },
+    sdl = { git = "https://github.com/libsdl-org/SDL.git", tag = "release-2.32.10",
+            target = "SDL2::SDL2", options = { SDL_TEST = "OFF", SDL_EXAMPLES = "OFF" } }
+}
+```
+
+They are emitted as `set(<NAME> "<value>" CACHE STRING "" FORCE)` immediately
+before `FetchContent_MakeAvailable`, so the dependency's own `option()` calls
+see them. (A plain `set()` would run after those calls and be ignored.)
+
+## Dependencies and their own tests
+
+A dependency is built for the consumer, but it does not drag its test suite
+along: the generated test (and benchmark) block is guarded with
+`CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR`, so it only runs when the
+project is the top-level one. The test framework is fetched inside that guard
+too, so consuming a tested library does not download GoogleTest.
+
+Set `-DFORGE_BUILD_DEPENDENCY_TESTS=ON` to override this (for example when
+building a dependency's tests on purpose). Packaging is guarded the same way: a
+dependency's CPack configuration never leaks into the consumer's build.
+
+## The shared cache
+
+A fetched git dependency is cloned into a shared cache (keyed by repository and
+reference) and handed to CMake as `FETCHCONTENT_SOURCE_DIR_<NAME>`, so a second
+project — or a second CI run — skips the download. It also means a build works
+offline once the cache is warm. `forge cache list` and `forge cache clear` manage
+it; `build.cache = "off"` (or `FORGE_NO_CACHE=1`) turns it off. Branches are
+never cached, because a cached copy would freeze a moving reference.
+
+## Locking (`forge.lock`)
+
+Git dependencies are declared with a tag or branch, and those move. `forge
+install` resolves each git dependency to a commit and writes `forge.lock`; the
+generated CMake then fetches that exact commit, so every machine and CI run
+builds the same sources.
+
+```json
+{
+  "version": 1,
+  "git": {
+    "sdl": {
+      "git": "https://github.com/libsdl-org/SDL.git",
+      "tag": "release-2.32.10",
+      "commit": "9c1b6c1…"
+    }
+  }
+}
+```
+
+- **Commit `forge.lock`.** It is what makes the build reproducible.
+- `forge install` resolves new or changed dependencies; `forge install
+  --update` re-resolves everything (use it to move to a newer tag after
+  editing `forge.lua`).
+- A moved upstream tag does *not* move your build — the commit is pinned.
+- `forge build` never writes the lock, so a build needs no network beyond
+  FetchContent's own fetch of the pinned commit.
+- Local `path` dependencies are not locked (they are, by definition, whatever
+  is on disk).
+
+---
+
+## vcpkg (manifest mode)
+
+Forge writes `vcpkg.json` and hands CMake vcpkg's toolchain file, so vcpkg
+installs the manifest's packages during configure — Forge never invokes vcpkg
+itself.
+
+```lua
+dependencies = {
+    direct = {},
+    conan = {},
+    vcpkg = {
+        fmt = "fmt::fmt",
+        spdlog = { target = "spdlog::spdlog", version = "1.12.0" }
+    }
+}
+vcpkg_root = "external/vcpkg"     -- or $VCPKG_ROOT
+vcpkg_baseline = "<commit>"       -- optional builtin-baseline
+```
+
+The declared `target` is what gets linked, because vcpkg cannot be queried for
+targets without running it. vcpkg and Conan each need
+`CMAKE_TOOLCHAIN_FILE`, so a project uses one or the other.
+
+---
+
+## pkg-config
+
+System libraries that ship a `.pc` file need no wrapper: list the module names
+and Forge resolves them.
+
+```lua
+dependencies = {
+    direct = {},
+    conan = {},
+    pkgconfig = { "gtk+-3.0", "libcurl" }
+}
+```
+
+Forge emits `find_package(PkgConfig REQUIRED)` and
+`pkg_check_modules(<MODULE> REQUIRED IMPORTED_TARGET <module>)`, then links
+`PkgConfig::<MODULE>`. Compile flags (include paths) come from the module, so a
+system library's headers are available without extra configuration. A missing
+module fails the configure with pkg-config's own message.
+
+---
+
 ## Conan Packages
 
 Forge has built-in support for [Conan](https://conan.io/), a powerful C/C++ package manager.

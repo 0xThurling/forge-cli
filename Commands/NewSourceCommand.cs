@@ -64,7 +64,9 @@ namespace forge.Commands
 
       try
       {
+        headerContent = TemplateManager.Render("source", Name, ".hpp") ?? headerContent;
         File.WriteAllText(headerPath, headerContent);
+        cppContent = TemplateManager.Render("source", Name, ".cpp") ?? cppContent;
         File.WriteAllText(cppPath, cppContent);
         AnsiConsole.MarkupLine($"[bold green]Created source files `[bold]{fileName}.h[/]` and `[bold]{fileName}.cpp[/]` in `src/`.[/]");
       }

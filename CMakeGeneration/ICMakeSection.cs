@@ -1,5 +1,3 @@
-using forge.Models;
-
 namespace forge.CMakeGeneration
 {
   /// <summary>
@@ -21,11 +19,11 @@ namespace forge.CMakeGeneration
     /// <summary>
     /// Whether this section should be generated
     /// </summary>
-    bool IsEnabled(ProjectConfig config);
+    bool IsEnabled(BuildContext context);
 
     /// <summary>
     /// Generate CMake content
     /// </summary>
-    string Generate(ProjectConfig config);
+    string Generate(BuildContext context);
   }
 }

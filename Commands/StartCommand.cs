@@ -20,16 +20,52 @@ namespace forge.Commands
   /// </example>
   public class StartCommand
   {
+    /// <summary>Which executable target to run (default: the project's own).</summary>
+    public string? Bin { get; set; }
+
+    /// <summary>Arguments passed to the program, in order.</summary>
+    public IReadOnlyList<string> Arguments { get; set; } = [];
+
+    /// <summary>Skip the build and run the existing binary.</summary>
+    public bool NoBuild { get; set; }
+
+    public bool Release { get; set; }
+
+    public bool Debug { get; set; }
+
+    public int? Jobs { get; set; }
+
+    public string? Standard { get; set; }
+
+    public string? Preset { get; set; }
+
+    public bool NoConfigPresets { get; set; }
+
+    public bool Verbose { get; set; }
+
     /// <summary>
     /// Builds the project and executes the resulting binary.
     /// </summary>
     /// <returns>0 on success, non-zero on failure.</returns>
     public async Task<int> RunAsync()
     {
-      var buildCommand = new BuildCommand();
-      if (await buildCommand.RunAsync() != 0)
+      if (!NoBuild)
       {
-        return 1;
+        var buildCommand = new BuildCommand
+        {
+          Release = Release,
+          Debug = Debug,
+          Jobs = Jobs,
+          Standard = Standard,
+          Preset = Preset,
+          NoConfigPresets = NoConfigPresets,
+          Verbose = Verbose,
+        };
+
+        if (await buildCommand.RunAsync() != 0)
+        {
+          return 1;
+        }
       }
 
       var config = await ProjectConfigManager.LoadConfigAsync();
@@ -44,15 +80,28 @@ namespace forge.Commands
         return HandleLibraryBuild(config);
       }
 
-      var executablePath = FindExecutable(config.Project.Name);
+      var wanted = string.IsNullOrWhiteSpace(Bin) ? config.Project.Name : Bin!;
+      if (string.IsNullOrWhiteSpace(Bin) && config.Project.Type == "library")
+      {
+        // A library project's runnable target is an extra executable, if any.
+        wanted = config.Targets.FirstOrDefault(target => target.Type == "executable")?.Name ?? wanted;
+      }
+
+      var executablePath = FindExecutable(wanted);
 
       if (string.IsNullOrEmpty(executablePath))
       {
-        AnsiConsole.MarkupLine($"[bold red]Error:[/] Executable not found.");
-        AnsiConsole.MarkupLine($"[dim]Searched in:[/]");
-        AnsiConsole.MarkupLine($"   [dim]- build/{config.Project.Name}[/]");
-        AnsiConsole.MarkupLine($"   [dim]- build/Release/{config.Project.Name}[/]");
-        AnsiConsole.MarkupLine($"   [dim]- build/Debug/{config.Project.Name}[/]");
+        AnsiConsole.MarkupLine($"[bold red]Error:[/] executable `{wanted}` not found.");
+        if (config.Targets.Count > 0)
+        {
+          AnsiConsole.MarkupLine(
+            $"[dim]Targets:[/] {config.Project.Name} ({config.Project.Type}), " +
+            string.Join(", ", config.Targets.Select(target => $"{target.Name} ({target.Type})")));
+        }
+        AnsiConsole.MarkupLine("[dim]Searched in:[/]");
+        AnsiConsole.MarkupLine($"   [dim]- build/{wanted}[/]");
+        AnsiConsole.MarkupLine($"   [dim]- build/Release/{wanted}[/]");
+        AnsiConsole.MarkupLine($"   [dim]- build/Debug/{wanted}[/]");
         return 1;
       }
 
@@ -66,6 +115,9 @@ namespace forge.Commands
           RedirectStandardError = false,
           CreateNoWindow = true,
         };
+        foreach (var argument in Arguments)
+          processStartInfo.ArgumentList.Add(argument);
+
         using var process = Process.Start(processStartInfo) ??
           throw new Exception("Failed to start process.");
         process.WaitForExit();

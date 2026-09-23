@@ -184,6 +184,73 @@ namespace forge.Commands.Lua
       _categories.Add(new LuaDefinitionCategory("forge.current_working_dir",
             "The current working directory")
           .AddConstantInformation("type", "string"));
+
+      // Workflow helpers: running programs, files, templates, Git state.
+      _categories.Add(new LuaDefinitionCategory("forge.exec",
+            "Runs a shell command and captures its output",
+            new LuaParameter("command", "string", "The command line to run"))
+          .AddReturn(new LuaParameterReturn("number", "The exit code"))
+          .AddReturn(new LuaParameterReturn("string", "The combined output")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.read_file",
+            "Reads a file, relative to the project root",
+            new LuaParameter("path", "string", "The file to read"))
+          .AddReturn(new LuaParameterReturn("string", "The contents, or nil")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.write_file",
+            "Writes a file, creating parent directories",
+            new LuaParameter("path", "string", "The file to write"),
+            new LuaParameter("contents", "string", "The contents to write")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.copy_file",
+            "Copies a file, creating parent directories",
+            new LuaParameter("source", "string", "The file to copy"),
+            new LuaParameter("destination", "string", "Where to copy it")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.mkdir",
+            "Creates a directory (and its parents)",
+            new LuaParameter("path", "string", "The directory to create")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.template",
+            "Renders @KEY@ placeholders from a file into another file",
+            new LuaParameter("source", "string", "The template file"),
+            new LuaParameter("destination", "string", "The file to write"),
+            new LuaParameter("values", "table", "Values for the @KEY@ placeholders")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.git",
+            "Reads the project's Git state")
+          .AddConstantInformation("class", "forge.git"));
+
+      _categories.Add(new LuaDefinitionCategory("forge.git.describe",
+            "The newest tag with distance and dirty flag (git describe)")
+          .AddReturn(new LuaParameterReturn("string", "The description, or nil")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.git.rev",
+            "The abbreviated commit hash")
+          .AddReturn(new LuaParameterReturn("string", "The hash, or nil")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.git.tag",
+            "The exact tag at HEAD, or nil")
+          .AddReturn(new LuaParameterReturn("string", "The tag, or nil")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.git.branch",
+            "The current branch name")
+          .AddReturn(new LuaParameterReturn("string", "The branch, or nil")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.git.dirty",
+            "Whether the working tree has uncommitted changes")
+          .AddReturn(new LuaParameterReturn("boolean", "True when dirty")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.add_section",
+            "Registers a named CMake section at a chosen anchor",
+            new LuaParameter("name", "string", "The section name"),
+            new LuaParameter("position", "string", "before:<section>, after:<section>, first, last or a number"),
+            new LuaParameter("content", "string", "The CMake to emit")));
+
+      _categories.Add(new LuaDefinitionCategory("forge.config.set",
+            "Sets a config value and writes it back to forge.lua",
+            new LuaParameter("key", "string", "The config key"),
+            new LuaParameter("value", "string", "The value to set")));
     }
 
     public static string GenerateDefinitions()

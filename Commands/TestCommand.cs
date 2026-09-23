@@ -51,8 +51,16 @@ namespace forge.Commands
     /// <value>
     /// Valid values: "11", "14", "17", "20". Defaults to "20".
     /// </value>
-    [CliOption(Description = "C++ standard to use (e.g., 11, 14, 17, 20). Defaults to 20.")]
-    public string Standard { get; set; } = "20";
+    /// <summary>Parallel build jobs, forwarded to the build step.</summary>
+    [CliOption(Description = "Parallel build jobs (default: all cores)", Required = false)]
+    public int? Jobs { get; set; }
+
+    /// <summary>
+    /// Overrides the project's C++ standard for this invocation. Null when the
+    /// flag was not given, so the configured standard wins.
+    /// </summary>
+    [CliOption(Description = "C++ standard to use (e.g., 11, 14, 17, 20). Defaults to the configured standard.", Required = false)]
+    public string? Standard { get; set; }
 
     /// <summary>Production preset (-O3 -DNDEBUG) regardless of forge.lua.</summary>
     [CliOption(Description = "Build tests with the production preset regardless of config.")]
@@ -71,6 +79,16 @@ namespace forge.Commands
     public bool NoConfigPresets { get; set; }
 
     /// <summary>
+    /// Writes a JUnit XML report (ctest --output-junit), which CI test reporters
+    /// and IDEs understand.
+    /// </summary>
+    [CliOption(Description = "Write a JUnit XML report to this path", Required = false)]
+    public string? JUnit { get; set; }
+
+    [CliOption(Description = "Print a JSON summary (the last line of the output)", Required = false)]
+    public bool Json { get; set; }
+
+    /// <summary>
     /// Executes the test build and run pipeline.
     /// </summary>
     /// <returns>
@@ -87,6 +105,7 @@ namespace forge.Commands
       var buildCommand = new BuildCommand
       {
         Verbose = false, // Tests usually don't need verbose build output
+        Jobs = Jobs,
         Standard = Standard,
         Release = Release,
         Debug = Debug,
@@ -99,11 +118,36 @@ namespace forge.Commands
         return 1; // Build failed
       }
 
-      AnsiConsole.Status().Start("Running Tests...", _ =>
+      // `--json` needs the report even when the caller did not ask for one:
+      // ctest's own output is the only place the counts exist.
+      var report = Json && string.IsNullOrWhiteSpace(JUnit)
+        ? Path.Combine(Path.GetTempPath(), $"forge-tests-{Environment.ProcessId}.xml")
+        : JUnit;
+      var testsRun = 0;
+      var testsFailed = 0;
+
+      var exitCode = AnsiConsole.Status().Start("Running Tests...", _ =>
       {
         // Prefer CTest: gtest_discover_tests registers the suite on configure,
         // and the test target is named `<project>_tests` (not `run_tests`).
         var ctestArgs = new List<string> { "--test-dir", "build", "--output-on-failure" };
+
+        // Tests run in parallel, like the build: for a large suite the tests,
+        // not the compile, are the slow part of `forge test`.
+        ctestArgs.Add("-j");
+        ctestArgs.Add((Jobs is > 0 ? Jobs.Value : Environment.ProcessorCount).ToString());
+
+        if (!string.IsNullOrWhiteSpace(report))
+        {
+          // ctest runs inside --test-dir, so a relative report path would land
+          // in build/. Resolve it against the project directory instead.
+          var reportPath = Path.GetFullPath(report);
+          var reportDirectory = Path.GetDirectoryName(reportPath);
+          if (!string.IsNullOrEmpty(reportDirectory))
+            Directory.CreateDirectory(reportDirectory);
+          ctestArgs.Add("--output-junit");
+          ctestArgs.Add(reportPath);
+        }
         var gtestFilter = Filter;
         if (string.IsNullOrEmpty(gtestFilter) && !string.IsNullOrEmpty(TestSuiteName))
         {
@@ -118,6 +162,9 @@ namespace forge.Commands
         try
         {
           var ctest = RunProcess("ctest", ctestArgs);
+          if (report is not null)
+            (testsRun, testsFailed) = CountTests(report);
+
           if (ctest.HasValue)
           {
             if (ctest.Value != 0)
@@ -161,7 +208,46 @@ namespace forge.Commands
         return 0;
       });
 
-      return 0;
+      if (Json)
+      {
+        Console.WriteLine(
+          $"{{\"tests\":{testsRun},\"failures\":{testsFailed}," +
+          $"\"passed\":{JsonOutput.Bool(testsFailed == 0 && exitCode == 0)}," +
+          $"\"report\":{(report is null ? "null" : JsonOutput.Quote(report))}}}");
+      }
+
+      // The status callback's result is the command's result: a failing suite
+      // has to fail `forge test`, and therefore CI.
+      return exitCode;
+    }
+
+    /// <summary>
+    /// Counts the tests and failures in a ctest JUnit report. ctest writes one
+    /// <c>&lt;testsuite&gt;</c> per test, so the attributes are summed.
+    /// </summary>
+    private static (int Tests, int Failures) CountTests(string report)
+    {
+      try
+      {
+        if (!File.Exists(report))
+          return (0, 0);
+
+        var document = System.Xml.Linq.XDocument.Load(report);
+        var suites = document.Descendants("testsuite").ToList();
+        if (suites.Count == 0)
+          return (0, 0);
+
+        static int Attribute(System.Xml.Linq.XElement element, string name) =>
+          int.TryParse(element.Attribute(name)?.Value, out var value) ? value : 0;
+
+        return (
+          suites.Sum(suite => Attribute(suite, "tests")),
+          suites.Sum(suite => Attribute(suite, "failures") + Attribute(suite, "errors")));
+      }
+      catch (Exception)
+      {
+        return (0, 0); // an unreadable report must not fail the run
+      }
     }
 
     /// <summary>

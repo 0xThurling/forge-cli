@@ -51,7 +51,9 @@ namespace forge.Commands
 
       try
       {
+        headerContent = TemplateManager.Render("struct", Name, ".hpp") ?? headerContent;
         File.WriteAllText(headerPath, headerContent);
+        cppContent = TemplateManager.Render("struct", Name, ".cpp") ?? cppContent;
         File.WriteAllText(cppPath, cppContent);
         AnsiConsole.MarkupLine($"[bold green]Created struct `[bold]{structName}[/]` in `src/`.[/]");
       }

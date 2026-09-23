@@ -1,4 +1,5 @@
 using System.Text;
+using forge.CMakeGeneration;
 using forge.ForgeEngine.CoreUtils;
 using forge.Models;
 using Lua;
@@ -27,6 +28,7 @@ namespace forge.Commands.Lua
   {
     private static LuaState _state = null!;
     private static LuaTable _forge = null!;
+    private static BuildContext? _context;
 
     /// <summary>
     /// Initializes the Lua engine with standard libraries and custom Forge functions.
@@ -43,7 +45,20 @@ namespace forge.Commands.Lua
       _forge = new LuaTable();
 
       SetEnvironmentLibraries(ref _state);
-      SetEnvironmentVariableInformation();
+      RegisterModules();
+    }
+
+    /// <summary>
+    /// Points the Lua API at the build it is contributing to. The functions
+    /// capture the context, so a script's contributions belong to exactly one
+    /// build instead of accumulating in static state.
+    /// </summary>
+    public static void UseContext(BuildContext context)
+    {
+      if (ReferenceEquals(_context, context))
+        return;
+
+      _context = context;
       RegisterModules();
     }
 
@@ -68,9 +83,15 @@ namespace forge.Commands.Lua
 
     private static void RegisterModules()
     {
+      // Rebuilt per build: the environment tables carry the working directory
+      // and the modules carry the build context.
+      _forge = new LuaTable();
+      SetEnvironmentVariableInformation();
+
       var modules = new LuaFunctionModule[]
       {
-        new CoreFunctionModule()
+        new CoreFunctionModule(_context ?? new BuildContext()),
+        new LuaWorkflowModule()
       };
 
       foreach (var module in modules)
@@ -129,20 +150,26 @@ namespace forge.Commands.Lua
     }
 
     /// <summary>
-    /// Generates and saves environment definitions for a new project.
+    /// Writes the editor definitions for a project: the Lua stubs that make
+    /// `forge.*` autocomplete and type-check in an editor (lua_ls).
     /// </summary>
-    /// <param name="projectName">The name of the project.</param>
+    /// <param name="projectDirectory">
+    /// The project root, relative to the current directory (a new project's
+    /// name, or "." for the project in the current directory).
+    /// </param>
     /// <remarks>
-    /// Creates a definitions.lua file in .config/forge/definitions/ with
-    /// current environment information for the new project.
+    /// Always replaced, never appended: the stubs must match the installed CLI,
+    /// and a project that was created by an older Forge should get the current
+    /// API after `forge doctor --fix`.
     /// </remarks>
-    public static void SetEnvironmentDefinitions(string projectName)
+    public static void WriteEnvironmentDefinitions(string projectDirectory)
     {
-      var definitionsFilePath = Path.Combine(Directory.GetCurrentDirectory(), projectName, ".config", "forge", "definitions");
-
-      var definitions = LuaDefinitionGenerator.GenerateDefinitions();
-
-      File.AppendAllBytes(Path.Combine(definitionsFilePath, "definitions.lua"), Encoding.UTF8.GetBytes(definitions));
+      var directory = Path.Combine(projectDirectory, ".config", "forge", "definitions");
+      Directory.CreateDirectory(directory);
+      File.WriteAllText(
+        Path.Combine(directory, "definitions.lua"),
+        LuaDefinitionGenerator.GenerateDefinitions(),
+        Encoding.UTF8);
     }
 
     public static async Task SetConfigValue(string key, string value)

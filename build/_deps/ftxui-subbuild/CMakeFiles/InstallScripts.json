@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"/root/forge/forge-cli/build/_deps/ftxui-subbuild/cmake_install.cmake"
-	],
-	"Parallel" : false
-}

@@ -26,6 +26,22 @@ namespace forge.Models
     public string Tag { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets a local directory to use as the dependency's source instead
+    /// of fetching it from Git.
+    /// </summary>
+    /// <remarks>
+    /// Use this when the dependency lives beside the project (a workspace of
+    /// sibling checkouts) and is being edited at the same time — no commit,
+    /// push or tag round-trip is needed. Relative paths are resolved against
+    /// the project directory. When set, <see cref="Git"/> and <see cref="Tag"/>
+    /// are ignored.
+    /// </remarks>
+    /// <value>
+    /// A path to a directory containing the dependency's CMakeLists.txt.
+    /// </value>
+    public string Path { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets the CMake target name to use when linking this dependency.
     /// </summary>
     /// <value>
@@ -33,5 +49,16 @@ namespace forge.Models
     /// the dependency key name from the configuration.
     /// </value>
     public string Target { get; set; } = string.Empty; // Optional, defaults to key name
+
+    /// <summary>
+    /// CMake cache variables set before the dependency is configured, e.g.
+    /// <c>{ SDL_TEST = "OFF" }</c> to skip a dependency's own tests and examples.
+    /// </summary>
+    /// <remarks>
+    /// Emitted as <c>set(&lt;key&gt; &lt;value&gt; CACHE STRING "" FORCE)</c> right
+    /// before <c>FetchContent_MakeAvailable</c>, so the fetched project sees them
+    /// as its own options.
+    /// </remarks>
+    public Dictionary<string, string> Options { get; set; } = [];
   }
 }

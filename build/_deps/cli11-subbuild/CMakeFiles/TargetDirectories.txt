@@ -1,3 +1,0 @@
-/root/forge/forge-cli/build/_deps/cli11-subbuild/CMakeFiles/cli11-populate.dir
-/root/forge/forge-cli/build/_deps/cli11-subbuild/CMakeFiles/edit_cache.dir
-/root/forge/forge-cli/build/_deps/cli11-subbuild/CMakeFiles/rebuild_cache.dir

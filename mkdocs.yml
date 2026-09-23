@@ -9,6 +9,8 @@ nav:
   - Build System: build-system.md
   - Project Scaffolding: project-scaffolding.md
   - Dependency Management: dependency-management.md
+  - Workspaces: workspaces.md
+  - Custom Setup Scripts: custom-setup.md
   - CLI Reference: cli-reference.md
   - Lua Reference: lua-reference.md
 plugins:

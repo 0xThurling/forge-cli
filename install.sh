@@ -66,3 +66,9 @@ echo "Installing Forge to /usr/local/bin..."
 sudo mv forge /usr/local/bin/forge
 
 echo "Forge has been installed successfully!"
+
+# Forge orchestrates a toolchain; tell the user what is missing on this machine.
+if command -v forge >/dev/null 2>&1; then
+    echo
+    forge setup || true
+fi

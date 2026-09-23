@@ -9,7 +9,7 @@ namespace forge.Commands
   /// </summary>
   /// <remarks>
   /// This command initializes a new Forge project by creating the required directory
-  /// structure, generating a package.toml configuration file, and setting up Lua
+  /// structure, generating a forge.lua configuration file, and setting up Lua
   /// environment definitions. The created project is immediately ready for use with
   /// standard CMake-based C++ development.
   /// </remarks>
@@ -29,7 +29,7 @@ namespace forge.Commands
     /// Gets or sets the name of the project to create.
     /// </summary>
     /// <value>
-    /// The name used for the project directory, executable/library, and package.toml name.
+    /// The name used for the project directory, executable/library, and forge.lua name.
     /// </value>
     [CliArgument(Description = "The name of the project.")]
     public string Name { get; set; } = string.Empty;
@@ -44,6 +44,12 @@ namespace forge.Commands
     [CliOption(Description = "Type of project to create (executable or library).")]
     public string Type { get; set; } = "executable";
 
+    [CliOption(Description = "C++ standard (default: 20)", Required = false)]
+    public string Standard { get; set; } = "20";
+
+    [CliOption(Description = "Enable the test target", Required = false)]
+    public bool Testing { get; set; }
+
     /// <summary>
     /// Executes the project creation process.
     /// </summary>
@@ -53,67 +59,24 @@ namespace forge.Commands
     /// - external/ for Git dependencies
     /// - assets/ for resource files
     /// - .config/forge/ containing Lua configuration directories
-    /// - package.toml with project configuration
+    /// - forge.lua with project configuration
     /// - .gitignore with appropriate patterns
     /// </remarks>
     public async Task RunAsync()
     {
       var projectName = Name;
+      var type = Type.Trim().ToLowerInvariant();
+      if (type is not ("executable" or "library"))
+      {
+        AnsiConsole.MarkupLine($"[bold red]Error:[/] unknown type `{Type}` — use `executable` or `library`.");
+        return;
+      }
+
       AnsiConsole.MarkupLine($"[bold cyan]--- Creating project: {projectName} --- [/]");
 
       try
       {
-        // Create directories
-        Directory.CreateDirectory(projectName);
-        Directory.CreateDirectory(Path.Combine(projectName, "src"));
-        Directory.CreateDirectory(Path.Combine(projectName, "external"));
-        Directory.CreateDirectory(Path.Combine(projectName, "assets"));
-        Directory.CreateDirectory(Path.Combine(projectName, ".config"));
-
-        // Create Lua directories
-        Directory.CreateDirectory(Path.Combine(projectName, ".config", "forge"));
-        Directory.CreateDirectory(Path.Combine(projectName, ".config", "forge", "commands"));
-        Directory.CreateDirectory(Path.Combine(projectName, ".config", "forge", "build"));
-        Directory.CreateDirectory(Path.Combine(projectName, ".config", "forge", "templates"));
-        Directory.CreateDirectory(Path.Combine(projectName, ".config", "forge", "definitions"));
-
-        // Initial Lua definitions
-        LuaEngine.SetEnvironmentDefinitions(projectName);
-
-        // Create src/main.cpp for executable
-        if (Type == "executable")
-        {
-          var mainCppContent = "#include <iostream>\n\nint main() {\n    std::cout << \"Hello, C++ World!\" << std::endl;\n    return 0;\n}";
-          File.WriteAllText(Path.Combine(projectName, "src", "main.cpp"), mainCppContent);
-        }
-
-        // Create package.toml
-        var installHeaders = Type == "library" ? "install_headers = true," : "";
-        var forgeLuaContent =
-@$"return {{
-  project = {{
-    name = ""{projectName}"",
-    type = ""{Type}"",
-    standard = ""20"",
-    {installHeaders}
-  }},
-  testing = false,
-  dependencies = {{
-   direct = {{}},
-   conan = {{}}
-  }},
-  resources = {{
-    files = {{}}
-  }},
-  scripts = {{}},
-  features = {{}}
-}}";
-
-        File.WriteAllText(Path.Combine(projectName, "forge.lua"), forgeLuaContent);
-
-        // Create a placeholder .gitignore
-        var gitignoreContent = "build/\nlib/\ncompile_commands.json\nconanfile.txt\n";
-        File.WriteAllText(Path.Combine(projectName, ".gitignore"), gitignoreContent);
+        ProjectScaffolder.Scaffold(projectName, projectName, type, Standard, Testing);
 
         AnsiConsole.MarkupLine($"[bold green]Successfully created project `[bold yellow]{projectName}[/]`.[/]");
         AnsiConsole.MarkupLine($"To get started, `cd [bold yellow]{projectName}[/]`.");

@@ -1,5 +1,0 @@
-if(EXISTS "/root/forge/forge-cli/build/_deps/forge_utils-build/forge-utils_tests[1]_tests.cmake")
-  include("/root/forge/forge-cli/build/_deps/forge_utils-build/forge-utils_tests[1]_tests.cmake")
-else()
-  add_test(forge-utils_tests_NOT_BUILT forge-utils_tests_NOT_BUILT)
-endif()

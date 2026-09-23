@@ -15,7 +15,7 @@ namespace forge.Commands
   /// </summary>
   /// <remarks>
   /// This is the primary build command that orchestrates the entire build process:
-  /// 1. Loads project configuration from package.toml
+  /// 1. Loads project configuration from forge.lua
   /// 2. Runs pre-build script (if defined)
   /// 3. Installs Conan dependencies
   /// 4. Generates embedded resource files
@@ -52,8 +52,19 @@ namespace forge.Commands
     /// <value>
     /// Valid values: "11", "14", "17", "20". Defaults to "20".
     /// </value>
-    [CliOption(Description = "C++ standard to use (e.g., 11, 14, 17, 20). Defaults to 20.")]
-    public string Standard { get; set; } = "20";
+    /// <summary>
+    /// Number of parallel build jobs. Null uses the generator's default (all
+    /// cores); 1 forces a serial build.
+    /// </summary>
+    [CliOption(Description = "Parallel build jobs (default: all cores)", Required = false)]
+    public int? Jobs { get; set; }
+
+    /// <summary>
+    /// Overrides the project's C++ standard for this invocation. Null when the
+    /// flag was not given, so the configured standard wins.
+    /// </summary>
+    [CliOption(Description = "C++ standard to use (e.g., 11, 14, 17, 20). Defaults to the configured standard.", Required = false)]
+    public string? Standard { get; set; }
 
     /// <summary>Production preset (-O3 -DNDEBUG) regardless of forge.lua.</summary>
     [CliOption(Description = "Build with the production preset (-O3 -DNDEBUG) regardless of config.")]
@@ -66,6 +77,10 @@ namespace forge.Commands
     /// <summary>Extra presets for a quick build (comma-separated).</summary>
     [CliOption(Description = "Add build presets for a quick build (comma-separated), e.g. --preset simd,concurrency.", Required = false)]
     public string? Preset { get; set; }
+
+    /// <summary>Build only this CMake target (default: all of them).</summary>
+    [CliOption(Description = "Build only this CMake target", Required = false)]
+    public string? Target { get; set; }
 
     /// <summary>Ignore presets declared in forge.lua (use only CLI presets).</summary>
     [CliOption(Description = "Ignore presets declared in forge.lua (use only CLI presets).")]
@@ -87,6 +102,10 @@ namespace forge.Commands
         return 1;
       }
 
+      // Everything this build contributes lives in one context, so nothing a
+      // previous build (or another project in a workspace) left behind leaks in.
+      var context = new BuildContext { Config = projectConfig };
+
       if (projectConfig.Scripts.TryGetValue("pre-build", out _))
       {
         var runCommand = new RunCommand { ScriptName = "pre-build" };
@@ -97,13 +116,14 @@ namespace forge.Commands
         }
       }
 
-      // Needs to run synchronously
-      Task.Run(() => LuaBuilder.RunBuilderScripts()).Wait();
+      // Needs to run synchronously; a failing script stops the build.
+      if (!Task.Run(() => LuaBuilder.RunBuilderScripts(context)).GetAwaiter().GetResult())
+        return 1;
 
       var installPackages = new InstallCommand();
-      if (await installPackages.RunAsync() != 0)
+      if (await installPackages.InstallForBuildAsync(context) != 0)
       {
-        AnsiConsole.WriteLine("Error install conan packages");
+        AnsiConsole.MarkupLine("[bold red]Error:[/] Conan dependencies could not be installed.");
         return 1;
       }
 
@@ -118,6 +138,25 @@ namespace forge.Commands
 
         // Refresh config to get the googletest dependency
         projectConfig = await ProjectConfigManager.LoadConfigAsync();
+        if (projectConfig != null)
+          context.Config = projectConfig;
+      }
+
+      // Apply CLI flag overrides (quick builds without editing forge.lua)
+      if (projectConfig != null)
+      {
+        var build = projectConfig.Build;
+        if (!string.IsNullOrWhiteSpace(Standard))
+          projectConfig.Project.Standard = Standard;
+        if (NoConfigPresets)
+          build.Presets.Clear();
+        if (Release)
+          build.Presets.Add("production");
+        if (Debug)
+          build.Presets.Add("debug");
+        if (!string.IsNullOrWhiteSpace(Preset))
+          build.Presets.AddRange(
+            Preset.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
       }
 
       // Apply CLI flag overrides (quick builds without editing forge.lua)
@@ -140,7 +179,7 @@ namespace forge.Commands
         CoreUtils.GenerateLibraryHeaders(projectConfig.Project.Name);
       }
 
-      AnsiConsole.Status().AutoRefresh(!Verbose).Start("Building Project...", _ =>
+      var buildExitCode = AnsiConsole.Status().AutoRefresh(!Verbose).Start("Building Project...", _ =>
       {
         var projectName = projectConfig?.Project.Name;
 
@@ -168,9 +207,10 @@ namespace forge.Commands
             Utils.GenerateResourceFiles(projectConfig!.Resources.Files);
           }
 
-          var cmakeContent = CMakeRegistry.Instance.Generate(projectConfig);
+          if (projectConfig.VcpkgDependencies.Count > 0)
+            VcpkgManager.WriteManifest(projectConfig);
 
-          ProjectBuildManager.CustomCmakeSnippets.Clear();
+          var cmakeContent = CMakeRegistry.Instance.Generate(context);
 
           var cmakeConfigPath = Path.Combine(".config", "cmake", "CMakeLists.txt");
           File.WriteAllText(cmakeConfigPath, cmakeContent);
@@ -185,34 +225,130 @@ namespace forge.Commands
           }
 
           rootCmakeContent.AppendLine();
-          rootCmakeContent.AppendLine($"project({projectName} LANGUAGES CXX C)");
+          var versionArgument = string.IsNullOrWhiteSpace(projectConfig!.Project.Version)
+            ? string.Empty
+            : $" VERSION {projectConfig.Project.Version}";
+          rootCmakeContent.AppendLine($"project({projectName}{versionArgument} LANGUAGES CXX C)");
           rootCmakeContent.AppendLine();
           rootCmakeContent.AppendLine("include(.config/cmake/CMakeLists.txt)");
 
           File.WriteAllText("CMakeLists.txt", rootCmakeContent.ToString());
 
           // Configure step
+          EnsureBuildCacheMatchesProject("build");
           var buildType = Debug && !Release ? "Debug" : "Release";
-          var cmakeArgs = new StringBuilder($"-B build -DCMAKE_BUILD_TYPE={buildType} -S . -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_INSTALL_PREFIX=.");
+          var build = projectConfig!.Build;
+          var generator = build.Generator;
+
+          // CMake can only scan for modules with Ninja or a recent Visual
+          // Studio generator, so pick a working one unless the user insisted.
+          if (build.Modules)
+          {
+            if (generator.Length == 0)
+            {
+              generator = "Ninja";
+              AnsiConsole.MarkupLine("[dim]`modules = true` needs a scanning generator: using Ninja.[/]");
+            }
+            else if (!IsModuleCapableGenerator(generator))
+            {
+              AnsiConsole.MarkupLine(
+                $"[yellow]Warning:[/] `modules = true` cannot work with `{generator}` — " +
+                "module scanning needs Ninja or Visual Studio 17.4+.");
+            }
+          }
+
+          var multiConfig = IsMultiConfigGenerator(generator);
+          var jobCount = Jobs is > 0 ? Jobs.Value : build.Jobs;
+
+          var cacheVariables = new Dictionary<string, string>(StringComparer.Ordinal)
+          {
+            ["CMAKE_EXPORT_COMPILE_COMMANDS"] = "ON",
+            ["CMAKE_INSTALL_PREFIX"] = "."
+          };
+
+          // Multi-config generators choose the configuration at build time.
+          if (!multiConfig)
+            cacheVariables["CMAKE_BUILD_TYPE"] = buildType;
 
           if (!string.IsNullOrEmpty(policyVersion))
-          {
-            cmakeArgs.Append($" -DCMAKE_POLICY_VERSION_MINIMUM={policyVersion}");
-          }
-          var toolchain = Path.Combine("build", "build", buildType, "generators", "conan_toolchain.cmake");
+            cacheVariables["CMAKE_POLICY_VERSION_MINIMUM"] = policyVersion;
 
-          if (File.Exists(toolchain))
+          if (build.CxxCompiler.Length > 0)
+            cacheVariables["CMAKE_CXX_COMPILER"] = build.CxxCompiler;
+          if (build.CCompiler.Length > 0)
+            cacheVariables["CMAKE_C_COMPILER"] = build.CCompiler;
+          if (build.CmakePrefixPath.Count > 0)
+            cacheVariables["CMAKE_PREFIX_PATH"] = string.Join(";", build.CmakePrefixPath);
+
+          // vcpkg's toolchain reads these, so they must be cache variables (set
+          // before the toolchain runs), not plain `set()` calls.
+          if (!string.IsNullOrWhiteSpace(projectConfig!.VcpkgTriplet))
+            cacheVariables["VCPKG_TARGET_TRIPLET"] = projectConfig.VcpkgTriplet;
+          if (build.SystemName.Length > 0)
+            cacheVariables["CMAKE_SYSTEM_NAME"] = build.SystemName;
+          if (build.SystemProcessor.Length > 0)
+            cacheVariables["CMAKE_SYSTEM_PROCESSOR"] = build.SystemProcessor;
+
+          var conanToolchain = Path.Combine("build", "build", buildType, "generators", "conan_toolchain.cmake");
+
+          // CMAKE_TOOLCHAIN_FILE has one slot: an explicit toolchain wins, then
+          // Conan's or vcpkg's, and combining them is an error.
+          string? toolchainFile = null;
+          if (build.ToolchainFile.Length > 0)
           {
-            cmakeArgs.Append($" -DCMAKE_TOOLCHAIN_FILE=\"{toolchain}\"");
+            if (projectConfig.VcpkgDependencies.Count > 0 || File.Exists(conanToolchain))
+            {
+              AnsiConsole.MarkupLine(
+                "[bold red]Error:[/] `toolchain_file` cannot be combined with Conan or vcpkg dependencies; they all set CMAKE_TOOLCHAIN_FILE.");
+              return 1;
+            }
+            toolchainFile = build.ToolchainFile;
+          }
+          else if (projectConfig.VcpkgDependencies.Count > 0)
+          {
+            if (File.Exists(conanToolchain))
+            {
+              AnsiConsole.MarkupLine(
+                "[bold red]Error:[/] Conan and vcpkg both need CMAKE_TOOLCHAIN_FILE; use one package manager per project.");
+              return 1;
+            }
+
+            if (!VcpkgManager.Validate(projectConfig))
+              return 1;
+
+            toolchainFile = VcpkgManager.ToolchainFile(projectConfig);
+          }
+          else if (File.Exists(conanToolchain))
+          {
+            toolchainFile = conanToolchain;
           }
 
-          var cmakeConfigureCommand = new ProcessStartInfo("cmake", cmakeArgs.ToString())
+          if (toolchainFile is not null)
+            cacheVariables["CMAKE_TOOLCHAIN_FILE"] = toolchainFile;
+
+          // ArgumentList (not a command-line string) so values with spaces —
+          // a generator like "Unix Makefiles", a path with spaces — survive.
+          var configureArguments = new List<string> { "-B", "build", "-S", "." };
+          if (generator.Length > 0)
+          {
+            configureArguments.Add("-G");
+            configureArguments.Add(generator);
+          }
+          foreach (var (key, value) in cacheVariables)
+            configureArguments.Add($"-D{key}={value}");
+
+          // Mirror the same settings for IDEs and `cmake --preset forge`.
+          CMakePresetsManager.Write(generator, cacheVariables);
+
+          var cmakeConfigureCommand = new ProcessStartInfo("cmake")
           {
             RedirectStandardOutput = !Verbose,
             RedirectStandardError = !Verbose,
             UseShellExecute = false,
             CreateNoWindow = true,
           };
+          foreach (var argument in configureArguments)
+            cmakeConfigureCommand.ArgumentList.Add(argument);
 
           using (var process = Process.Start(cmakeConfigureCommand))
           {
@@ -223,8 +359,8 @@ namespace forge.Commands
               AnsiConsole.MarkupLine("[bold red]CMake configure failed.[/]");
               if (!Verbose)
               {
-                AnsiConsole.Write(process.StandardOutput.ReadToEnd());
-                AnsiConsole.Write(process.StandardError.ReadToEnd());
+                Console.Write(process.StandardOutput.ReadToEnd());
+                Console.Write(process.StandardError.ReadToEnd());
               }
               return 1;
             }
@@ -247,19 +383,33 @@ namespace forge.Commands
           }
 
           // Build step
-          var buildCommandArgs = new StringBuilder("--build build");
-          if (Verbose)
+          // Always build in parallel: without --parallel, CMake uses the
+          // generator's default (serial for Makefiles).
+          var buildArguments = new List<string> { "--build", "build", "--parallel" };
+          if (jobCount > 0)
+            buildArguments.Add(jobCount.ToString());
+          if (!string.IsNullOrWhiteSpace(Target))
           {
-            buildCommandArgs.Append(" --verbose");
+            buildArguments.Add("--target");
+            buildArguments.Add(Target);
           }
+          if (multiConfig)
+          {
+            buildArguments.Add("--config");
+            buildArguments.Add(buildType);
+          }
+          if (Verbose)
+            buildArguments.Add("--verbose");
 
-          var cmakeBuildCommand = new ProcessStartInfo("cmake", buildCommandArgs.ToString())
+          var cmakeBuildCommand = new ProcessStartInfo("cmake")
           {
             RedirectStandardOutput = !Verbose,
             RedirectStandardError = !Verbose,
             UseShellExecute = false,
             CreateNoWindow = true,
           };
+          foreach (var argument in buildArguments)
+            cmakeBuildCommand.ArgumentList.Add(argument);
 
           using (var process = Process.Start(cmakeBuildCommand))
           {
@@ -270,8 +420,8 @@ namespace forge.Commands
               AnsiConsole.MarkupLine("[bold red]CMake build failed.[/]");
               if (!Verbose)
               {
-                AnsiConsole.Write(process.StandardOutput.ReadToEnd());
-                AnsiConsole.Write(process.StandardError.ReadToEnd());
+                Console.Write(process.StandardOutput.ReadToEnd());
+                Console.Write(process.StandardError.ReadToEnd());
               }
               return 1;
             }
@@ -296,6 +446,9 @@ namespace forge.Commands
           return 1;
         }
       });
+
+      if (buildExitCode != 0)
+        return buildExitCode;
 
       if (projectConfig!.Scripts.TryGetValue("post-build", out _))
       {
@@ -347,6 +500,84 @@ namespace forge.Commands
       }
 
       return 0;
+    }
+
+    /// <summary>
+    /// True for generators that select the configuration at build time
+    /// (Visual Studio, Xcode, Ninja Multi-Config): they take <c>--config</c>
+    /// instead of <c>CMAKE_BUILD_TYPE</c>.
+    /// </summary>
+    private static bool IsModuleCapableGenerator(string generator) =>
+      generator.Contains("Ninja", StringComparison.OrdinalIgnoreCase) ||
+      generator.Contains("Visual Studio 17", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsMultiConfigGenerator(string generator) =>
+      generator.Contains("Visual Studio", StringComparison.OrdinalIgnoreCase) ||
+      generator.Contains("Multi-Config", StringComparison.OrdinalIgnoreCase) ||
+      generator.StartsWith("Xcode", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// CMake refuses to configure when <c>build/CMakeCache.txt</c> was created
+    /// for a different source directory — a moved, renamed or re-cloned
+    /// checkout — with "The current CMakeCache.txt directory ... is different".
+    /// Detect that here and drop the stale cache plus its generated files,
+    /// keeping <c>_deps/*-src</c> so fetched dependency sources are not
+    /// re-downloaded, then let the configure step start clean.
+    /// </summary>
+    private static void EnsureBuildCacheMatchesProject(string buildDir)
+    {
+      var cachePath = Path.Combine(buildDir, "CMakeCache.txt");
+      if (!File.Exists(cachePath))
+        return;
+
+      string? cachedSource = null;
+      foreach (var line in File.ReadLines(cachePath))
+      {
+        if (!line.StartsWith("CMAKE_HOME_DIRECTORY:", StringComparison.Ordinal))
+          continue;
+
+        var separator = line.IndexOf('=');
+        if (separator >= 0)
+          cachedSource = line[(separator + 1)..].Trim();
+        break;
+      }
+
+      if (string.IsNullOrEmpty(cachedSource))
+        return;
+
+      static string Normalise(string path) =>
+        Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+
+      var comparison = OperatingSystem.IsWindows()
+        ? StringComparison.OrdinalIgnoreCase
+        : StringComparison.Ordinal;
+
+      if (string.Equals(Normalise(cachedSource),
+                        Normalise(Directory.GetCurrentDirectory()), comparison))
+        return;
+
+      AnsiConsole.MarkupLine(
+        $"[yellow]Note:[/] build/ was configured for [dim]{cachedSource}[/]; " +
+        "regenerating the cache (fetched dependency sources are kept).");
+
+      File.Delete(cachePath);
+
+      var cmakeFiles = Path.Combine(buildDir, "CMakeFiles");
+      if (Directory.Exists(cmakeFiles))
+        Directory.Delete(cmakeFiles, true);
+
+      // FetchContent's per-dependency subbuilds carry the same stale paths.
+      var depsDir = Path.Combine(buildDir, "_deps");
+      if (!Directory.Exists(depsDir))
+        return;
+
+      foreach (var dir in Directory.GetDirectories(depsDir))
+      {
+        var leaf = Path.GetFileName(dir);
+        if (leaf.EndsWith("-build", StringComparison.Ordinal) ||
+            leaf.EndsWith("-subbuild", StringComparison.Ordinal))
+          Directory.Delete(dir, true);
+      }
     }
 
     private static Version GetCmakeVersion()

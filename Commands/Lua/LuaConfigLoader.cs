@@ -62,6 +62,12 @@ public class LuaConfigLoader
       ParseDependencies(ref config, dependenciesTable);
     }
 
+    // Parse extra build targets
+    if (table["targets"].TryRead<LuaTable>(out var targetsTable))
+    {
+      config.Targets = ParseTargets(targetsTable, config.Project.Name);
+    }
+
     // Parse Resources 
     if (table["resources"].TryRead<LuaTable>(out var resourcesTable))
     {
@@ -86,11 +92,30 @@ public class LuaConfigLoader
       ParseBuild(ref config, buildTable);
     }
 
-    // Check if testing is enabled
-    if (table["testing"] != LuaValue.Nil)
+    // `testing = true` or `testing = { framework = "...", benchmark = true }`
+    var testingValue = table["testing"];
+    if (testingValue.TryRead<LuaTable>(out var testingTable))
     {
-      config.Testing = bool.TryParse(table["testing"].ToString(), out var t) && t;
+      var enabled = testingTable["enabled"];
+      config.Testing = enabled == LuaValue.Nil ||
+                       (bool.TryParse(enabled.ToString(), out var te) && te);
+      if (testingTable["framework"] != LuaValue.Nil)
+        config.TestFramework = testingTable["framework"].ToString().ToLowerInvariant();
+      if (testingTable["benchmark"] != LuaValue.Nil)
+        config.Benchmark = bool.TryParse(testingTable["benchmark"].ToString(), out var tb) && tb;
     }
+    else if (testingValue != LuaValue.Nil)
+    {
+      config.Testing = bool.TryParse(testingValue.ToString(), out var t) && t;
+    }
+
+    // vcpkg settings live next to the dependency table.
+    if (table["vcpkg_root"] != LuaValue.Nil)
+      config.VcpkgRoot = table["vcpkg_root"].ToString();
+    if (table["vcpkg_baseline"] != LuaValue.Nil)
+      config.VcpkgBaseline = table["vcpkg_baseline"].ToString();
+    if (table["vcpkg_triplet"] != LuaValue.Nil)
+      config.VcpkgTriplet = table["vcpkg_triplet"].ToString();
 
     // Parse Custom section
     if (table["custom"].TryRead<LuaTable>(out var customTable))
@@ -129,7 +154,10 @@ public class LuaConfigLoader
       {
         var featureConfig = new FeatureConfig();
 
-        if (featureTable["enabled"].TryRead<LuaValue>(out var enabled))
+        // Compare against Nil rather than TryRead<LuaValue>: reading a boolean
+        // through TryRead fails, which silently left every feature disabled.
+        var enabled = featureTable["enabled"];
+        if (enabled != LuaValue.Nil)
         {
           featureConfig.Enabled = bool.TryParse(enabled.ToString(), out var e) && e;
         }
@@ -170,25 +198,74 @@ public class LuaConfigLoader
 
   private static void ParseBuild(ref ProjectConfig config, LuaTable table)
   {
+    if (table["cxx_compiler"] != LuaValue.Nil)
+      config.Build.CxxCompiler = table["cxx_compiler"].ToString();
+    if (table["c_compiler"] != LuaValue.Nil)
+      config.Build.CCompiler = table["c_compiler"].ToString();
+    if (table["toolchain_file"] != LuaValue.Nil)
+      config.Build.ToolchainFile = table["toolchain_file"].ToString();
+    if (table["cmake_prefix_path"] != LuaValue.Nil)
+      config.Build.CmakePrefixPath = ReadStringList(table["cmake_prefix_path"]);
+    if (table["system_name"] != LuaValue.Nil)
+      config.Build.SystemName = table["system_name"].ToString();
+    if (table["system_processor"] != LuaValue.Nil)
+      config.Build.SystemProcessor = table["system_processor"].ToString();
+    if (table["generator"] != LuaValue.Nil)
+      config.Build.Generator = table["generator"].ToString();
+    if (table["jobs"] != LuaValue.Nil && int.TryParse(table["jobs"].ToString(), out var jobs))
+      config.Build.Jobs = jobs;
+
+    if (table["cache"] != LuaValue.Nil)
+      config.Build.Cache = table["cache"].ToString();
+
+    if (table["unity"] != LuaValue.Nil)
+      config.Build.Unity = bool.TryParse(table["unity"].ToString(), out var unity) && unity;
+    if (table["pch"] != LuaValue.Nil)
+      config.Build.Pch = table["pch"].ToString();
+    if (table["modules"] != LuaValue.Nil)
+      config.Build.Modules = bool.TryParse(table["modules"].ToString(), out var modules) && modules;
+
+    var launcher = table["compiler_launcher"];
+    if (launcher != LuaValue.Nil)
+      config.Build.CompilerLauncher = launcher.ToString();
+
     config.Build.Presets = ReadStringList(table["presets"]);
-    config.Build.CompileOptions = ReadStringList(table["compile_options"]);
-    config.Build.CompileDefinitions = ReadStringList(table["compile_definitions"]);
-    config.Build.LinkOptions = ReadStringList(table["link_options"]);
+    // Documented names first (docs/project-configuration.md), with the earlier
+    // spellings accepted so existing projects keep working.
+    config.Build.CompileOptions =
+      ReadStringList(table["cxx_flags"], table["compile_options"]);
+    config.Build.CompileDefinitions =
+      ReadStringList(table["compile_definitions"], table["definitions"]);
+    config.Build.LinkOptions =
+      ReadStringList(table["link_flags"], table["link_options"]);
     config.Build.LinkLibraries = ReadStringList(table["link_libraries"]);
   }
 
-  private static List<string> ReadStringList(LuaValue value)
+  /// <summary>
+  /// Reads one or more Lua values as a list of strings: a table becomes its
+  /// entries, a scalar becomes a one-element list, and nil is skipped. Passing
+  /// several values merges them, which is how a documented key and its earlier
+  /// spelling are both accepted.
+  /// </summary>
+  private static List<string> ReadStringList(params LuaValue[] values)
   {
     var list = new List<string>();
 
-    if (value.TryRead<LuaTable>(out var table))
+    foreach (var value in values)
     {
-      foreach (var kvp in table)
-        list.Add(kvp.Value.ToString());
-    }
-    else if (value != LuaValue.Nil)
-    {
-      list.Add(value.ToString());
+      if (value.TryRead<LuaTable>(out var table))
+      {
+        foreach (var kvp in table)
+        {
+          var text = kvp.Value.ToString();
+          if (!string.IsNullOrWhiteSpace(text)) list.Add(text);
+        }
+      }
+      else if (value != LuaValue.Nil)
+      {
+        var text = value.ToString();
+        if (!string.IsNullOrWhiteSpace(text)) list.Add(text);
+      }
     }
 
     return list;
@@ -222,6 +299,35 @@ public class LuaConfigLoader
       }
     }
 
+    if (table["pkgconfig"].TryRead<LuaTable>(out var pkgConfigTable))
+    {
+      config.PkgConfigDependencies = ReadStringList(pkgConfigTable);
+    }
+
+    if (table["vcpkg"].TryRead<LuaTable>(out var vcpkgTable))
+    {
+      foreach (var kvp in vcpkgTable)
+      {
+        var name = kvp.Key.ToString();
+        var dep = new VcpkgDependency();
+
+        if (kvp.Value.TryRead<LuaTable>(out var options))
+        {
+          if (options["target"] != LuaValue.Nil)
+            dep.Target = options["target"].ToString();
+          if (options["version"] != LuaValue.Nil)
+            dep.Version = options["version"].ToString();
+        }
+        else if (kvp.Value != LuaValue.Nil)
+        {
+          // Shorthand: `fmt = "fmt::fmt"`.
+          dep.Target = kvp.Value.ToString();
+        }
+
+        config.VcpkgDependencies[name] = dep;
+      }
+    }
+
     if (table["conan"].TryRead<LuaTable>(out var conanTable))
     {
       foreach (var kvp in conanTable)
@@ -232,6 +338,73 @@ public class LuaConfigLoader
         config.ConanDependencies[name] = version;
       }
     }
+  }
+
+  /// <summary>
+  /// Reads the <c>targets</c> array. Entries without a usable name, or that
+  /// duplicate the project or each other, are reported and skipped rather than
+  /// producing a broken CMake file.
+  /// </summary>
+  private static List<ProjectTarget> ParseTargets(LuaTable table, string projectName)
+  {
+    var targets = new List<ProjectTarget>();
+    var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { projectName };
+
+    foreach (var entry in table)
+    {
+      if (!entry.Value.TryRead<LuaTable>(out var targetTable))
+        continue;
+
+      var name = targetTable["name"] != LuaValue.Nil ? targetTable["name"].ToString() : string.Empty;
+      if (string.IsNullOrWhiteSpace(name) ||
+          !name.All(c => char.IsLetterOrDigit(c) || c is '_' or '-'))
+      {
+        AnsiConsole.MarkupLine(
+          $"[bold yellow]Warning:[/] skipping a target with an unusable name `{name}` " +
+          "(letters, digits, `_` and `-` only).");
+        continue;
+      }
+
+      if (!seen.Add(name))
+      {
+        AnsiConsole.MarkupLine(
+          $"[bold yellow]Warning:[/] skipping target `{name}`: the name is already used.");
+        continue;
+      }
+
+      var target = new ProjectTarget { Name = name };
+
+      if (targetTable["type"] != LuaValue.Nil)
+        target.Type = targetTable["type"].ToString().ToLowerInvariant();
+      if (target.Type is not ("executable" or "library"))
+      {
+        AnsiConsole.MarkupLine(
+          $"[bold yellow]Warning:[/] target `{name}`: unknown type `{target.Type}` — using `executable`.");
+        target.Type = "executable";
+      }
+
+      if (targetTable["linkage"] != LuaValue.Nil)
+        target.Linkage = targetTable["linkage"].ToString().ToLowerInvariant();
+
+      if (targetTable["sources"].TryRead<LuaTable>(out var sourcesTable))
+        target.Sources = ReadStringList(sourcesTable);
+      else if (targetTable["sources"] != LuaValue.Nil)
+        target.Sources = ReadStringList(targetTable["sources"]);
+
+      // Default: a directory named after the target.
+      if (target.Sources.Count == 0)
+        target.Sources = [name];
+
+      if (targetTable["install"] != LuaValue.Nil &&
+          bool.TryParse(targetTable["install"].ToString(), out var install))
+      {
+        target.Install = install;
+      }
+
+      targets.Add(target);
+    }
+
+    return targets;
   }
 
   private static Dependency ParseDependencyFromTable(LuaTable table)
@@ -248,9 +421,25 @@ public class LuaConfigLoader
       dep.Tag = table["tag"].ToString();
     }
 
+    if (table["path"] != LuaValue.Nil)
+    {
+      dep.Path = table["path"].ToString();
+    }
+
     if (table["target"] != LuaValue.Nil)
     {
       dep.Target = table["target"].ToString();
+    }
+
+    if (table.TryGetValue("options", out var optionsValue) &&
+        optionsValue.TryRead<LuaTable>(out var optionsTable))
+    {
+      foreach (var (key, value) in optionsTable)
+      {
+        var name = key.ToString();
+        if (!string.IsNullOrWhiteSpace(name) && value != LuaValue.Nil)
+          dep.Options[name] = value.ToString();
+      }
     }
 
     return dep;
@@ -277,6 +466,50 @@ public class LuaConfigLoader
     if (table["linkage"] != LuaValue.Nil)
     {
       config.Project.Linkage = table["linkage"].ToString().ToLower();
+    }
+
+    if (table["version"] != LuaValue.Nil)
+    {
+      config.Project.Version = table["version"].ToString();
+    }
+    if (table["version_from_git"] != LuaValue.Nil)
+    {
+      config.Project.VersionFromGit = bool.TryParse(table["version_from_git"].ToString(), out var fromGit) && fromGit;
+    }
+    // `package_depends = { "a", "b" }` applies to both package formats, while
+    // `package_depends = { deb = {…}, rpm = {…} }` is format-specific.
+    if (table["package_depends"].TryRead<LuaTable>(out var dependsTable))
+    {
+      foreach (var entry in dependsTable)
+      {
+        if (entry.Key.TryRead<double>(out _))
+        {
+          var value = entry.Value.ToString();
+          if (!string.IsNullOrWhiteSpace(value))
+            config.Project.PackageDepends.Add(value);
+          continue;
+        }
+
+        var format = entry.Key.ToString().ToLowerInvariant();
+        var values = ReadStringList(entry.Value);
+        if (format == "deb")
+          config.Project.DebDepends.AddRange(values);
+        else if (format == "rpm")
+          config.Project.RpmDepends.AddRange(values);
+      }
+    }
+    else if (table["package_depends"] != LuaValue.Nil)
+    {
+      config.Project.PackageDepends.AddRange(ReadStringList(table["package_depends"]));
+    }
+
+    if (table["description"] != LuaValue.Nil)
+    {
+      config.Project.Description = table["description"].ToString();
+    }
+    if (table["contact"] != LuaValue.Nil)
+    {
+      config.Project.Contact = table["contact"].ToString();
     }
 
     // Default install_headers to true for libraries, otherwise follow the lua value if provided

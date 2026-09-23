@@ -8,8 +8,9 @@ public class StandardSection() : CMakeSectionBase
 
   public override int Priority => 1;
 
-  public override string Generate(ProjectConfig config)
+  public override string Generate(BuildContext context)
   {
+    var config = context.Config;
     return $@"
 set(CMAKE_CXX_STANDARD {config.Project.Standard})
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

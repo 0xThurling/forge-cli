@@ -1,2 +1,0 @@
-/usr/sbin/ar qc libforge-utils.a "CMakeFiles/forge-utils.dir/src/defer.cpp.o"
-/usr/sbin/ranlib libforge-utils.a

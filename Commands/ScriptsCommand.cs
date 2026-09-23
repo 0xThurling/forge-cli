@@ -4,10 +4,10 @@ using Spectre.Console;
 namespace forge.Commands
 {
   /// <summary>
-  /// Lists all custom scripts defined in package.toml.
+  /// Lists all custom scripts defined in forge.lua.
   /// </summary>
   /// <remarks>
-  /// Displays all scripts available in the [scripts] section of package.toml.
+  /// Displays all scripts available in the [scripts] section of forge.lua.
   /// These can be executed using the `forge run <script-name>` command.
   /// </remarks>
   /// <example>
@@ -25,9 +25,12 @@ namespace forge.Commands
     public async Task<int> RunAsync()
     {
       var config = await ProjectConfigManager.LoadConfigAsync();
-      if (config?.Scripts == null || config.Scripts.Count == 0)
+      // Project-local commands count as scripts, so a project that only uses
+      // .config/forge/commands/ must still be listed.
+      var projectCommands = ProjectCommands.Names().ToList();
+      if (config?.Scripts == null || (config.Scripts.Count == 0 && projectCommands.Count == 0))
       {
-        AnsiConsole.MarkupLine("[yellow]No scripts defined in package.toml.[/]");
+        AnsiConsole.MarkupLine("[yellow]No scripts defined in forge.lua.[/]");
         return 0;
       }
 
@@ -36,6 +39,14 @@ namespace forge.Commands
       foreach (var script in config.Scripts)
       {
         root.AddNode($"[green]{script.Key}[/]");
+      }
+
+      // Project-local commands behave like scripts; list them too, marked so
+      // the difference is visible.
+      foreach (var name in projectCommands)
+      {
+        if (!config.Scripts.ContainsKey(name))
+          root.AddNode($"[green]{name}[/] [dim]({ProjectCommands.Directory})[/]");
       }
       AnsiConsole.Write(root);
       AnsiConsole.MarkupLine("");

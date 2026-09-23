@@ -7,7 +7,7 @@ namespace forge.Commands
   /// Registers a resource file to be embedded in the compiled executable.
   /// </summary>
   /// <remarks>
-  /// This command adds a file to the [resources] section of package.toml.
+  /// This command adds a file to the [resources] section of forge.lua.
   /// During the next build, the file will be converted to a C++ byte array
   /// and embedded in the executable, allowing runtime access via the
   /// Embedded::get() API.
@@ -34,14 +34,15 @@ namespace forge.Commands
     public string FilePath { get; set; } = string.Empty;
 
     /// <summary>
-    /// Registers the resource file in package.toml.
+    /// Registers the resource file in forge.lua.
     /// </summary>
-    public async Task RunAsync()
+    /// <returns>0 on success, 1 when the file or the configuration is missing.</returns>
+    public async Task<int> RunAsync()
     {
       if (!File.Exists(FilePath))
       {
         AnsiConsole.MarkupLine($"[bold red]Error:[/] File not found at '[bold]{FilePath}[/]'.");
-        return;
+        return 1;
       }
 
       AnsiConsole.MarkupLine($"[bold cyan]--- Registering resource: {FilePath} ---[/]");
@@ -50,11 +51,22 @@ namespace forge.Commands
       if (config == null)
       {
         AnsiConsole.MarkupLine("[bold red]Error:[/] `forge.lua` not found.");
-        return;
+        return 1;
       }
 
       // Use relative path for portability
       var relativePath = Path.GetRelativePath(Directory.GetCurrentDirectory(), FilePath);
+
+      // The build embeds from the project root, so a path outside it would make
+      // the project depend on a sibling file (and break on another machine).
+      if (relativePath.StartsWith("..", StringComparison.Ordinal) ||
+          Path.IsPathRooted(relativePath))
+      {
+        AnsiConsole.MarkupLine(
+          $"[bold red]Error:[/] `{FilePath}` is outside the project. " +
+          "Move it inside the project directory before embedding it.");
+        return 1;
+      }
 
       if (!config.Resources.Files.Contains(relativePath))
       {
@@ -66,13 +78,16 @@ namespace forge.Commands
         }
         catch (Exception ex)
         {
-          AnsiConsole.MarkupLine($"[bold red]Error:[/] Could not write to package.toml: {ex.Message}");
+          AnsiConsole.MarkupLine($"[bold red]Error:[/] Could not write to forge.lua: {ex.Message}");
+          return 1;
         }
       }
       else
       {
-        AnsiConsole.MarkupLine($"[yellow]Resource `[bold]{relativePath}[/]` is already registered in package.toml.[/]");
+        AnsiConsole.MarkupLine($"[yellow]Resource `[bold]{relativePath}[/]` is already registered in forge.lua.[/]");
       }
+
+      return 0;
     }
   }
 }

@@ -41,47 +41,59 @@ public class DownloadCommand
       
       var totalBytes = response.Content.Headers.ContentLength ?? -1;
       
-      await using var contentStream = await response.Content.ReadAsStreamAsync();
-      await using var fileStream = new FileStream(Output, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
-      
-      var buffer = new byte[8192];
       long totalRead = 0;
-      int bytesRead;
-      
-      // Progress tracking
-      var downloadTask = Task.Run(async () =>
+
+      // Scope the writer so the file is closed before the hash is computed:
+      // the stream is write-only (and exclusive), so hashing it in place fails.
+      await using (var contentStream = await response.Content.ReadAsStreamAsync())
+      await using (var fileStream = new FileStream(Output, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
       {
-        while ((bytesRead = await contentStream.ReadAsync(buffer)) > 0)
+        var buffer = new byte[8192];
+        int bytesRead;
+
+        // Progress tracking
+        var downloadTask = Task.Run(async () =>
         {
-          await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead));
-          totalRead += bytesRead;
-        }
-      });
-      
-      if (ShowProgress && totalBytes > 0)
-      {
-        AnsiConsole.Progress()
-            .Start(ctx =>
-            {
-              var task = ctx.AddTask("[cyan]Downloading", maxValue: totalBytes);
-              while (!downloadTask.IsCompleted)
+          while ((bytesRead = await contentStream.ReadAsync(buffer)) > 0)
+          {
+            await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead));
+            totalRead += bytesRead;
+          }
+        });
+
+        // A live progress display needs a terminal. When the output is
+        // captured (CI, a pipe, a test) it is noise at best — and the live
+        // display is the only part of a download that behaves differently
+        // there, so it is skipped instead of risking the download.
+        if (ShowProgress && totalBytes > 0 && AnsiConsole.Profile.Capabilities.Interactive)
+        {
+          AnsiConsole.Progress()
+              .Start(ctx =>
               {
+                // The description is markup: an unclosed tag throws while the
+                // progress display refreshes (and truncates the download).
+                var task = ctx.AddTask("[cyan]Downloading[/]", maxValue: totalBytes);
+                while (!downloadTask.IsCompleted)
+                {
+                  task.Value = totalRead;
+                  Thread.Sleep(100);
+                }
                 task.Value = totalRead;
-                Thread.Sleep(100);
-              }
-              task.Value = totalRead;
-            });
-      }
-      else
-      {
+              });
+        }
+
+        // Always await the task, progress or not: otherwise a failure inside it
+        // (a locked output file, a dropped connection) is never observed and
+        // the command reports success for a truncated file.
         await downloadTask;
       }
+
       // Verify SHA256 if provided
       if (!string.IsNullOrEmpty(Sha256))
       {
-        fileStream.Position = 0;
+        using var readStream = File.OpenRead(Output);
         using var sha256 = System.Security.Cryptography.SHA256.Create();
-        var hashBytes = await sha256.ComputeHashAsync(fileStream);
+        var hashBytes = await sha256.ComputeHashAsync(readStream);
         var hash = Convert.ToHexString(hashBytes).ToLowerInvariant();
         if (!hash.Equals(Sha256, StringComparison.InvariantCultureIgnoreCase))
         {
@@ -97,6 +109,20 @@ public class DownloadCommand
     catch (Exception ex)
     {
       AnsiConsole.MarkupLine($"[red]Download failed:[/] {ex.Message}");
+
+      // Never leave a truncated file behind: it looks like a completed
+      // download to every later step (and to `--sha-256`, which would then
+      // report a mismatch instead of the real failure).
+      try
+      {
+        if (File.Exists(Output))
+          File.Delete(Output);
+      }
+      catch (IOException)
+      {
+        // Nothing more to do; the failure above is the message that matters.
+      }
+
       return 1;
     }
   }
@@ -118,50 +144,15 @@ public class ExtractCommand
   [CliOption(Description = "Strip components from path (default: 1)")]
   public int StripComponents { get; set; } = 1;
   
-  public async Task<int> RunAsync()
+  public Task<int> RunAsync()
   {
-    try
-    {
-      AnsiConsole.MarkupLine($"[cyan]Extracting:[/] {Archive}");
-      Directory.CreateDirectory(Output);
-      
-      var extension = Path.GetExtension(Archive).ToLower();
-      
-      if (extension is ".zip")
-      {
-        ZipFile.ExtractToDirectory(Archive, Output, true);
-      }
-      else if (extension is ".tar" or ".tgz" or ".tar.gz")
-      {
-        var process = new ProcessStartInfo("tar", $"-xzf \"{Archive}\" -C \"{Output}\" --strip-components={StripComponents}")
-        {
-          UseShellExecute = false,
-          RedirectStandardOutput = true,
-          RedirectStandardError = true
-        };
-      
-        using var p = Process.Start(process);
-        p?.WaitForExit();
-        
-        if (p?.ExitCode != 0)
-        {
-          AnsiConsole.MarkupLine($"[yellow]Warning:[/] tar extraction had issues");
-        }
-      }
-      else
-      {
-        AnsiConsole.MarkupLine($"[red]Unsupported archive format:[/] {extension}");
-        return 1;
-      }
+    AnsiConsole.MarkupLine($"[cyan]Extracting:[/] {Archive}");
 
+    var result = ArchiveExtractor.Extract(Archive, Output, StripComponents);
+    if (result == 0)
       AnsiConsole.MarkupLine($"[green]Extracted:[/] {Output}");
-      return 0;
-    }
-    catch (Exception ex)
-    {
-      AnsiConsole.MarkupLine($"[red]Extraction failed:[/] {ex.Message}");
-      return 1;
-    }
+
+    return Task.FromResult(result);
   }
 }
 
@@ -181,9 +172,9 @@ public class FetchCommand
   [CliOption(Description = "Strip components from path")]
   public int StripComponents { get; set; } = 1;
   
-  [CliOption(Description = "Expected SHA256 hash for verification")]
+  [CliOption(Description = "Expected SHA256 hash for verification", Required = false)]
   public string? Sha256 { get; set; }
-  
+
   public async Task<int> RunAsync()
   {
     var tempFile = Path.Combine(Path.GetTempPath(), $"forge_fetch_{Guid.NewGuid()}.zip");
@@ -199,25 +190,26 @@ public class FetchCommand
       
       var totalBytes = response.Content.Headers.ContentLength ?? -1;
       
-      await using var contentStream = await response.Content.ReadAsStreamAsync();
-      await using var fileStream = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true);
-      
-      var buffer = new byte[8192];
-      long totalRead = 0;
-      int bytesRead;
-
-      while ((bytesRead = await contentStream.ReadAsync(buffer)) > 0)
+      // The writer is scoped so the file is closed before hashing (the stream
+      // is write-only and exclusive).
+      await using (var contentStream = await response.Content.ReadAsStreamAsync())
+      await using (var fileStream = new FileStream(tempFile, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
       {
-        await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead));
-        totalRead += bytesRead;
+        var buffer = new byte[8192];
+        int bytesRead;
+
+        while ((bytesRead = await contentStream.ReadAsync(buffer)) > 0)
+        {
+          await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead));
+        }
       }
 
       // Verify SHA256 if provided
       if (!string.IsNullOrEmpty(Sha256))
       {
-        fileStream.Position = 0;
+        using var readStream = File.OpenRead(tempFile);
         using var sha256 = System.Security.Cryptography.SHA256.Create();
-        var hashBytes = await sha256.ComputeHashAsync(fileStream);
+        var hashBytes = await sha256.ComputeHashAsync(readStream);
         var hash = Convert.ToHexString(hashBytes).ToLowerInvariant();
         if (!hash.Equals(Sha256, StringComparison.InvariantCultureIgnoreCase))
         {
@@ -229,11 +221,17 @@ public class FetchCommand
       }
       AnsiConsole.MarkupLine($"[cyan]Extracting...[/]");
 
-      Directory.CreateDirectory(OutputDir);
+      // Archive type comes from the URL: the temp file is always named .zip.
+      var archiveName = Path.GetFileName(new Uri(URL).AbsolutePath);
+      var staging = Path.Combine(
+        Path.GetDirectoryName(tempFile)!,
+        $"forge_fetch_{Guid.NewGuid()}{Path.GetExtension(archiveName)}");
+      File.Move(tempFile, staging, true);
 
-      ZipFile.ExtractToDirectory(tempFile, OutputDir, true);
-
-      File.Delete(tempFile);
+      var result = ArchiveExtractor.Extract(staging, OutputDir, StripComponents);
+      File.Delete(staging);
+      if (result != 0)
+        return result;
 
       AnsiConsole.MarkupLine($"[green]Fetch complete:[/] {OutputDir}");
       return 0;
