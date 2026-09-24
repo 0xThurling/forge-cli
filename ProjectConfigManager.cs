@@ -82,6 +82,11 @@ namespace forge
       if (config is null || string.IsNullOrWhiteSpace(config.Project.Name))
         return null;
 
+      // Hot reload brings its engine in as a normal dependency, so every
+      // command that only reads the config (`forge install` above all) sees it.
+      if (config.Build.Hot)
+        HotReload.EnsureDependency(config);
+
       // Resolve the version from Git once, here, so every consumer of the config
       // (project(), SOVERSION, CPack, vcpkg.json) agrees on it.
       if (config.Project.VersionFromGit)
@@ -424,6 +429,8 @@ namespace forge
           sb.AppendLine($"        pch = \"{config.Build.Pch}\",");
         if (config.Build.Modules)
           sb.AppendLine("        modules = true,");
+        if (config.Build.Hot)
+          sb.AppendLine("        hot = true,");
         if (config.Build.CxxCompiler.Length > 0)
           sb.AppendLine($"        cxx_compiler = \"{config.Build.CxxCompiler}\",");
         if (config.Build.CCompiler.Length > 0)

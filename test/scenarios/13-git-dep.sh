@@ -42,4 +42,17 @@ LUA
     fail "fetches the repository"
   fi
   assert_runs "$root/app/build/demo_app" "demo_value=42" "runs against the fetched library"
+
+  # A dependency pinned by commit is locked as-is: `git ls-remote` cannot
+  # resolve a hash, so the lock has to take the ref at face value.
+  local commit
+  commit="$(git -C "$root/lib" rev-parse HEAD)"
+  sed_in_place "s/tag = \"v1\"/tag = \"$commit\"/" "$root/app/forge.lua"
+  rm -f "$root/app/forge.lock"
+  if forge_in "$root/app" install >/dev/null 2>&1; then
+    assert_contains "$root/app/forge.lock" "\"commit\": \"$commit\"" \
+      "a commit-pinned dependency is locked as-is"
+  else
+    fail "a commit-pinned dependency is locked as-is"
+  fi
 }

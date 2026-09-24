@@ -111,6 +111,8 @@ scenario_78_docs_coverage() {
     "forge watch" \
     "forge upgrade" \
     "forge setup" \
+    "forge hot" \
+    "forge_hot_update" \
     "version_from_git" \
     "FORGE_CACHE_DIR" \
     "FORGE_NO_CACHE" \

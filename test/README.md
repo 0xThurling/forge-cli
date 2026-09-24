@@ -134,6 +134,7 @@ lines have scrolled away by the time a long run is read from its tail.
 | `90-json-and-channels` | `forge test` as a CI gate (exit code + `--json` summary), and `forge add --vcpkg` / `--pkg-config` |
 | `91-modules-and-bench` | C++20 module interfaces in a `CXX_MODULES` file set (built and imported), and `bench --save/--compare/--fail-over` |
 | `92-code-format` | `dotnet format --verify-no-changes` over the CLI's own sources |
+| `93-hot` | `forge hot`: build/run/reload plumbing against a stub engine (guards, glue, Ninja depfiles); the real engine with `FORGE_HOT_E2E=1` |
 
 ## Adding a scenario
 

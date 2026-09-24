@@ -80,7 +80,34 @@ namespace forge.Commands.Conan
       conanfile.AppendLine("\n[generators]\nCMakeDeps\nCMakeToolchain\n\n[layout]\ncmake_layout");
 
       var conanfilePath = Path.Combine(".config", "conanfile.txt");
-      File.WriteAllText(conanfilePath, conanfile.ToString());
+      var conanfileContent = conanfile.ToString();
+      var toolchainPath = Path.Combine("build", "build", buildType, "generators", "conan_toolchain.cmake");
+      var targetsPath = Path.Combine("build", ".forge-conan-targets.txt");
+
+      // Only the build path skips: `forge install` is the explicit "resolve the
+      // dependencies" command, so it always runs Conan — and reports a broken
+      // one — even when the conanfile is unchanged.
+      if (!lockDependencies &&
+          File.Exists(conanfilePath) && File.ReadAllText(conanfilePath) == conanfileContent &&
+          File.Exists(toolchainPath) && File.Exists(targetsPath))
+      {
+        // Nothing changed and the toolchain is still there: reuse what Conan
+        // reported last time instead of paying for another `conan install`.
+        foreach (var line in File.ReadAllLines(targetsPath))
+        {
+          if (line.StartsWith("link ", StringComparison.Ordinal))
+            context.LinkDependencies.Add(line[5..]);
+          else if (line.StartsWith("find ", StringComparison.Ordinal))
+            context.FindDependencies.Add(line[5..]);
+        }
+
+        if (!string.IsNullOrEmpty(Prefix))
+          return InstallLib();
+
+        return 0;
+      }
+
+      File.WriteAllText(conanfilePath, conanfileContent);
       AnsiConsole.MarkupLine($"[green]Generated {conanfilePath}[/]");
 
       AnsiConsole.MarkupLine("Running `conan install...`");
@@ -135,6 +162,8 @@ namespace forge.Commands.Conan
           return 1;
         }
 
+        SaveConanTargets(context);
+
         if (!string.IsNullOrEmpty(Prefix))
         {
           return InstallLib();
@@ -153,6 +182,25 @@ namespace forge.Commands.Conan
           "[yellow]Conan is required by dependencies.conan but could not be run.[/] " +
           "Install it (https://conan.io) or remove the packages from forge.lua.");
         return 1;
+      }
+    }
+
+    /// <summary>
+    /// Remembers what Conan reported, so an unchanged project can skip the
+    /// next `conan install` without losing the link and find_package lines.
+    /// </summary>
+    private static void SaveConanTargets(BuildContext context)
+    {
+      try
+      {
+        var lines = context.LinkDependencies.Select(target => "link " + target)
+          .Concat(context.FindDependencies.Select(package => "find " + package));
+        Utils.WriteIfChanged(Path.Combine("build", ".forge-conan-targets.txt"),
+          string.Join('\n', lines) + "\n");
+      }
+      catch (Exception)
+      {
+        // The cache is an optimisation; failing to write it must not fail a build.
       }
     }
 

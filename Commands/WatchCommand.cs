@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using DotMake.CommandLine;
 using Spectre.Console;
 
@@ -55,7 +56,8 @@ public class WatchCommand
 
   public async Task<int> RunAsync()
   {
-    if (await ProjectConfigManager.LoadConfigAsync() == null)
+    var config = await ProjectConfigManager.LoadConfigAsync();
+    if (config == null)
     {
       AnsiConsole.MarkupLine("[bold red]Error:[/] Not a forge project. `forge.lua` not found or is missing project name.");
       return 1;
@@ -86,9 +88,16 @@ public class WatchCommand
     AnsiConsole.MarkupLine(
       $"[dim]Watching {string.Join(", ", watched)} every {Interval:0.##}s — Ctrl+C to stop.[/]");
 
+    if (config.Build.Unity || config.Build.Presets.Contains("lto"))
+    {
+      AnsiConsole.MarkupLine(
+        "[yellow]Hint:[/] unity builds and LTO make every save recompile more than it must — " +
+        "consider turning them off while watching.");
+    }
+
     // Snapshot before the first build: an edit made *while* it runs should
     // trigger a rebuild afterwards, not be missed by it.
-    var snapshot = Snapshot(watched);
+    var snapshot = FileSnapshot.Take(watched);
 
     if (await RunOnce(command) != 0)
       return 1;
@@ -101,8 +110,8 @@ public class WatchCommand
     while (Iterations is null || runs < Iterations)
     {
       await Task.Delay(TimeSpan.FromSeconds(Interval));
-      var current = Snapshot(watched);
-      var changes = Changes(snapshot, current);
+      var current = FileSnapshot.Take(watched);
+      var changes = FileSnapshot.Diff(snapshot, current);
       snapshot = current;
 
       if (changes.Count == 0)
@@ -110,12 +119,15 @@ public class WatchCommand
 
       runs++;
       rebuilds++;
+      var paths = changes.Paths.ToList();
       AnsiConsole.MarkupLine(
-        $"\n[cyan]── change {rebuilds}:[/] {string.Join(", ", changes.Take(3))}" +
-        (changes.Count > 3 ? $" (+{changes.Count - 3} more)" : string.Empty));
+        $"\n[cyan]── change {rebuilds}:[/] {string.Join(", ", paths.Take(3))}" +
+        (paths.Count > 3 ? $" (+{paths.Count - 3} more)" : string.Empty));
 
+      var rebuildTimer = Stopwatch.StartNew();
       if (await RunOnce(command) != 0)
         return 1;
+      AnsiConsole.MarkupLine($"[dim]rebuild finished in {rebuildTimer.Elapsed.TotalSeconds:0.0}s[/]");
     }
 
     AnsiConsole.MarkupLine($"[green]Stopped after {rebuilds} rebuild(s).[/]");
@@ -148,41 +160,5 @@ public class WatchCommand
       NoConfigPresets = NoConfigPresets,
     };
     return await build.RunAsync();
-  }
-
-  /// <summary>Every file under the watched directories, with its write time.</summary>
-  private static Dictionary<string, DateTime> Snapshot(IEnumerable<string> directories)
-  {
-    var files = new Dictionary<string, DateTime>(StringComparer.Ordinal);
-    foreach (var directory in directories)
-    {
-      foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
-      {
-        var parts = file.Split(Path.DirectorySeparatorChar);
-        if (parts.Any(part => part is "build" or ".git" || part.StartsWith("build-")))
-          continue;
-
-        files[file] = File.GetLastWriteTimeUtc(file);
-      }
-    }
-    return files;
-  }
-
-  /// <summary>The paths that were added, removed or rewritten.</summary>
-  private static List<string> Changes(
-    Dictionary<string, DateTime> before, Dictionary<string, DateTime> after)
-  {
-    var changes = new List<string>();
-    foreach (var (path, stamp) in after)
-    {
-      if (!before.TryGetValue(path, out var previous) || previous != stamp)
-        changes.Add(path);
-    }
-    foreach (var path in before.Keys)
-    {
-      if (!after.ContainsKey(path))
-        changes.Add(path);
-    }
-    return changes;
   }
 }

@@ -45,6 +45,16 @@ scenario_84_watch() {
   else
     fail "one rebuild happened (got '${flat:0:200}')"
   fi
+  if grep -qF "configure 0.0s" <<<"$flat"; then
+    pass "a rebuild does not reconfigure CMake"
+  else
+    fail "a rebuild does not reconfigure CMake"
+  fi
+  if grep -qF "rebuild finished in" <<<"$flat"; then
+    pass "the rebuild time is reported"
+  else
+    fail "the rebuild time is reported"
+  fi
 
   # --command test runs the suite instead of a plain build.
   out="$(forge_in_timeout 120 "$root" watch --command test --iterations 1 --interval 0.2 2>&1 || true)"

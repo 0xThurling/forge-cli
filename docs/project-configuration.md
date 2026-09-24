@@ -117,7 +117,7 @@ see them — useful to switch off a dependency's tests, examples or extra
 backends.
 
 #### `dependencies.vcpkg`
-Packages resolved by [vcpkg](dependency-management.md#vcpkg-manifest-mode) in
+Packages resolved by [vcpkg](dependency-management.md#using-vcpkg-manifest-mode) in
 manifest mode.
 - Key: Package name.
 - Value: The CMake target to link (`"fmt::fmt"`), or a table
@@ -262,6 +262,10 @@ build = {
   only supports this with Ninja or Visual Studio 17.4+, so Forge selects
   **Ninja** when no generator is configured, and warns when the configured
   generator cannot scan.
+- `hot` (boolean): build with hot reload wired in, so `forge hot` can replace
+  function bodies in the running process. Debug builds only — see
+  [Hot reload](build-system.md#hot-reload). `forge hot` sets this for its own
+  build, so it is rarely needed in `forge.lua`.
 
 `forge build` also writes **`CMakePresets.json`** with the same cache variables,
 so IDEs (VS Code CMake Tools, CLion) and `cmake --preset forge` configure the

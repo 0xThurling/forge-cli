@@ -69,7 +69,7 @@ target_link_libraries(app PRIVATE fmt::fmt forgefp PkgConfig::ZLIB)
 
 ## The lifecycle
 
-```
+```text
 forge.lua        declare        (channels, tags, options)
 forge install    resolve        (git refs → commits in forge.lock; conan install)
 forge build      configure      (FetchContent / toolchain / pkg-config → targets)
@@ -85,7 +85,7 @@ forge project dependencies              # what the project ends up with
 forge project dependencies --json
 ```
 
-```
+```text
 ┌─────────┬───────────────────────────────────┬────────┬──────────┐
 │ Name    │ Source                            │ Ref    │ Target   │
 ├─────────┼───────────────────────────────────┼────────┼──────────┤
@@ -137,7 +137,7 @@ direct = {
 A dependency needs **`git` with `tag`, or `path`** — anything else is reported
 and ignored rather than put on the link line:
 
-```
+```text
 Warning: dependency `broken` has no source — give it `git` with `tag`, or `path`. Ignoring it.
 Warning: `dependencies.direct.direct` looks like an extra nesting level — dependencies belong directly under `direct`. Ignoring it.
 ```
@@ -173,7 +173,7 @@ int main() {
 ```bash
 forge outdated
 ```
-```
+```text
 ┌─────────┬──────────┬────────────┐
 │ Name    │ Declared │ Newest tag │
 ├─────────┼──────────┼────────────┤
@@ -228,6 +228,8 @@ int main() { return fp::out(fp::into(21) | [](int x) { return x * 2; }) == 42 ? 
 
 ## Conan packages
 
+### Declaring packages
+
 ```lua
 dependencies = {
   direct = {},
@@ -238,7 +240,9 @@ dependencies = {
 }
 ```
 
-**What Forge writes** — `.config/conanfile.txt`:
+### What Forge generates
+
+**The manifest** — `.config/conanfile.txt`:
 
 ```ini
 [requires]
@@ -253,20 +257,20 @@ CMakeToolchain
 cmake_layout
 ```
 
-**What Forge runs** (the configuration being built is forwarded):
+**The command** (the configuration being built is forwarded):
 
 ```bash
 conan install .config/conanfile.txt --output-folder=build --build=missing -s build_type=Release
 ```
 
-**What lands in the generated CMake**, from the summary Conan prints:
+**The link lines**, from the summary Conan prints:
 
 ```cmake
 find_package(spdlog REQUIRED)
 target_link_libraries(app PRIVATE spdlog::spdlog)
 ```
 
-**Use it:**
+### In your code
 
 ```cpp
 #include <spdlog/spdlog.h>
@@ -274,7 +278,7 @@ target_link_libraries(app PRIVATE spdlog::spdlog)
 int main() { spdlog::info("hello from conan"); }
 ```
 
-**Where things are:**
+### Where things are
 
 | Artifact | Path |
 |---|---|
@@ -283,12 +287,14 @@ int main() { spdlog::info("hello from conan"); }
 | per-package CMake configs | `build/build/<Configuration>/generators/<pkg>/<pkg>-config.cmake` |
 | Conan's own lock | `build/build/<Configuration>/generators/conan.lock` |
 
+### Requirements and diagnostics
+
 Requires the `conan` executable — `forge setup` reports it, and its hint is
 manager-aware, and `forge setup --install --tools conan` installs it for you
 (`pipx` where the archive has no Conan 2 (Arch) or only 1.x (Debian/Ubuntu)). A
 missing binary is reported, not guessed at:
 
-```
+```text
 Error: Conan is required by dependencies.conan but could not be run.
 ```
 
@@ -297,7 +303,7 @@ Transitive packages come along automatically. Ask where one came from:
 ```bash
 forge why fmt
 ```
-```
+```text
 fmt
    transitive fmt/10.2.1#b1c2d3
    required by spdlog/1.12.0 (direct dependency)
@@ -306,16 +312,20 @@ fmt
 `forge doctor` reports conflicts between a Conan package and a git dependency of
 the same library:
 
-```
+```text
 ⚠️  Dependency Conflicts Detected:
    - <what Conan reported, e.g. a duplicate package from two channels>
 ```
 
-**Not supported yet:** per-package Conan options and settings (for example
+### Not supported yet
+
+Per-package Conan options and settings (for example
 `-o fmt/*:shared=True`). The table takes a version only — there is no
 declarative place to put them, so say something if you need this.
 
-## vcpkg (manifest mode)
+## Using vcpkg (manifest mode)
+
+### Declaring packages
 
 ```lua
 dependencies = {
@@ -331,7 +341,9 @@ vcpkg_baseline = "<commit>"          -- optional builtin-baseline
 vcpkg_triplet = "x64-mingw-static"   -- optional target triplet
 ```
 
-**What Forge writes** — `vcpkg.json`:
+### What Forge generates
+
+**The manifest** — `vcpkg.json`:
 
 ```json
 {
@@ -344,21 +356,23 @@ vcpkg_triplet = "x64-mingw-static"   -- optional target triplet
 }
 ```
 
-**What lands in the generated CMake** — the declared target is linked, because
-vcpkg cannot be queried for targets without running it:
+**The link lines** — the declared target is linked, because vcpkg cannot be
+queried for targets without running it:
 
 ```cmake
 find_package(SDL2 REQUIRED)
 target_link_libraries(app PRIVATE SDL2::SDL2)
 ```
 
-**Use it:**
+### In your code
 
 ```cpp
 #include <SDL2/SDL.h>
 
 int main() { SDL_Init(SDL_INIT_VIDEO); SDL_Quit(); }
 ```
+
+### Getting vcpkg
 
 If you do not have a checkout yet, let `forge setup` do it:
 
@@ -373,17 +387,19 @@ Forge looks, so no environment variable is needed. vcpkg's bootstrap needs
 `curl`, `zip`, `unzip` and `tar`; when one is missing, the failure names the
 command that installs it for your machine.
 
+### Toolchain and triplet
+
 The toolchain is handed to CMake (`CMAKE_TOOLCHAIN_FILE` → vcpkg's), and
 `vcpkg_triplet` becomes `VCPKG_TARGET_TRIPLET` in the cache, so dependencies are
 built for that platform. A missing checkout is reported with the three ways to
 provide one:
 
-```
+```text
 Error: vcpkg dependencies are declared but no vcpkg checkout was found — set
 `vcpkg_root` in forge.lua, export `VCPKG_ROOT`, or clone it into `external/vcpkg`.
 ```
 
-## pkg-config
+## Using pkg-config
 
 ```lua
 dependencies = { direct = {}, conan = {}, pkgconfig = { "gtk+-3.0", "zlib" } }
@@ -494,9 +510,13 @@ forge install --update        # re-resolve everything (after bumping a tag yours
 
 - Changing a dependency's `git` or `tag` **invalidates** its entry: the next
   `forge install` re-resolves it.
-- `forge build` never writes the lock, so a build never resolves a ref.
 - `forge vendor` drops the entries it vendored, because those are local now.
 - Local `path` dependencies are not locked.
+
+!!! note "Only `forge install` writes the lock"
+
+    `forge build` never does, so a build never resolves a ref — it uses what is
+    already declared and locked.
 
 ## The shared cache
 
@@ -511,7 +531,7 @@ set(FETCHCONTENT_SOURCE_DIR_FMT "/home/you/.cache/forge/deps/fmt-3f9c1a2b" CACHE
 ```bash
 forge cache list
 ```
-```
+```text
 ┌──────────────────┬────────┐
 │ Entry            │ Size   │
 ├──────────────────┼────────┤
@@ -564,15 +584,16 @@ that.
 
 ## Recipes
 
-**A library from source, tests off:**
+### A library from source, tests off
 
 ```lua
 direct = { fmt = { git = "https://github.com/fmtlib/fmt.git", tag = "10.2.1",
                    target = "fmt::fmt", options = { FMT_TEST = "OFF" } } }
 ```
 
-**A dependency whose CMake target differs from the key** (SDL exposes
-`SDL2::SDL2`, so the key can be anything):
+### A dependency whose CMake target differs
+
+SDL exposes `SDL2::SDL2`, so the key can be anything:
 
 ```lua
 direct = { sdl = { git = "https://github.com/libsdl-org/SDL.git",
@@ -580,34 +601,42 @@ direct = { sdl = { git = "https://github.com/libsdl-org/SDL.git",
                    options = { SDL_TEST = "OFF", SDL_EXAMPLES = "OFF" } } }
 ```
 
-**Another Forge project beside yours** (ForgeFP, a library): build it once, then
-point at it — no `install` step, headers used in place.
+### Another Forge project beside yours
+
+ForgeFP, a library: build it once, then point at it — no `install` step, headers
+used in place.
 
 ```lua
 direct = { forgefp = { path = "../fp", target = "forgefp" } }
 ```
 
-**A test framework** is a normal git dependency, but Forge manages it for you
-when `testing = true` — see [Project Configuration](project-configuration.md).
+### A test framework
+
+A test framework is a normal git dependency, but Forge manages it for you when
+`testing = true` — see [Project Configuration](project-configuration.md).
 
 ```lua
 -- what Forge writes into forge.lua for you
 direct = { googletest = { git = "https://github.com/google/googletest.git", tag = "v1.14.0" } }
 ```
 
-**A system library** — no build, no fetch:
+### A system library
+
+No build, no fetch:
 
 ```lua
 dependencies = { direct = {}, conan = {}, pkgconfig = { "openssl", "zlib" } }
 ```
 
-**A prebuilt/version-solved library**:
+### A prebuilt, version-solved library
 
 ```lua
 dependencies = { direct = {}, conan = { boost = "1.85.0" } }
 ```
 
-**A mixed project** (the common shape for a game or tool):
+### A mixed project
+
+The common shape for a game or tool:
 
 ```lua
 dependencies = {

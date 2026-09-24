@@ -2,6 +2,10 @@ site_name: Forge CLI (C++ Meta-Build System)
 theme:
   name: readthedocs
   highlightjs: true
+  navigation_depth: 3
+  titles_only: false
+  collapse_navigation: false
+  sticky_navigation: true
 nav:
   - Home: index.md
   - Prerequisites: prerequisites.md
@@ -15,13 +19,5 @@ nav:
   - Lua Reference: lua-reference.md
 plugins:
   - search
-  - mkdocstrings:
-      handlers:
-        # See: https://mkdocstrings.github.io/python/usage/
-        python:
-          options:
-            docstring_style: sphinx
 markdown_extensions:
-  - markdown_include.include:
-      base_path: .
   - admonition

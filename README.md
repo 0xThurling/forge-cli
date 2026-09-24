@@ -13,6 +13,7 @@
 *   **Workspaces**: Build and test a directory of sibling projects in dependency order (`forge workspace build`).
 *   **Resource Embedding**: Easily embed and access binary assets in your C++ code.
 *   **Testing**: Google Test, Catch2 or doctest, plus benchmarks (`forge bench`).
+*   **Hot Reload**: `forge hot` replaces function bodies in the running process on save — state, statics and globals survive (`forge_hot_init`/`forge_hot_update`).
 *   **Quality Tooling**: `forge format` and `forge lint` wired to clang-format/clang-tidy, and `forge doctor --fix`.
 *   **Packaging**: `forge publish` builds a CPack archive (TGZ, ZIP, DEB, RPM) from a versioned project.
 *   **Extensible CMake**: Lua build scripts can inject snippets or register named CMake sections at a chosen anchor (`forge.add_section`).

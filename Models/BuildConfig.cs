@@ -71,7 +71,15 @@ namespace forge.Models
     /// <summary>Scan sources for C++20 modules (`CMAKE_CXX_SCAN_FOR_MODULES`).</summary>
     public bool Modules { get; set; }
 
+    /// <summary>
+    /// Hot reload support: builds with jet-live wired in, so function bodies
+    /// can be patched in the running process. Debug builds only; see
+    /// <c>forge hot</c>.
+    /// </summary>
+    public bool Hot { get; set; }
+
     public bool HasAny =>
+        Hot ||
         Unity ||
         Pch.Length > 0 ||
         Modules ||

@@ -47,6 +47,12 @@ namespace forge.Commands
     public bool Verbose { get; set; }
 
     /// <summary>
+    /// Force hot reload for this build (<c>forge hot</c>), even when forge.lua
+    /// does not set <c>build.hot</c>.
+    /// </summary>
+    public bool Hot { get; set; }
+
+    /// <summary>
     /// Gets or sets the C++ standard version to use.
     /// </summary>
     /// <value>
@@ -102,6 +108,24 @@ namespace forge.Commands
         return 1;
       }
 
+      // `forge hot` turns the mode on for this build; forge.lua can also ask
+      // for it (`build.hot = true`), in which case plain `forge build` wires it.
+      if (Hot)
+        projectConfig.Build.Hot = true;
+
+      if (projectConfig.Build.Hot)
+      {
+        var problem = HotReload.Validate(projectConfig, Release);
+        if (problem is not null)
+        {
+          AnsiConsole.MarkupLine($"[bold red]Error:[/] {problem}");
+          return 1;
+        }
+
+        HotReload.EnsureDependency(projectConfig);
+        HotReload.WriteGlue();
+      }
+
       // Everything this build contributes lives in one context, so nothing a
       // previous build (or another project in a workspace) left behind leaks in.
       var context = new BuildContext { Config = projectConfig };
@@ -122,7 +146,7 @@ namespace forge.Commands
 
       // The configuration is decided here because the Conan install needs it:
       // it writes the toolchain into a per-configuration directory.
-      var buildType = Debug && !Release ? "Debug" : "Release";
+      var buildType = projectConfig.Build.Hot || (Debug && !Release) ? "Debug" : "Release";
 
       var installPackages = new InstallCommand();
       if (await installPackages.InstallForBuildAsync(context, buildType) != 0)
@@ -143,7 +167,11 @@ namespace forge.Commands
         // Refresh config to get the googletest dependency
         projectConfig = await ProjectConfigManager.LoadConfigAsync();
         if (projectConfig != null)
+        {
+          if (projectConfig.Build.Hot)
+            HotReload.EnsureDependency(projectConfig);
           context.Config = projectConfig;
+        }
       }
 
       // Apply CLI flag overrides (quick builds without editing forge.lua)
@@ -152,21 +180,6 @@ namespace forge.Commands
         var build = projectConfig.Build;
         if (!string.IsNullOrWhiteSpace(Standard))
           projectConfig.Project.Standard = Standard;
-        if (NoConfigPresets)
-          build.Presets.Clear();
-        if (Release)
-          build.Presets.Add("production");
-        if (Debug)
-          build.Presets.Add("debug");
-        if (!string.IsNullOrWhiteSpace(Preset))
-          build.Presets.AddRange(
-            Preset.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
-      }
-
-      // Apply CLI flag overrides (quick builds without editing forge.lua)
-      if (projectConfig != null)
-      {
-        var build = projectConfig.Build;
         if (NoConfigPresets)
           build.Presets.Clear();
         if (Release)
@@ -217,7 +230,7 @@ namespace forge.Commands
           var cmakeContent = CMakeRegistry.Instance.Generate(context);
 
           var cmakeConfigPath = Path.Combine(".config", "cmake", "CMakeLists.txt");
-          File.WriteAllText(cmakeConfigPath, cmakeContent);
+          var generatedChanged = Utils.WriteIfChanged(cmakeConfigPath, cmakeContent);
 
           var rootCmakeContent = new StringBuilder();
 
@@ -236,7 +249,7 @@ namespace forge.Commands
           rootCmakeContent.AppendLine();
           rootCmakeContent.AppendLine("include(.config/cmake/CMakeLists.txt)");
 
-          File.WriteAllText("CMakeLists.txt", rootCmakeContent.ToString());
+          generatedChanged |= Utils.WriteIfChanged("CMakeLists.txt", rootCmakeContent.ToString());
 
           // Configure step
           EnsureBuildCacheMatchesProject("build");
@@ -343,34 +356,65 @@ namespace forge.Commands
           // Mirror the same settings for IDEs and `cmake --preset forge`.
           CMakePresetsManager.Write(generator, cacheVariables);
 
-          var configureTimer = Stopwatch.StartNew();
-          var cmakeConfigureCommand = new ProcessStartInfo("cmake")
-          {
-            RedirectStandardOutput = !Verbose,
-            RedirectStandardError = !Verbose,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-          };
-          foreach (var argument in configureArguments)
-            cmakeConfigureCommand.ArgumentList.Add(argument);
-
-          using (var process = Process.Start(cmakeConfigureCommand))
-          {
-            if (process == null) throw new Exception("Failed to start CMake process.");
-            process.WaitForExit();
-            if (process.ExitCode != 0)
+          // CMake only has to re-run when something it reads changed: the
+          // generated files, the cache variables, or the build tree itself. The
+          // build step re-runs it anyway when a CMakeLists changed, so skipping
+          // this invocation costs nothing and saves a configure per rebuild.
+          // A path dependency can gain its generated CMakeLists *after* a
+          // configure (the first build of a checkout that was never built), so
+          // those files are configure inputs too: without them a skipped
+          // configure would never see the dependency's targets.
+          var configureInputs = projectConfig.Dependencies
+            .Where(pair => !string.IsNullOrWhiteSpace(pair.Value.Path))
+            .SelectMany(pair => new[]
             {
-              AnsiConsole.MarkupLine("[bold red]CMake configure failed.[/]");
-              if (!Verbose)
-              {
-                Console.Write(process.StandardOutput.ReadToEnd());
-                Console.Write(process.StandardError.ReadToEnd());
-              }
-              return 1;
-            }
-          }
+              Path.Combine(pair.Value.Path, "CMakeLists.txt"),
+              Path.Combine(pair.Value.Path, ".config", "cmake", "CMakeLists.txt"),
+            })
+            .Select(input => File.Exists(input)
+              ? $"{input}|{File.GetLastWriteTimeUtc(input).Ticks}"
+              : $"{input}|missing");
 
-          configureTimer.Stop();
+          var configureStamp = Utils.ConfigureStamp(generator, cacheVariables, configureInputs);
+          var configureStampPath = Path.Combine("build", ".forge-configure.stamp");
+          var needsConfigure = generatedChanged ||
+                               !File.Exists(Path.Combine("build", "CMakeCache.txt")) ||
+                               !File.Exists(configureStampPath) ||
+                               File.ReadAllText(configureStampPath) != configureStamp;
+
+          var configureTimer = new Stopwatch();
+          if (needsConfigure)
+          {
+            configureTimer.Start();
+            var cmakeConfigureCommand = new ProcessStartInfo("cmake")
+            {
+              RedirectStandardOutput = !Verbose,
+              RedirectStandardError = !Verbose,
+              UseShellExecute = false,
+              CreateNoWindow = true,
+            };
+            foreach (var argument in configureArguments)
+              cmakeConfigureCommand.ArgumentList.Add(argument);
+
+            using (var process = Process.Start(cmakeConfigureCommand))
+            {
+              if (process == null) throw new Exception("Failed to start CMake process.");
+              process.WaitForExit();
+              if (process.ExitCode != 0)
+              {
+                AnsiConsole.MarkupLine("[bold red]CMake configure failed.[/]");
+                if (!Verbose)
+                {
+                  Console.Write(process.StandardOutput.ReadToEnd());
+                  Console.Write(process.StandardError.ReadToEnd());
+                }
+                return 1;
+              }
+            }
+
+            configureTimer.Stop();
+            Utils.WriteIfChanged(configureStampPath, configureStamp);
+          }
 
           // Create a symlink in the root for the LSP
           var compileCommandsPath = Path.Combine("build", "compile_commands.json");
@@ -406,6 +450,15 @@ namespace forge.Commands
           }
           if (Verbose)
             buildArguments.Add("--verbose");
+
+          // jet-live reads the compiler depfiles to know which headers a source
+          // depends on, and Ninja deletes them unless asked to keep them.
+          if (projectConfig.Build.Hot && HotReload.IsNinjaGenerator())
+          {
+            buildArguments.Add("--");
+            buildArguments.Add("-d");
+            buildArguments.Add("keepdepfile");
+          }
 
           var buildTimer = Stopwatch.StartNew();
           var cmakeBuildCommand = new ProcessStartInfo("cmake")
