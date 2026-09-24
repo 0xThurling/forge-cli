@@ -27,6 +27,7 @@ public class CMakeRegistry
     if (_initialized) return;
 
     Register(new StandardSection());
+    Register(new HotSetupSection());
     Register(new FeaturesSection());
     Register(new FetchContentSection());
     Register(new ConanSection());
@@ -35,6 +36,7 @@ public class CMakeRegistry
     Register(new FlagsSection());
     Register(new LuaOptionsSection());
     Register(new ProjectTargetSection());
+    Register(new HotGlueSection());
     Register(new LinkingSection());
     Register(new CustomCMakeSection());
     Register(new TestingSection());

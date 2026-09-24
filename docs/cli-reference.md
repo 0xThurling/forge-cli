@@ -306,6 +306,43 @@ forge run compile-shaders debug            # script, with $1 = debug
 
 ---
 
+### `hot`
+Builds the project for hot reload and runs it, reloading when sources change.
+
+**Usage:** `forge hot [--manual] [--interval <seconds>] [--no-build] [--bin <name>] [-- program-arguments...]`
+
+The build is a debug one with the pinned **jet-live** engine wired in, so
+function bodies are replaced in the running process and its state — statics and
+globals included — survives. A save is signalled to the process; a file added
+or removed rebuilds first, because the generated compile commands change.
+
+The application calls the generated glue: `forge_hot_init()` once, then
+`forge_hot_update()` every iteration of its main loop.
+
+```cpp
+#include "forge_hot.h"
+
+int main() {
+  forge_hot_init();
+  while (running) {
+    forge_hot_update();
+    frame();
+  }
+}
+```
+
+Hot mode is strict by design: `--release`, `unity = true`, `modules = true` and
+the `asan`/`tsan`/`ubsan`/`msan`/`lto` presets are refused, because the engine
+patches unoptimised code and loads a patch library into the process. The loop
+must be single-threaded, and an object whose layout changed must be recreated in
+the `forge_hot_pre_reload` / `forge_hot_post_reload` hooks — the engine is
+silent about layout mismatches. See [Hot reload](build-system.md#hot-reload).
+
+`--manual` watches nothing: send `SIGUSR1` to the printed pid to reload.
+`--no-build` runs the existing binary. Linux and macOS only.
+
+---
+
 ### `test`
 Runs project tests (if enabled). Uses CTest when available and falls back to
 the built test binary; the build step runs first.

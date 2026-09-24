@@ -127,6 +127,13 @@ public static class LockfileManager
   /// </summary>
   private static async Task<string?> ResolveRefAsync(string repo, string reference)
   {
+    // A commit hash is already the resolved answer. `git ls-remote` only lists
+    // refs, so asking it about a hash would fail — and leave a dependency that
+    // is pinned by commit (the hot-reload engine, or a deliberate choice)
+    // unlocked.
+    if (reference.Length is >= 7 and <= 40 && reference.All(Uri.IsHexDigit))
+      return reference.ToLowerInvariant();
+
     try
     {
       var psi = new ProcessStartInfo("git", $"ls-remote \"{repo}\" \"{reference}\"")

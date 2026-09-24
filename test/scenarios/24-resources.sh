@@ -25,6 +25,16 @@ scenario_24_resources() {
   assert_contains "$root/src/embedded_resources.cpp" '// Resource: assets/data.txt' \
     "resource recorded in the generated source"
 
+  # The generated file embeds the resource's bytes, so regenerating it on every
+  # build would recompile it: an unchanged build must leave it alone.
+  local resources_out
+  resources_out="$(forge_in "$root" build 2>&1 || true)"
+  if grep -qF "Generating resource files" <<<"$(flatten <<<"$resources_out")"; then
+    fail "an unchanged build does not regenerate the resource source"
+  else
+    pass "an unchanged build does not regenerate the resource source"
+  fi
+
   # Embedding the same file twice must not duplicate the entry.
   forge_in "$root" embed assets/data.txt >/dev/null 2>&1 || true
   local count

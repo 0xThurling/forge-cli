@@ -237,6 +237,8 @@ public class LuaConfigLoader
       config.Build.Pch = table["pch"].ToString();
     if (table["modules"] != LuaValue.Nil)
       config.Build.Modules = bool.TryParse(table["modules"].ToString(), out var modules) && modules;
+    if (table["hot"] != LuaValue.Nil)
+      config.Build.Hot = bool.TryParse(table["hot"].ToString(), out var hot) && hot;
 
     var launcher = table["compiler_launcher"];
     if (launcher != LuaValue.Nil)

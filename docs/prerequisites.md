@@ -30,6 +30,7 @@ as a CI gate: `forge setup || forge setup --install --yes`.
 | **Conan 2.x** | `dependencies.conan` | `forge setup --install --tools conan` (package manager, or `pipx` where the archive has no Conan 2 / only 1.x) — see [Conan packages](dependency-management.md#conan-packages) |
 | **vcpkg** | `dependencies.vcpkg` | `forge setup --install --tools vcpkg` — clones and bootstraps into `external/vcpkg`, where Forge finds it without any environment variable. See [Using vcpkg](dependency-management.md#using-vcpkg-manifest-mode) |
 | **pkg-config** | `dependencies.pkgconfig` | Plus the `-dev`/`-devel` package of each module you use |
+| **jet-live** | `forge hot` | Fetched as a pinned dependency — nothing to install; Linux/macOS only |
 
 ## Checking and installing
 

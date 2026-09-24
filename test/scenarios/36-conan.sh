@@ -105,6 +105,20 @@ LUA
     "conan toolchain actually read by CMake"
   assert_runs "$root/build/demo_conan" "conan-ok" "binary links against the conan targets"
 
+  # Nothing changed, so the next build must not pay for `conan install` again.
+  local calls_before calls_after
+  calls_before="$(wc -l <"$root/conan-calls.log")"
+  if forge_in "$root" build >/dev/null 2>&1; then
+    calls_after="$(wc -l <"$root/conan-calls.log")"
+    if [[ "$calls_after" -eq "$calls_before" ]]; then
+      pass "an unchanged build does not run conan again"
+    else
+      fail "an unchanged build does not run conan again ($calls_before -> $calls_after)"
+    fi
+  else
+    fail "an unchanged build does not run conan again"
+  fi
+
   # A debug build installs Conan for Debug, so the toolchain the configure step
   # looks for is the one Conan wrote (build/build/Debug/generators).
   if ! forge_in "$root" build --debug >/dev/null 2>&1; then

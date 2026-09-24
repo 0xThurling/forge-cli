@@ -36,12 +36,76 @@ namespace forge
     /// Utils.GenerateResourceFiles(resources);
     /// </code>
     /// </example>
+    /// <summary>Writes a file only when its content differs.</summary>
+    /// <returns>True when the file was (re)written.</returns>
+    public static bool WriteIfChanged(string path, string content)
+    {
+      if (File.Exists(path) && File.ReadAllText(path) == content)
+        return false;
+
+      var directory = Path.GetDirectoryName(path);
+      if (!string.IsNullOrEmpty(directory))
+        Directory.CreateDirectory(directory);
+      File.WriteAllText(path, content);
+      return true;
+    }
+
+    /// <summary>
+    /// The configure inputs, serialised: a change here means CMake has to run
+    /// again even when the generated files are byte-identical.
+    /// </summary>
+    public static string ConfigureStamp(
+      string generator, Dictionary<string, string> cacheVariables, IEnumerable<string> inputs)
+    {
+      var sb = new StringBuilder();
+      sb.Append("generator=").Append(generator).Append('\n');
+      foreach (var (key, value) in cacheVariables.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        sb.Append(key).Append('=').Append(value).Append('\n');
+      foreach (var input in inputs)
+        sb.Append(input).Append('\n');
+      return sb.ToString();
+    }
+
+    /// <summary>
+    /// A hash of the resource list and each file's size and write time: the
+    /// signal for "the generated file would be identical".
+    /// </summary>
+    private static string ResourceStamp(List<string> resources)
+    {
+      var sb = new StringBuilder();
+      foreach (var path in resources)
+      {
+        if (File.Exists(path))
+        {
+          var info = new FileInfo(path);
+          sb.Append(path).Append('|').Append(info.Length).Append('|')
+            .Append(info.LastWriteTimeUtc.Ticks).Append('\n');
+        }
+        else
+        {
+          sb.Append(path).Append("|missing\n");
+        }
+      }
+
+      var hash = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
+      return Convert.ToHexString(hash);
+    }
+
     public static void GenerateResourceFiles(List<string> resources)
     {
-      AnsiConsole.MarkupLine("[bold cyan]--- Generating resource files --- [/]");
-
       var headerPath = Path.Combine("src", "embedded_resources.h");
       var cppPath = Path.Combine("src", "embedded_resources.cpp");
+      var stampPath = Path.Combine("build", ".forge-resources.stamp");
+
+      // The generated file embeds every resource's bytes, so rewriting it
+      // recompiles that translation unit. Leave it alone when the inputs are
+      // the same as last time.
+      var stamp = ResourceStamp(resources);
+      if (File.Exists(stampPath) && File.ReadAllText(stampPath) == stamp &&
+          File.Exists(headerPath) && File.Exists(cppPath))
+        return;
+
+      AnsiConsole.MarkupLine("[bold cyan]--- Generating resource files --- [/]");
 
       // --- Generate Header File ---
       var headerLines = new List<string>
@@ -132,6 +196,7 @@ namespace forge
             ]);
 
       File.WriteAllLines(cppPath, cppLines);
+      WriteIfChanged(stampPath, stamp);
 
       AnsiConsole.MarkupLine($"[bold green]Successfully generated `[bold]{headerPath}[/]` and `[bold]{cppPath}[/][/]`.");
     }

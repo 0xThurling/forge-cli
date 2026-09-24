@@ -44,18 +44,61 @@ It scans `src`, `include`, `test` and `bench` (override with `--paths`), so a
 save is followed by a build without a manual step. `--iterations 1` builds once
 and exits, for scripts.
 
+## Hot reload
+
+`forge hot` runs the project and replaces function bodies in the *running*
+process when you save. The state survives — statics, globals and heap objects —
+so a game keeps its world and a server keeps its connections:
+
+```bash
+forge hot                       # build (debug), run, reload on save
+forge hot --manual              # reload when you send SIGUSR1
+```
+
+The application calls the generated glue — `forge_hot_init()` once and
+`forge_hot_update()` in the main loop — and the engine (jet-live, fetched as a
+pinned dependency; with `hot = true` in `forge.lua`, `forge install` records it
+in `forge.lock`) does the rest:
+it recompiles the changed translation units, links them into a patch library and
+redirects the old functions to the new code.
+
+What it cannot do, by construction:
+
+- **Optimised builds.** The engine patches function boundaries, so hot mode
+  builds with `-O0 -g` and refuses `--release`, the `lto` preset and the
+  sanitizer presets.
+- **Data layout changes.** An object already allocated keeps its old layout; new
+  code reading a new member gets garbage — silently. Recreate such objects in
+  the `forge_hot_pre_reload` / `forge_hot_post_reload` hooks, which the glue
+  calls when you define them.
+- **Multiple threads.** Reloading while other threads run is not supported:
+  call `forge_hot_update()` from the main loop and keep it single-threaded.
+- **`unity` and `modules`.** A save would recompile the whole unity blob, and
+  module scanning changes how translation units are produced; both are refused.
+- **Windows.** The engine is Linux and macOS only.
+
+Header dependencies come from the compiler's depfiles, so a Ninja hot build
+keeps them (`-d keepdepfile`); Makefile builds keep them anyway.
+
 ## Build speed
 
-Three things happen before a single file is compiled, and all three are on by
-default where they can be:
+What happens before a single file is compiled, all of it on by default where it
+can be:
 
 - **Parallel builds.** `forge build` passes `--parallel <jobs>` to CMake, with
   the job count from `--jobs`, then `build.jobs`, then every core.
 - **A compiler launcher.** `ccache` or `sccache` is detected on `PATH` and used
   as `CMAKE_CXX_COMPILER_LAUNCHER`; set `build.compiler_launcher = "none"` to
   opt out, or name a different one.
-- **Configured-only-when-needed.** The generated files are written on every
-  build, but CMake is only re-run when they (or the cache variables) changed.
+- **Configured-only-when-needed.** The generated files are written only when
+  their content changed, and CMake is configured only when they or the cache
+  variables did — so a rebuild with nothing to do is a `cmake --build` (about
+  0.4s here), not a configure.
+- **Nothing else runs either.** A build reuses the Conan install while the
+  conanfile and its toolchain are unchanged (`forge install` always resolves),
+  and embedded resources are regenerated only
+  when one of the listed files changed (the generated file embeds their bytes,
+  so rewriting it would recompile that translation unit).
 
 Unity builds and precompiled headers cut compile time further — see
 [Modern build features](#modern-build-features). For tracking what a change

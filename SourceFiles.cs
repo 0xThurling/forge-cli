@@ -112,7 +112,7 @@ internal static class SourceFiles
   /// machine for the compile database).
   /// </summary>
   public static readonly string[] GeneratedIgnoreEntries =
-    ["build/", "lib/", "compile_commands.json", "CMakePresets.json", "conanfile.txt"];
+    ["build/", "lib/", "compile_commands.json", "CMakePresets.json", "conanfile.txt", ".config/forge/hot/"];
 
   /// <summary>The `.gitignore` written by `forge create`.</summary>
   public static string DefaultGitIgnore() => string.Join("\n", GeneratedIgnoreEntries) + "\n";

@@ -130,12 +130,13 @@ namespace forge.Commands
       }
     }
 
-    private static string? FindExecutable(string name)
+    /// <summary>The built executable for a target name, or null when it is absent.</summary>
+    public static string? FindExecutable(string name)
     {
       var possiblePaths = new[]{
         "build/" + name,
-        "build/Release" + name,
-        "build/Debug" + name,
+        "build/Release/" + name,
+        "build/Debug/" + name,
         "build/" + name + ".exe",
         "build/Release" + name + ".exe",
       };
