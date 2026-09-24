@@ -322,6 +322,23 @@ public class LuaConfigLoader
 
         var dependency = ParseDependencyFromTable(depTable);
 
+        // Export metadata is all-or-nothing: the package to find and the target
+        // it provides are only useful together.
+        if (depTable["export"] != LuaValue.Nil && !depTable["export"].TryRead<LuaTable>(out _))
+        {
+          WarnOnce(
+            $"dependency `{name}`: `export` must be a table like " +
+            "{ package = \"pkg\", target = \"pkg::pkg\" }; ignoring it.");
+        }
+        else if (!string.IsNullOrWhiteSpace(dependency.ExportPackage) !=
+                 !string.IsNullOrWhiteSpace(dependency.ExportTarget))
+        {
+          WarnOnce(
+            $"dependency `{name}`: `export` needs both `package` and `target`; ignoring the export metadata.");
+          dependency.ExportPackage = string.Empty;
+          dependency.ExportTarget = string.Empty;
+        }
+
         // A dependency without a source cannot be fetched or linked; keeping it
         // would put an unresolvable target on the link line.
         if (string.IsNullOrWhiteSpace(dependency.Path) &&
@@ -466,6 +483,15 @@ public class LuaConfigLoader
     if (table["target"] != LuaValue.Nil)
     {
       dep.Target = table["target"].ToString();
+    }
+
+    if (table.TryGetValue("export", out var exportValue) &&
+        exportValue.TryRead<LuaTable>(out var exportTable))
+    {
+      if (exportTable["package"] != LuaValue.Nil)
+        dep.ExportPackage = exportTable["package"].ToString();
+      if (exportTable["target"] != LuaValue.Nil)
+        dep.ExportTarget = exportTable["target"].ToString();
     }
 
     if (table.TryGetValue("options", out var optionsValue) &&

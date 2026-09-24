@@ -5,6 +5,14 @@ scenario_78_docs_coverage() {
   local docs="$REPO/docs"
   local reference="$docs/cli-reference.md"
 
+  # The checks drive the CLI under test, not whatever `forge` happens to be
+  # installed on the machine.
+  local dev_bin
+  dev_bin="$(dirname "$FORGE_DLL")"
+  if [[ -x "$dev_bin/forge" ]]; then
+    PATH="$dev_bin:$PATH"
+  fi
+
   # --- every command the CLI exposes is documented --------------------------
   local command missing=""
   while read -r command; do

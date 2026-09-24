@@ -365,6 +365,13 @@ namespace forge
           }
           if (!string.IsNullOrEmpty(dep.Value.Target))
             sb.AppendLine($"                target = \"{dep.Value.Target}\",");
+          if (dep.Value.IsExportable)
+          {
+            sb.AppendLine("                export = {");
+            sb.AppendLine($"                    package = \"{dep.Value.ExportPackage}\",");
+            sb.AppendLine($"                    target = \"{dep.Value.ExportTarget}\",");
+            sb.AppendLine("                },");
+          }
           if (dep.Value.Options.Count > 0)
           {
             sb.AppendLine("                options = {");

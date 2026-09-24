@@ -250,11 +250,30 @@ internal static class SelfInvocation
   /// <summary>The command line that re-runs this CLI.</summary>
   public static (string FileName, List<string> Arguments) Command()
   {
-    var entry = Environment.GetCommandLineArgs().FirstOrDefault() ?? "forge";
-    if (entry.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-      return (Environment.ProcessPath ?? "dotnet", [Path.GetFullPath(entry)]);
+    var process = Environment.ProcessPath;
+    var entry = Environment.GetCommandLineArgs().FirstOrDefault();
+    var isDotnetHost = process is not null &&
+      Path.GetFileNameWithoutExtension(process).Equals("dotnet", StringComparison.OrdinalIgnoreCase);
 
-    return (Path.GetFullPath(entry), []);
+    // A framework-dependent build launched through the .NET host
+    // (`dotnet forge.dll`): re-run through the same host, passing the assembly
+    // as the first argument.
+    if (isDotnetHost && entry is not null && entry.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+      return (process!, [Path.GetFullPath(entry)]);
+
+    // Any other host — the apphost, a single-file or AOT build — is the CLI
+    // itself. argv[0] must not be used: it is either the managed assembly path
+    // (the apphost rewrites it) or the name as typed (`forge`), which
+    // Path.GetFullPath would resolve against the current directory, not PATH.
+    if (!string.IsNullOrEmpty(process) && !isDotnetHost)
+      return (process, []);
+
+    // No usable process path: a managed assembly still needs its host, and
+    // anything else is left to the OS to resolve on PATH.
+    if (entry is not null && entry.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+      return ("dotnet", [Path.GetFullPath(entry)]);
+
+    return (entry ?? "forge", []);
   }
 
   public static async Task<int> RunAsync(string workingDirectory, IReadOnlyList<string> arguments)

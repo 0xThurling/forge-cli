@@ -51,6 +51,34 @@ namespace forge.Models
     public string Target { get; set; } = string.Empty; // Optional, defaults to key name
 
     /// <summary>
+    /// Gets or sets the CMake package to <c>find_dependency()</c> when this
+    /// dependency is consumed from an installed package.
+    /// </summary>
+    /// <remarks>
+    /// Set together with <see cref="ExportTarget"/>. The generated
+    /// <c>&lt;project&gt;Config.cmake</c> then finds this package before loading
+    /// the targets, so an installed library keeps its dependencies instead of
+    /// dropping them. Ignored for dependencies the project does not install.
+    /// </remarks>
+    /// <value>
+    /// A package name CMake can find, e.g. <c>"forgefp"</c>.
+    /// </value>
+    public string ExportPackage { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the imported target <see cref="ExportPackage"/> provides,
+    /// referenced by the installed interface.
+    /// </summary>
+    /// <value>
+    /// A namespaced target, e.g. <c>"forgefp::forgefp"</c>.
+    /// </value>
+    public string ExportTarget { get; set; } = string.Empty;
+
+    /// <summary>True when both export fields are set.</summary>
+    public bool IsExportable =>
+      !string.IsNullOrWhiteSpace(ExportPackage) && !string.IsNullOrWhiteSpace(ExportTarget);
+
+    /// <summary>
     /// CMake cache variables set before the dependency is configured, e.g.
     /// <c>{ SDL_TEST = "OFF" }</c> to skip a dependency's own tests and examples.
     /// </summary>

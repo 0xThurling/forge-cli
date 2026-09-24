@@ -43,25 +43,70 @@ LUA
     "the dependency key is linked"
   assert_runs "$app/build/demo_defaults" "net=5" "the linked library works"
 
-  # A library with no sources becomes an INTERFACE target.
+  # A library with no sources becomes an INTERFACE target — including when it
+  # has dependencies: the link line must then use the INTERFACE keyword, since
+  # CMake rejects PRIVATE on an INTERFACE target. install_headers is off so
+  # this exercises the link line and nothing else.
   local empty="$base/empty-lib"
   mkdir -p "$empty"
   cat >"$empty/forge.lua" <<'LUA'
 return {
-  project = { name = "demo_interface", type = "library", standard = "20", install_headers = true },
-  dependencies = { direct = {}, conan = {} },
+  project = { name = "demo_interface", type = "library", standard = "20", install_headers = false },
+  dependencies = { direct = { netlib = { path = "../lib" } }, conan = {} },
   resources = { files = {} },
   scripts = {},
   features = {}
 }
 LUA
   if forge_in "$empty" build >/dev/null 2>&1; then
-    pass "a source-less library builds"
+    pass "a source-less library with a dependency builds"
   else
-    fail "a source-less library builds"
+    fail "a source-less library with a dependency builds"
   fi
   assert_contains "$empty/.config/cmake/CMakeLists.txt" "add_library(demo_interface INTERFACE)" \
     "INTERFACE target emitted for a source-less library"
+  assert_contains "$empty/.config/cmake/CMakeLists.txt" \
+    'target_link_libraries(demo_interface INTERFACE $<BUILD_INTERFACE:netlib>)' \
+    "the dependency is linked with the INTERFACE keyword"
+
+  # A header-only library that installs headers exports its target: a dependency
+  # that is built here but in no export set must be kept out of the installed
+  # interface, and the build must say so.
+  local installed="$base/installed-lib"
+  mkdir -p "$installed/include"
+  cat >"$installed/forge.lua" <<'LUA'
+return {
+  project = { name = "demo_installed", type = "library", standard = "20", install_headers = true },
+  dependencies = { direct = { netlib = { path = "../lib" } }, conan = {} },
+  resources = { files = {} },
+  scripts = {},
+  features = {}
+}
+LUA
+  printf '#pragma once\ninline int installed_value() { return 7; }\n' >"$installed/include/installed.hpp"
+  local installed_out
+  if installed_out="$(forge_in "$installed" build 2>&1)"; then
+    pass "a header-only library with a dependency builds"
+  else
+    fail "a header-only library with a dependency builds"
+  fi
+  assert_contains "$installed/.config/cmake/CMakeLists.txt" \
+    'target_link_libraries(demo_installed INTERFACE $<BUILD_INTERFACE:netlib>)' \
+    "the dependency is kept out of the installed interface"
+  if grep -qF "not exported" <<<"$(flatten <<<"$installed_out")"; then
+    pass "the dependency that will not be installed is reported"
+  else
+    fail "the dependency that will not be installed is reported"
+  fi
+  if forge_in "$installed" install --prefix out >/dev/null 2>&1; then
+    pass "the header-only library installs"
+  else
+    fail "the header-only library installs"
+  fi
+  assert_lacks "$installed/out/lib/cmake/demo_installed/demo_installedTargets.cmake" "netlib" \
+    "the installed targets do not reference the unexported dependency"
+  assert_lacks "$installed/out/lib/cmake/demo_installed/demo_installedConfig.cmake" "find_dependency" \
+    "the package finds no dependency it cannot propagate"
 
   # Two channels in one project: both targets reach the link line.
   local mixed="$base/mixed"

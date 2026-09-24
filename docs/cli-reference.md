@@ -132,20 +132,24 @@ Declare, resolve, pin and inspect what the project links.
 ### `add`
 Adds or updates a dependency in `forge.lua`.
 
-**Usage:** `forge add <name> (--git <url> --tag <ref> | --path <dir> | --conan <version> | --vcpkg <target> | --pkg-config) [--target <cmake-target>]`
+**Usage:** `forge add <name> (--git <url> --tag <ref> | --path <dir> | --conan <version> | --vcpkg <target> | --pkg-config) [--target <cmake-target>] [--export-package <name> --export-target <target>]`
 
 ```bash
 forge add fmt --conan 10.2.1
 forge add sdl --git https://github.com/libsdl-org/SDL.git --tag release-2.32.10 --target SDL2::SDL2
 forge add forgefp --path ../fp --target forgefp
+forge add forgefp --path ../fp --target forgefp --export-package forgefp --export-target forgefp::forgefp
 forge add fmt --vcpkg fmt::fmt
 forge add zlib --pkg-config
 ```
 
 Re-adding a name switches its channel. Local paths are checked up front, a git
 dependency without `--tag` is rejected, and exactly one source must be given.
-Run `forge install` afterwards to pin a git dependency in `forge.lock` (the
-other channels are resolved by CMake during configure).
+`--export-package` and `--export-target` go together and make the dependency
+travel with an installed package: its Config calls `find_dependency` and the
+installed interface links the imported target. Run `forge install` afterwards
+to pin a git dependency in `forge.lock` (the other channels are resolved by
+CMake during configure).
 
 ---
 
@@ -309,7 +313,10 @@ forge run compile-shaders debug            # script, with $1 = debug
 ### `hot`
 Builds the project for hot reload and runs it, reloading when sources change.
 
-**Usage:** `forge hot [--manual] [--interval <seconds>] [--no-build] [--bin <name>] [-- program-arguments...]`
+**Usage:** `forge hot [--manual] [--interval <seconds>] [--no-build] [--bin <name>] [--arguments <arg...>] [-- program-arguments...]`
+
+Program arguments can be passed either after `--` or with `--arguments` (the
+option spelling); both end up on the program's command line.
 
 The build is a debug one with the pinned **jet-live** engine wired in, so
 function bodies are replaced in the running process and its state — statics and

@@ -491,7 +491,7 @@ namespace forge.Commands
 
           if (projectConfig.Project.Type == "library")
           {
-            return HandleLibraryBuild(projectConfig);
+            return LibraryArtifact.Report(projectConfig);
           }
 
           AnsiConsole.MarkupLine("[bold green]Build finished successfully.[/]");
@@ -524,45 +524,6 @@ namespace forge.Commands
           AnsiConsole.MarkupLine("[bold red]Error:[/] Post-build script failed.");
           return 1;
         }
-      }
-
-      return 0;
-    }
-
-    private static int HandleLibraryBuild(ProjectConfig config)
-    {
-      var possiblePaths = new[]
-      {
-        "build/lib" + config.Project.Name + ".a",
-        "build/" + config.Project.Name + ".lib",
-        "build/lib" + config.Project.Name + ".so",
-        "build/" + config.Project.Name + ".dll"
-      };
-
-      string? foundPath = null;
-      foreach (var path in possiblePaths)
-      {
-        if (File.Exists(path))
-        {
-          foundPath = path;
-          break;
-        }
-      }
-
-      if (foundPath != null)
-      {
-        var fileInfo = new FileInfo(foundPath);
-        AnsiConsole.MarkupLine($"[green]Library built successfully![/]");
-        AnsiConsole.MarkupLine($"   Path: {foundPath}");
-        AnsiConsole.MarkupLine($"   Size: {fileInfo.Length / 1024.0:F2} KB");
-        AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[yellow]Note:[/] Libraries cannot be executed directly.");
-        AnsiConsole.MarkupLine($"[dim]To use this library, add it as a dependency in another project or include headers from src/[/]");
-      }
-      else
-      {
-        AnsiConsole.MarkupLine($"[bold red]Error:[/] Library output not found in build/ directory.");
-        AnsiConsole.MarkupLine($"[dim]Expected: {string.Join(", ", possiblePaths)}[/]");
       }
 
       return 0;

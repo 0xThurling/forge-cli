@@ -93,6 +93,21 @@ LUA
   fi
   assert_runs "$ws/app/build/demoapp" "42" "the app links against both libraries"
 
+  # Invoking the CLI by name — as it is installed on PATH — must self-invoke
+  # the same binary: the workspace runner re-runs `forge` for every project,
+  # and argv[0] is just "forge", so it must not be resolved against the
+  # current directory.
+  local host="$REPO/bin/Release/net10.0"
+  if [[ -x "$host/forge" ]]; then
+    if (cd "$ws" && PATH="$host:$PATH" forge workspace build demoapp >/dev/null 2>&1); then
+      pass "the workspace builds when the CLI is invoked by name"
+    else
+      fail "the workspace builds when the CLI is invoked by name"
+    fi
+  else
+    skip "the dev apphost is not built"
+  fi
+
   # Selecting a project pulls in what it depends on (and the name is matched
   # case-insensitively, so the CLI spelling does not have to match forge.lua).
   out="$(forge_in "$ws" workspace build DemoApp --dry-run 2>&1 || true)"
