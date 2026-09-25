@@ -32,7 +32,7 @@ public class TestingSection : CMakeSectionBase
       AppendTestTarget(block, context);
 
     if (config.Benchmark)
-      AppendBenchmarkTarget(block, config);
+      AppendBenchmarkTarget(block, config, context);
 
     if (block.Length == 0)
       return string.Empty;
@@ -110,17 +110,10 @@ public class TestingSection : CMakeSectionBase
       _ => ("GTest::gtest_main", GoogleTestWiring(config), "gtest_discover_tests(${PROJECT_NAME}_tests)"),
     };
 
-    // Project dependencies the tests also link (excluding the test framework).
+    // The framework, the project's dependencies (the same set the project
+    // target links) and its extra libraries.
     var testDeps = new List<string> { frameworkTarget };
-    foreach (var dep in config.Dependencies)
-    {
-      if (dep.Key != "googletest")
-        testDeps.Add(string.IsNullOrEmpty(dep.Value.Target) ? dep.Key : dep.Value.Target);
-    }
-    testDeps.AddRange(context.LinkDependencies);
-
-    // Extra libraries of the project are part of it, so the tests link them too
-    // (extra executables are programs, not libraries).
+    testDeps.AddRange(LinkTargets.For(config, context));
     foreach (var target in config.Targets.Where(target => target.Type == "library"))
       testDeps.Add(target.Name);
 
@@ -144,7 +137,8 @@ public class TestingSection : CMakeSectionBase
     sb.AppendLine(discovery);
   }
 
-  private static void AppendBenchmarkTarget(StringBuilder sb, ProjectConfig config)
+  private static void AppendBenchmarkTarget(StringBuilder sb, ProjectConfig config,
+    BuildContext context)
   {
     sb.AppendLine();
     sb.AppendLine("# --- Benchmarks ---");
@@ -152,13 +146,27 @@ public class TestingSection : CMakeSectionBase
     sb.AppendLine("  GIT_REPOSITORY \"https://github.com/google/benchmark.git\"");
     sb.AppendLine("  GIT_TAG \"v1.8.3\")");
     sb.AppendLine("set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL \"\" FORCE)");
+    // The framework's own -Werror is not the project's: it makes sanitizer
+    // builds fail inside libstdc++ headers (a known false positive in <regex>).
+    sb.AppendLine("set(BENCHMARK_ENABLE_WERROR OFF CACHE BOOL \"\" FORCE)");
     sb.AppendLine("FetchContent_MakeAvailable(googlebenchmark)");
     sb.AppendLine();
     sb.AppendLine("file(GLOB_RECURSE BENCH_SOURCES \"${PROJECT_SOURCE_DIR}/bench/*.cpp\")");
     sb.AppendLine("if(BENCH_SOURCES)");
     sb.AppendLine("  add_executable(${PROJECT_NAME}_bench ${BENCH_SOURCES})");
     ProjectTargetSection.AppendModuleFileSet(sb, config, "${PROJECT_NAME}_bench", ["src", "bench"]);
-    sb.AppendLine("  target_link_libraries(${PROJECT_NAME}_bench PRIVATE benchmark::benchmark)");
+
+    // A benchmark of a library exercises its code, so it links the project
+    // target and the same dependencies the tests link. An executable project's
+    // target cannot be linked, so its benchmark has to be self-contained.
+    var benchDeps = new List<string> { "benchmark::benchmark" };
+    if (config.Project.Type == "library")
+      benchDeps.Add("${PROJECT_NAME}");
+    benchDeps.AddRange(LinkTargets.For(config, context));
+    foreach (var target in config.Targets.Where(target => target.Type == "library"))
+      benchDeps.Add(target.Name);
+
+    sb.AppendLine($"  target_link_libraries(${{PROJECT_NAME}}_bench PRIVATE {string.Join(" ", benchDeps)})");
     sb.AppendLine("  target_include_directories(${PROJECT_NAME}_bench PRIVATE");
     sb.AppendLine("    ${PROJECT_SOURCE_DIR}/src");
     sb.AppendLine("    ${PROJECT_SOURCE_DIR}/include)");
