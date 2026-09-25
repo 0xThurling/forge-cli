@@ -12,6 +12,7 @@ namespace forge.Commands
   /// forge add fmt --conan 10.2.1
   /// forge add sdl --git https://github.com/libsdl-org/SDL.git --tag release-2.32.10 --target SDL2::SDL2
   /// forge add forgefp --path ../fp --target forgefp
+  /// forge add forgefp --path ../fp --target forgefp --export-package forgefp --export-target forgefp::forgefp
   /// </code>
   /// </example>
   [CliCommand(Name = "add", Description = "Add or update a dependency in forge.lua.", Parent = typeof(RootCommand))]
@@ -41,6 +42,12 @@ namespace forge.Commands
     [CliOption(Description = "CMake target to link (defaults to the name)", Required = false)]
     public string? Target { get; set; }
 
+    [CliOption(Description = "CMake package to find_dependency() for installed consumers", Required = false)]
+    public string? ExportPackage { get; set; }
+
+    [CliOption(Description = "Imported target that package provides (e.g. fmt::fmt)", Required = false)]
+    public string? ExportTarget { get; set; }
+
     public async Task<int> RunAsync()
     {
       var config = await ProjectConfigManager.LoadConfigAsync();
@@ -63,6 +70,14 @@ namespace forge.Commands
       if (Git is not null && string.IsNullOrWhiteSpace(Tag))
       {
         AnsiConsole.MarkupLine("[bold red]Error:[/] `--git` needs `--tag <ref>` (a branch, tag or commit).");
+        return 1;
+      }
+
+      if ((ExportPackage is null) != (ExportTarget is null))
+      {
+        AnsiConsole.MarkupLine(
+          "[bold red]Error:[/] `--export-package` and `--export-target` go together " +
+          "(the package to find and the target it provides).");
         return 1;
       }
 
@@ -112,7 +127,9 @@ namespace forge.Commands
           Git = Git ?? string.Empty,
           Tag = Tag ?? string.Empty,
           Path = Path ?? string.Empty,
-          Target = Target ?? string.Empty
+          Target = Target ?? string.Empty,
+          ExportPackage = ExportPackage ?? string.Empty,
+          ExportTarget = ExportTarget ?? string.Empty
         };
         ProjectConfigManager.SaveConfig(config);
         var source = Path is not null ? $"path {Path}" : $"git {Git} @ {Tag}";

@@ -109,6 +109,7 @@ forge project dependencies --json
 | `tag` | string | `"10.2.1"`, `"main"`, `"a1b2c3d"` | tag, branch or commit to fetch |
 | `path` | string | `"../fp"` | local directory instead of `git` |
 | `target` | string | `"fmt::fmt"` | CMake target to link; defaults to the key |
+| `export` | table | `{ package = "forgefp", target = "forgefp::forgefp" }` | travel with an installed package (below) |
 | `options` | table | `{ FMT_TEST = "OFF" }` | CMake cache variables for the dependency |
 
 Each field on its own:
@@ -141,6 +142,34 @@ and ignored rather than put on the link line:
 Warning: dependency `broken` has no source — give it `git` with `tag`, or `path`. Ignoring it.
 Warning: `dependencies.direct.direct` looks like an extra nesting level — dependencies belong directly under `direct`. Ignoring it.
 ```
+
+## Installed packages and their dependencies
+
+A library installs a CMake package, and that package cannot point at targets
+that only exist in this build. For a dependency that is installable itself, say
+how consumers find it:
+
+```lua
+direct = {
+  forgefp = { path = "../fp", target = "forgefp",
+              export = { package = "forgefp", target = "forgefp::forgefp" } },
+}
+```
+
+The generated `<project>Config.cmake` then calls `find_dependency(forgefp)`
+before loading the targets, and the installed interface links
+`forgefp::forgefp` instead of the build-tree target — a consumer only has to
+`find_package(<project>)`.
+
+Without `export`, a dependency stays in the build tree: the installed package
+cannot reference it, and the build says so.
+
+```text
+Warning: forgefp is not exported by this project: the installed package will not propagate it.
+```
+
+`export` applies to direct (`git`/`path`) dependencies. Conan, vcpkg and
+pkg-config packages are resolved by the consumer's own toolchain.
 
 ## Git dependencies
 

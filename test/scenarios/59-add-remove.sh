@@ -53,6 +53,16 @@ CMAKE
   assert_exit 1 "add with two sources fails" \
     forge_in "$app" add twosources --git "file://$repo" --tag v1 --conan 1.0.0
 
+  # --- export metadata ------------------------------------------------------
+  assert_exit 0 "add with export metadata" \
+    forge_in "$app" add localdep --path local --target localdep \
+      --export-package localdep --export-target localdep::localdep
+  assert_contains "$app/forge.lua" 'package = "localdep"' "the export package is written"
+  assert_contains "$app/forge.lua" 'target = "localdep::localdep"' "the export target is written"
+  assert_exit 1 "add with only --export-package fails" \
+    forge_in "$app" add half --path local --export-package localdep
+  assert_lacks "$app/forge.lua" "half = {" "the incomplete export is not added"
+
   # --- lock -----------------------------------------------------------------
   forge_in "$app" install >/dev/null 2>&1 || true
   assert_contains "$app/forge.lock" '"gitdep"' "the added git dependency is locked"

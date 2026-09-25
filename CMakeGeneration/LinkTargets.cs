@@ -14,6 +14,31 @@ internal static class LinkTargets
 {
   public static List<string> For(ProjectConfig config, BuildContext context)
   {
+    var targets = new List<string>(Fetched(config));
+
+    // From Conan
+    targets.AddRange(context.LinkDependencies);
+
+    // From pkg-config: the imported target pkg_check_modules creates.
+    foreach (var module in config.PkgConfigDependencies)
+      targets.Add(Sections.PkgConfigSection.TargetFor(module));
+
+    // From vcpkg: the declared target (vcpkg cannot be queried for them
+    // without running it, so they are explicit).
+    foreach (var (name, dependency) in config.VcpkgDependencies)
+      targets.Add(dependency.Target.Length > 0 ? dependency.Target : name);
+
+    return targets;
+  }
+
+  /// <summary>
+  /// The targets built in this tree by FetchContent: direct git and path
+  /// dependencies. Unlike the imported targets Conan, vcpkg and pkg-config
+  /// contribute, they are in no export set, so an exported interface must not
+  /// reference them directly.
+  /// </summary>
+  public static List<string> Fetched(ProjectConfig config)
+  {
     var targets = new List<string>();
 
     foreach (var dep in config.Dependencies)
@@ -30,17 +55,26 @@ internal static class LinkTargets
       targets.Add(string.IsNullOrEmpty(dep.Value.Target) ? dep.Key : dep.Value.Target);
     }
 
-    // From Conan
-    targets.AddRange(context.LinkDependencies);
+    return targets;
+  }
 
-    // From pkg-config: the imported target pkg_check_modules creates.
-    foreach (var module in config.PkgConfigDependencies)
-      targets.Add(Sections.PkgConfigSection.TargetFor(module));
+  /// <summary>
+  /// Build-tree target to imported target for dependencies that declare export
+  /// metadata. The generated package calls <c>find_dependency()</c> for their
+  /// packages, so the installed interface can reference the imported targets.
+  /// </summary>
+  public static Dictionary<string, string> Exported(ProjectConfig config)
+  {
+    var targets = new Dictionary<string, string>(StringComparer.Ordinal);
 
-    // From vcpkg: the declared target (vcpkg cannot be queried for them
-    // without running it, so they are explicit).
-    foreach (var (name, dependency) in config.VcpkgDependencies)
-      targets.Add(dependency.Target.Length > 0 ? dependency.Target : name);
+    foreach (var (name, dependency) in config.Dependencies)
+    {
+      if (name == "googletest" || !dependency.IsExportable)
+        continue;
+
+      var buildTarget = string.IsNullOrEmpty(dependency.Target) ? name : dependency.Target;
+      targets[buildTarget] = dependency.ExportTarget;
+    }
 
     return targets;
   }

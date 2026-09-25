@@ -64,5 +64,32 @@ return {
 LUA
   assert_exit 1 "a missing module fails the build" forge_in "$root" build
 
+  # The test target compiles the sources itself, so it links the module too
+  # (generated with a stub cmake: the assertion is about the link line).
+  local lib="$root/lib"
+  local old_path="$PATH"
+  mkdir -p "$lib/src" "$lib/test" "$lib/bin"
+  cat >"$lib/forge.lua" <<'LUA'
+return {
+  project = { name = "demo_pkgconfig_lib", type = "library", standard = "20" },
+  dependencies = { direct = {}, conan = {}, pkgconfig = { "fakewidget" } },
+  resources = { files = {} },
+  scripts = {},
+  features = {},
+  testing = true
+}
+LUA
+  printf 'int value() { return 1; }\n' >"$lib/src/lib.cpp"
+  printf '#include <gtest/gtest.h>\nTEST(Pkg, Value) { EXPECT_EQ(1, 1); }\n' \
+    >"$lib/test/pkg_test.cpp"
+  stub_tool "$lib/bin" cmake
+  export PATH="$lib/bin:$PATH"
+  forge_in "$lib" build >/dev/null 2>&1 || true
+  export PATH="$old_path"
+
+  assert_contains "$lib/.config/cmake/CMakeLists.txt" \
+    "target_link_libraries(\${PROJECT_NAME}_tests PUBLIC GTest::gtest_main PkgConfig::FAKEWIDGET)" \
+    "the test target links the pkg-config module"
+
   export PKG_CONFIG_PATH="$old_pkg_config_path"
 }

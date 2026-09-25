@@ -44,7 +44,7 @@ lines have scrolled away by the time a long run is read from its tail.
 | `40-doctor-layout` | doctor on a broken layout: missing/optional directories |
 | `41-dependencies` | dependency listing across git, `path` and Conan |
 | `44-run-command` | `forge run` (no args, library, unknown script) |
-| `46-target-defaults` | dependency without `target`, source-less library, two channels |
+| `46-target-defaults` | dependency without `target`, source-less library, exported header-only library, two channels |
 | `47-build-hooks` | pre/post-build scripts, and a failing pre-build |
 | `48-cli-surface` | `--version`, `--help`, no args, unknown command, bare parents |
 | `49-subdir-build` | building from a subdirectory; nested build dirs excluded |
@@ -65,7 +65,7 @@ lines have scrolled away by the time a long run is read from its tail.
 | `13-git-dep` | git dependency fetches (local `file://`) and links |
 | `17-build-flags` | `--standard`, `--release`/`--debug`, `--preset`, `--no-config-presets` |
 | `18-features` | `features` table/scalar forms, options, `has_feature`/`get_feature_option` |
-| `19-target-linkage` | static/shared libraries, `install_headers`, `cmake_policy_version` |
+| `19-target-linkage` | static/shared libraries, `install_headers`, `cmake_policy_version`, a build-only dependency |
 | `28-presets` | flag presets + raw flags |
 | `36-conan` | the whole Conan path via a stub `conan`: conanfile contents, the exact `conan install` arguments, parsing `find_package`/`target_link_libraries` into the generated CMake, the conan toolchain being read by CMake, a failing conan, `install --prefix` |
 

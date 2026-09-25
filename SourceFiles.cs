@@ -107,6 +107,25 @@ internal static class SourceFiles
   }
 
   /// <summary>
+  /// True when <paramref name="root"/>'s <c>src/</c> holds a <c>.cpp</c> file,
+  /// skipping build directories — the condition the generated CMake's
+  /// <c>SOURCES</c> glob evaluates. A library with none is created as an
+  /// INTERFACE target and produces no artifact.
+  /// </summary>
+  public static bool HasSources(string root = ".")
+  {
+    var source = Path.Combine(root, "src");
+    if (!Directory.Exists(source))
+      return false;
+
+    return Directory
+      .EnumerateFiles(source, "*", SearchOption.AllDirectories)
+      .Where(file => !file.Split(Path.DirectorySeparatorChar)
+        .Any(part => part is "build" or "CMakeFiles" || part.StartsWith("build-")))
+      .Any(file => Path.GetExtension(file).Equals(".cpp", StringComparison.OrdinalIgnoreCase));
+  }
+
+  /// <summary>
   /// The entries a project's `.gitignore` needs for files Forge and the build
   /// generate. Committing them only produces churn (and the paths differ per
   /// machine for the compile database).

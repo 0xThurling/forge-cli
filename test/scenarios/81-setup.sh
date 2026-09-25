@@ -3,6 +3,12 @@
 scenario_81_setup() {
   local out flat
 
+  # A developer's ~/.local/bin can hold tools an earlier `setup --install` run
+  # put there for real (conan). The path-sensitive checks below need a PATH
+  # under the suite's control, so it is hidden for them.
+  local bare_path
+  bare_path="$(tr ':' '\n' <<<"$PATH" | grep -vxF "$HOME/.local/bin" | paste -sd: -)"
+
   # --- the check ------------------------------------------------------------
   if out="$(forge setup --tools cmake,git 2>&1)"; then
     pass "present required tools exit 0"
@@ -50,7 +56,7 @@ scenario_81_setup() {
   printf '#!/usr/bin/env bash\nexit 0\n' >"$fake_home/.local/bin/conan"
   chmod +x "$fake_home/.local/bin/conan"
 
-  out="$(HOME="$fake_home" forge_in "$pathless" setup 2>&1 || true)"
+  out="$(PATH="$bare_path" HOME="$fake_home" forge_in "$pathless" setup 2>&1 || true)"
   flat="$(flatten <<<"$out")"
   if grep -qF "not on PATH" <<<"$flat" && grep -qF "pipx ensurepath" <<<"$flat"; then
     pass "a tool off PATH is reported with its fix"
@@ -61,19 +67,21 @@ scenario_81_setup() {
   # `--install` writes the fix into the shell profile, once.
   local installer="$WORK/81-setup/installer"
   local installer_home="$installer/home"
-  mkdir -p "$installer/src" "$installer_home/.local/bin"
+  mkdir -p "$installer/src" "$installer_home/.local/bin" "$installer/bin"
   make_plain_project "$installer" demo_installer
   printf '#!/usr/bin/env bash\nexit 0\n' >"$installer_home/.local/bin/conan"
   chmod +x "$installer_home/.local/bin/conan"
+  # `pipx` is stubbed: the install plan is exercised, nothing is installed.
+  stub_tool "$installer/bin" pipx
 
-  HOME="$installer_home" SHELL=/bin/bash forge_in "$installer" setup --install --yes --tools conan >/dev/null 2>&1 || true
+  PATH="$installer/bin:$bare_path" HOME="$installer_home" SHELL=/bin/bash forge_in "$installer" setup --install --yes --tools conan >/dev/null 2>&1 || true
   if grep -qF '.local/bin:$PATH' "$installer_home/.bashrc" 2>/dev/null; then
     pass "--install adds the missing PATH entry to the shell profile"
   else
     fail "--install adds the missing PATH entry to the shell profile"
   fi
 
-  HOME="$installer_home" SHELL=/bin/bash forge_in "$installer" setup --install --yes --tools conan >/dev/null 2>&1 || true
+  PATH="$installer/bin:$bare_path" HOME="$installer_home" SHELL=/bin/bash forge_in "$installer" setup --install --yes --tools conan >/dev/null 2>&1 || true
   local lines
   lines="$(grep -c 'export PATH' "$installer_home/.bashrc" 2>/dev/null || true)"
   if [[ "$lines" == "1" ]]; then
@@ -91,7 +99,7 @@ scenario_81_setup() {
   local broken_proj="$WORK/81-setup/broken-proj"
   mkdir -p "$broken_proj/src"
   make_plain_project "$broken_proj" demo_broken
-  out="$(HOME="$broken_home" forge_in "$broken_proj" setup 2>&1 || true)"
+  out="$(PATH="$bare_path" HOME="$broken_home" forge_in "$broken_proj" setup 2>&1 || true)"
   flat="$(flatten <<<"$out")"
   if grep -qF "does not exist" <<<"$flat" && grep -qF "pipx install --force conan" <<<"$flat"; then
     pass "a broken tool link is reported with its fix"
@@ -208,7 +216,7 @@ LUA
   # Where the archive has no Conan 2 (Arch) or only 1.x (Debian/Ubuntu), the
   # plan goes through pipx — verified against the detected package manager.
   local manager
-  manager="$(forge setup --json --tools cmake 2>/dev/null |
+  manager="$(PATH="$bare_path" forge_in "$WORK/81-setup" setup --json --tools cmake 2>/dev/null |
     python3 -c "import json,sys; print(json.load(sys.stdin)[0]['packageManager'])" 2>/dev/null || true)"
   case "$manager" in
     pacman | apt-get)
@@ -216,7 +224,7 @@ LUA
       # machine would get.
       local empty_home="$WORK/81-setup/empty-home"
       mkdir -p "$empty_home"
-      out="$(HOME="$empty_home" forge setup --install --dry-run --tools conan 2>&1 || true)"
+      out="$(PATH="$bare_path" HOME="$empty_home" forge_in "$WORK/81-setup" setup --install --dry-run --tools conan 2>&1 || true)"
       if grep -qF "pipx install conan" <<<"$(flatten <<<"$out")"; then
         pass "conan goes through pipx on $manager"
       else

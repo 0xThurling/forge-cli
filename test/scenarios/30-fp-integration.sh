@@ -13,6 +13,15 @@ scenario_30_fp_integration() {
   before_list="$(git -C "$fp" status --porcelain | sort)"
   before="$(grep -c . <<<"$before_list" || true)"
 
+  # The suite points FORGE_CACHE_DIR at its scratch workspace, and the cache
+  # path is baked into the generated CMake, so that one tracked file always
+  # differs after a build. It is restored at the end.
+  local generated="$fp/.config/cmake/CMakeLists.txt"
+  local generated_backup="$WORK/fp-cmake-backup.txt"
+  if [[ -f "$generated" ]]; then
+    cp "$generated" "$generated_backup"
+  fi
+
   if ! forge_in "$fp" build >/dev/null 2>&1; then
     fail "forge build on fp"
     return
@@ -41,8 +50,8 @@ scenario_30_fp_integration() {
   fi
 
   # The build must not dirty the checkout beyond its own artifacts. Mirroring a
-  # *new* header legitimately adds a file under include/, so additions there are
-  # expected — anything else is not.
+  # *new* header legitimately adds a file under include/, and the generated
+  # CMake carries the scratch dependency-cache path — anything else is not.
   local after_list after new_entries unexpected
   after_list="$(git -C "$fp" status --porcelain | sort)"
   after="$(grep -c . <<<"$after_list" || true)"
@@ -53,11 +62,17 @@ scenario_30_fp_integration() {
   elif [[ -z "$new_entries" ]]; then
     pass "fp git status unchanged in substance ($before entries)"
   else
-    unexpected="$(awk '{print $2}' <<<"$new_entries" | grep -v '^include/' || true)"
+    unexpected="$(awk '{print $2}' <<<"$new_entries" | grep -v -e '^include/' -e '^\.config/cmake/CMakeLists\.txt$' || true)"
     if [[ -z "$unexpected" ]]; then
       pass "fp git status grew only by mirrored headers ($before -> $after)"
     else
       fail "the build added unexpected entries ($(flatten <<<"$unexpected"))"
     fi
+  fi
+
+  # Leave the checkout as it was found.
+  if [[ -f "$generated_backup" ]]; then
+    cp "$generated_backup" "$generated"
+    rm -f "$generated_backup"
   fi
 }

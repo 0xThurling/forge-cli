@@ -120,8 +120,34 @@ LUA
 
   cmake="$bench/.config/cmake/CMakeLists.txt"
   assert_contains "$cmake" "FetchContent_Declare(googlebenchmark" "google benchmark fetched"
+  assert_contains "$cmake" "BENCHMARK_ENABLE_WERROR OFF" "the framework's -Werror is disabled"
   assert_contains "$cmake" "add_executable(\${PROJECT_NAME}_bench" "bench target emitted"
   assert_contains "$cmake" "benchmark::benchmark" "bench target linked"
+
+  # A library's benchmark links the project target and its dependencies, so it
+  # can exercise the code; an executable's target cannot be linked.
+  local lib="$base/lib-bench"
+  mkdir -p "$lib/src" "$lib/bench"
+  cat >"$lib/forge.lua" <<'LUA'
+return {
+  project = { name = "demo_lib", type = "library", standard = "20" },
+  dependencies = { direct = {}, conan = {} },
+  resources = { files = {} },
+  scripts = {},
+  features = {},
+  testing = { benchmark = true }
+}
+LUA
+  printf 'int value() { return 1; }\n' >"$lib/src/lib.cpp"
+  printf '// google benchmark source\n' >"$lib/bench/bench.cpp"
+
+  export PATH="$bbin:$PATH"
+  forge_in "$lib" build >/dev/null 2>&1 || true
+  export PATH="$old_path"
+
+  assert_contains "$lib/.config/cmake/CMakeLists.txt" \
+    "target_link_libraries(\${PROJECT_NAME}_bench PRIVATE benchmark::benchmark \${PROJECT_NAME})" \
+    "a library's bench links the project target"
 
   # forge bench runs the built binary (the stub cmake leaves ours in place).
   mkdir -p "$bench/build"
