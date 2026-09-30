@@ -11,7 +11,7 @@ return {
     project = {
         name = "my-project",
         type = "executable", -- or "library"
-        standard = "20",     -- C++ standard (11, 14, 17, 20)
+        standard = "23",     -- C++ standard (11, 14, 17, 20, 23)
     },
     dependencies = {
         direct = {
@@ -39,7 +39,7 @@ Contains metadata about your project.
 
 - `name` (string): The name of your project. Used for the executable/library name.
 - `type` (string): Either `"executable"` or `"library"`.
-- `standard` (string): The C++ standard to use (e.g., `"17"`, `"20"`). Defaults to `"20"`.
+- `standard` (string): The C++ standard to use (e.g., `"17"`, `"20"`, `"23"`). Defaults to `"23"`.
 - `cmake_policy_version` (string): (Optional) The minimum CMake policy version to use (e.g., `"3.5"`). Forge automatically detects your CMake version and applies a compatibility policy (defaulting to `"3.5"`) if you are using CMake 4.0 or newer. Use this field to override the default.
 - `linkage` (string): (Optional) For libraries, specifies linkage.
 - `version` (string): Project version, used by `project(... VERSION ...)`,

@@ -49,7 +49,7 @@ namespace forge.Commands
     /// Gets or sets the C++ standard version to use for building tests.
     /// </summary>
     /// <value>
-    /// Valid values: "11", "14", "17", "20". Defaults to "20".
+    /// Valid values: "11", "14", "17", "20", "23". Defaults to "23".
     /// </value>
     /// <summary>Parallel build jobs, forwarded to the build step.</summary>
     [CliOption(Description = "Parallel build jobs (default: all cores)", Required = false)]
@@ -59,7 +59,7 @@ namespace forge.Commands
     /// Overrides the project's C++ standard for this invocation. Null when the
     /// flag was not given, so the configured standard wins.
     /// </summary>
-    [CliOption(Description = "C++ standard to use (e.g., 11, 14, 17, 20). Defaults to the configured standard.", Required = false)]
+    [CliOption(Description = "C++ standard to use (e.g., 11, 14, 17, 20, 23). Defaults to the configured standard.", Required = false)]
     public string? Standard { get; set; }
 
     /// <summary>Production preset (-O3 -DNDEBUG) regardless of forge.lua.</summary>

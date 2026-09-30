@@ -21,7 +21,7 @@ the conflict instead of silently picking one.
 -- forge.lua
 return {
   project = {
-    name = "app", type = "executable", standard = "20", version = "0.1.0",
+    name = "app", type = "executable", standard = "23", version = "0.1.0",
   },
   dependencies = {
     direct = {

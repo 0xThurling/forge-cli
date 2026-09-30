@@ -61,7 +61,7 @@ namespace forge.Commands
     public int? Jobs { get; set; }
 
     /// <summary>Overrides the project's C++ standard for this invocation.</summary>
-    [CliOption(Description = "C++ standard to use (e.g., 11, 14, 17, 20). Defaults to the configured standard.", Required = false)]
+    [CliOption(Description = "C++ standard to use (e.g., 11, 14, 17, 20, 23). Defaults to the configured standard.", Required = false)]
     public string? Standard { get; set; }
 
     /// <summary>Extra presets for a quick build (comma-separated).</summary>

@@ -59,7 +59,7 @@ namespace forge.Models
     public string Contact { get; set; } = string.Empty;
 
     ///
-    public string Standard { get; set; } = "20";
+    public string Standard { get; set; } = "23";
 
     /// <summary>
     /// Gets or sets the minimum CMake policy version to use.

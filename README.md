@@ -56,7 +56,7 @@ return {
   project = {
     name = "my_app",
     type = "executable",
-    standard = "20"
+    standard = "23"
   },
   dependencies = {
     direct = {

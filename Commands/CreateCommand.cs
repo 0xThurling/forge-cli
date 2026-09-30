@@ -44,8 +44,8 @@ namespace forge.Commands
     [CliOption(Description = "Type of project to create (executable or library).")]
     public string Type { get; set; } = "executable";
 
-    [CliOption(Description = "C++ standard (default: 20)", Required = false)]
-    public string Standard { get; set; } = "20";
+    [CliOption(Description = "C++ standard (default: 23)", Required = false)]
+    public string Standard { get; set; } = "23";
 
     [CliOption(Description = "Enable the test target", Required = false)]
     public bool Testing { get; set; }

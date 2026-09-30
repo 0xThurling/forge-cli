@@ -13,10 +13,10 @@ scenario_17_build_flags() {
   forge_in "$root" build >/dev/null 2>&1 || true
   assert_contains "$cmake" "set(CMAKE_CXX_STANDARD 14)" "configured standard wins"
 
-  # A config without `standard` still emits the 20 default.
+  # A config without `standard` still emits the 23 default.
   sed_in_place 's/, standard = "14"//' "$root/forge.lua"
   forge_in "$root" build >/dev/null 2>&1 || true
-  assert_contains "$cmake" "set(CMAKE_CXX_STANDARD 20)" "default standard emitted"
+  assert_contains "$cmake" "set(CMAKE_CXX_STANDARD 23)" "default standard emitted"
 
   # --release / --debug choose CMAKE_BUILD_TYPE.
   forge_in "$root" build --release >/dev/null 2>&1 || true

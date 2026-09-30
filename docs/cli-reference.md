@@ -21,7 +21,7 @@ Creates a new Forge project.
 
 - `<Name>`: The name of the project.
 - `--type <type>`: Type of project to create (`executable` or `library`). Defaults to `executable`.
-- `--standard <std>`: C++ standard to write into `forge.lua` (default `20`).
+- `--standard <std>`: C++ standard to write into `forge.lua` (default `23`).
 - `--testing`: enable the test target (`testing = true`).
 
 The new project gets a `.gitignore` that covers what Forge and the build
@@ -38,7 +38,7 @@ forge create MyProject --type library
 ### `init`
 Sets up a Forge project in the **current** directory, keeping what is there.
 
-**Usage:** `forge init [--name <name>] [--type executable|library] [--standard 20] [--testing]`
+**Usage:** `forge init [--name <name>] [--type executable|library] [--standard 23] [--testing]`
 
 Where `create` makes a new directory, `init` adopts an existing one — an empty
 folder or a checkout that already has sources. It writes the layout, a
@@ -269,8 +269,8 @@ Generates CMake files and builds the project.
 **Usage:** `forge build [options]`
 
 - `--verbose`: Show verbose output from CMake.
-- `--standard <version>`: C++ standard for this invocation (11, 14, 17, 20).
-  Without it the standard from `forge.lua` is used (default 20).
+- `--standard <version>`: C++ standard for this invocation (11, 14, 17, 20, 23).
+  Without it the standard from `forge.lua` is used (default 23).
 - `--release` / `--debug`: Force the CMake build type.
 - `--preset <names>`: Comma-separated build-flag presets for this invocation
   (e.g. `--preset asan,concurrency`). Adds to the `build.presets` list.
